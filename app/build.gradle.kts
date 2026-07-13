@@ -32,7 +32,7 @@ android {
     namespace = "eu.kanade.tachiyomi"
 
     defaultConfig {
-        applicationId = "app.chimahon"
+        applicationId = "app.chimahon.custom"
 
         versionCode = releaseVersionCode ?: 3
         versionName = releaseVersionName ?: "1.1.0"
