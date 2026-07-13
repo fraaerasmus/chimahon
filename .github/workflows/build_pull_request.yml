@@ -48,11 +48,14 @@ jobs:
 
       - name: Write client_secrets.json
         if: github.repository == github.event.pull_request.head.repo.full_name
-        uses: DamianReeves/write-file-action@6929a9a6d1807689191dcc8bbe62b54d70a32b42 # v1.3
-        with:
-          path: app/src/main/assets/client_secrets.json
-          contents: ${{ secrets.GOOGLE_CLIENT_SECRETS_JSON }}
-          write-mode: overwrite
+        env:
+          GOOGLE_CLIENT_SECRETS_JSON: ${{ secrets.GOOGLE_CLIENT_SECRETS_JSON }}
+        run: |
+          if [ -n "$GOOGLE_CLIENT_SECRETS_JSON" ]; then
+            printf '%s' "$GOOGLE_CLIENT_SECRETS_JSON" > app/src/main/assets/client_secrets.json
+          else
+            echo "GOOGLE_CLIENT_SECRETS_JSON not set; skipping (Google-account features disabled in this build)"
+          fi
 
       - name: Set up gradle
         uses: gradle/actions/setup-gradle@f29f5a9d7b09a7c6b29859002d29d24e1674c884 # v5
