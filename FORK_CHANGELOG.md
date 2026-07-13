@@ -1,4 +1,4 @@
-# Chimahon Custom — Fork Changelog
+# Chimahon Custom: Fork Changelog
 
 Living summary of what this fork changes relative to upstream
 ([sohilsayed/chimahon](https://github.com/sohilsayed/chimahon)). Per-build notes live on

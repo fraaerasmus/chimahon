@@ -1,4 +1,4 @@
-# Chimahon Custom — Fork Overview
+# Chimahon Custom: Fork Overview
 
 Chimahon Custom is an identity-separated, upstream-tracking fork of
 [sohilsayed/chimahon](https://github.com/sohilsayed/chimahon), maintained at
@@ -26,7 +26,7 @@ Signing: our own keystore (never upstream's), applied in CI via repo secrets
 
 ## Deliberately NOT changed
 
-- Internal package names / `namespace = "eu.kanade.tachiyomi"` — renaming buys nothing
+- Internal package names / `namespace = "eu.kanade.tachiyomi"`: renaming buys nothing
   and costs every merge.
 - OCR model downloads still pull from `sohilsayed/chimahon-local-models`
   (`app/.../data/ocr/ModelDownloader.kt`). Fork that repo only if it disappears or we
@@ -34,7 +34,7 @@ Signing: our own keystore (never upstream's), applied in CI via repo secrets
 - User-Agent strings embedding the upstream repo URL (`MangabakaApi.kt`,
   `BangumiInterceptor.kt`).
 - Leftover `Komikku-*` artifact names in `build_pull_request.yml` / `build_benchmark.yml`.
-- `codeberg_mirror.yml` — inert here (guarded to `komikku-app/komikku`).
+- `codeberg_mirror.yml`, which is inert here (guarded to `komikku-app/komikku`).
 - `chimahon/src/main/cpp/hoshidicts` submodule still points at `Manhhao/hoshidicts`
   (third-party; no need to repoint).
 
