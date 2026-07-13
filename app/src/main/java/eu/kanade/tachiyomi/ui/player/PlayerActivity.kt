@@ -86,6 +86,7 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.ui.player.utils.safeResumePositionMillis
+import eu.kanade.tachiyomi.ui.youtube.YoutubeResolver
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
@@ -109,6 +110,7 @@ import tachiyomi.i18n.MR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -302,7 +304,10 @@ class PlayerActivity : BaseActivity() {
             videoUrl = uriString,
             videoTitle = title,
             initialized = true,
-            videoPageUrl = getStringExtra("youtube_page_url") ?: "",
+            // YouTube links shared from outside the in-app browser lack the extra; route them
+            // through the resolver too, since mpv can't open watch pages itself
+            videoPageUrl = getStringExtra("youtube_page_url")
+                ?: uriString.takeIf { YoutubeResolver.isYouTubeUrl(it) }.orEmpty(),
         )
     }
 
@@ -610,18 +615,24 @@ class PlayerActivity : BaseActivity() {
         val logLevel = if (networkPreferences.verboseLogging().get()) "info" else "warn"
 
         val configDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
-            storageManager.getMPVConfigDirectory()!!.filePath!!
+            // filePath is null for non-filesystem SAF storage; fall back instead of crashing
+            storageManager.getMPVConfigDirectory()?.filePath ?: applicationContext.filesDir.path
         } else {
             applicationContext.filesDir.path
         }
 
         val mpvConfFile = File("$configDir/mpv.conf")
-        advancedPlayerPreferences.mpvConf().get().let { mpvConfFile.writeText(it) }
+        getUserPlayerConfig("mpv.conf", advancedPlayerPreferences.mpvConf().get()).let { mpvConfFile.writeText(it) }
         val mpvInputFile = File("$configDir/input.conf")
-        advancedPlayerPreferences.mpvInput().get().let { mpvInputFile.writeText(it) }
+        getUserPlayerConfig("input.conf", advancedPlayerPreferences.mpvInput().get()).let { mpvInputFile.writeText(it) }
 
         copyScripts()
         copyAssets(configDir)
+        if (configDir != applicationContext.filesDir.path) {
+            // tls-ca-file always points at filesDir (see AniyomiMPVView.initOptions),
+            // which differs from configDir when All Files Access is granted
+            copyAssets(applicationContext.filesDir.path, arrayOf("cacert.pem"))
+        }
         setupFontsDirectory()
 
         MPVLib.setOptionString("sub-ass-force-margins", "yes")
@@ -634,6 +645,21 @@ class PlayerActivity : BaseActivity() {
         )
         MPVLib.addLogObserver(playerObserver)
         MPVLib.addObserver(playerObserver)
+    }
+
+    /**
+     * The player settings editor edits files in [StorageManager.getMPVConfigDirectory], which mpv
+     * only reads directly when it is used as the config dir (requires All Files Access). Prefer
+     * those files so edits apply either way, falling back to the legacy preference content.
+     */
+    private fun getUserPlayerConfig(filename: String, fallback: String): String {
+        return runCatching {
+            storageManager.getMPVConfigDirectory()
+                ?.findFile(filename)
+                ?.openInputStream()
+                ?.bufferedReader()
+                ?.use { it.readText() }
+        }.getOrNull() ?: fallback
     }
 
     private fun copyScripts() {
@@ -677,9 +703,8 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private fun copyAssets(configDir: String) {
+    private fun copyAssets(configDir: String, files: Array<String> = arrayOf("subfont.ttf", "cacert.pem")) {
         val assetManager = this.assets
-        val files = arrayOf("subfont.ttf", "cacert.pem")
         for (filename in files) {
             var ins: InputStream? = null
             var out: OutputStream? = null
@@ -688,10 +713,16 @@ class PlayerActivity : BaseActivity() {
                 val outFile = File("$configDir/$filename")
                 // Note that .available() officially returns an *estimated* number of bytes available
                 // this is only true for generic streams, asset streams return the full file size
-                if (outFile.length() == ins.available().toLong()) {
+                // A restored or damaged file can match in size while being unreadable (e.g. after a
+                // device migration strips permissions), so also verify a byte can actually be read
+                val isIntact = outFile.length() == ins.available().toLong() &&
+                    runCatching { FileInputStream(outFile).use { it.read() } }.isSuccess
+                if (isIntact) {
                     logcat(LogPriority.VERBOSE) { "Skipping copy of asset file (exists same size): $filename" }
                     continue
                 }
+                // Delete first: an unreadable file may not be writable either
+                outFile.delete()
                 out = FileOutputStream(outFile)
                 ins.copyTo(out)
                 logcat(LogPriority.WARN) { "Copied asset file: $filename" }

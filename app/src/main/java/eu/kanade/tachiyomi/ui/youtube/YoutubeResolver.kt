@@ -148,6 +148,8 @@ class YoutubeResolver {
             }
         }
 
+        fun isYouTubeUrl(input: String): Boolean = extractVideoId(input) != null
+
         private fun extractVideoId(input: String): String? {
             val trimmed = input.trim()
             if (trimmed.isYouTubeVideoId()) return trimmed
