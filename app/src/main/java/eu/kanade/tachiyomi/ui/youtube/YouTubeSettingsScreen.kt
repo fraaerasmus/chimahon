@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import tachiyomi.i18n.ank.AMR
+import tachiyomi.presentation.core.i18n.stringResource
 
 class YouTubeSettingsScreen : Screen {
 
@@ -44,6 +46,9 @@ class YouTubeSettingsScreen : Screen {
         val context = LocalContext.current
         val preferences = remember { YouTubePreferences(context) }
         var selectedQuality by remember { mutableStateOf(preferences.preferredQuality) }
+        // Chimahon -->
+        var selectedStartPage by remember { mutableStateOf(preferences.preferredStartPage) }
+        // Chimahon <--
 
         Scaffold(
             topBar = {
@@ -67,6 +72,55 @@ class YouTubeSettingsScreen : Screen {
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
             ) {
+                // Chimahon -->
+                Text(
+                    text = stringResource(AMR.strings.youtube_start_page),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                YouTubePreferences.START_PAGES.forEach { startPage ->
+                    val label = when (startPage) {
+                        YouTubePreferences.START_PAGE_HISTORY -> {
+                            stringResource(AMR.strings.youtube_start_page_history)
+                        }
+                        else -> stringResource(AMR.strings.youtube_start_page_home)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                selectedStartPage = startPage
+                                preferences.preferredStartPage = startPage
+                            }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selectedStartPage == startPage,
+                            onClick = {
+                                selectedStartPage = startPage
+                                preferences.preferredStartPage = startPage
+                            },
+                        )
+                        Text(
+                            text = label,
+                            modifier = Modifier.padding(start = 12.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+
+                Text(
+                    text = stringResource(AMR.strings.youtube_start_page_summary),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+                // Chimahon <--
+
                 Text(
                     text = "Preferred Quality",
                     style = MaterialTheme.typography.titleMedium,

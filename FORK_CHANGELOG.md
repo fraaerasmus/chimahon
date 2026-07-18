@@ -14,9 +14,10 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - CI: the `client_secrets.json` step in `release.yml` / `build_pull_request.yml`
   tolerates a missing `GOOGLE_CLIENT_SECRETS_JSON` secret (upstream requires it;
   Google-account features are simply disabled in builds without it).
-- YouTube extension navigation (2026-07-18): an explicit close control exits to
-  Chimahon regardless of browser history, with separate reactive back and forward
-  controls while Android back remains history-first.
+- YouTube extension navigation (2026-07-18): minimizes with in-process browser
+  history retained, provides separate back, forward, and explicit session-exit
+  controls, and defaults fresh signed-in sessions to Watch history with a configurable
+  Home start page and signed-out fallback.
 - French dictionary lookup (2026-07-18): scans from word starts and across phrases,
   handles elisions such as `l'homme`, ranks lemma definitions first, highlights the
   full matched selection, and formats Yomitan deinflection glossaries consistently

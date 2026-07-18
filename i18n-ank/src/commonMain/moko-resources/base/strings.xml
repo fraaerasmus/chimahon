@@ -232,5 +232,13 @@
     <string name="action_start_download_internally">Use internal downloader</string>
     <string name="action_start_download_externally">Use external downloader</string>
 
+    <!-- YouTube -->
+    <string name="youtube_browser_minimize">Minimize YouTube browser</string>
+    <string name="youtube_browser_exit">Exit YouTube browser</string>
+    <string name="youtube_start_page">Start page</string>
+    <string name="youtube_start_page_home">Home</string>
+    <string name="youtube_start_page_history">Watch history</string>
+    <string name="youtube_start_page_summary">Used for a new browser session. Minimized sessions resume where you left off.</string>
+
     <string name="season_settings_updated">Updated default season settings</string>
 </resources>

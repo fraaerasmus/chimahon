@@ -14,6 +14,14 @@ class YouTubePreferences(context: Context) {
             ?: DEFAULT_QUALITY
         set(value) = prefs.edit().putString(KEY_QUALITY, value).apply()
 
+    // Chimahon -->
+    var preferredStartPage: String
+        get() = prefs.getString(KEY_START_PAGE, DEFAULT_START_PAGE)
+            ?.takeIf { it in START_PAGES }
+            ?: DEFAULT_START_PAGE
+        set(value) = prefs.edit().putString(KEY_START_PAGE, value).apply()
+    // Chimahon <--
+
     companion object {
         const val KEY_QUALITY = "preferred_quality"
         const val QUALITY_2160P = "2160p"
@@ -32,5 +40,17 @@ class YouTubePreferences(context: Context) {
             QUALITY_480P,
             QUALITY_360P,
         )
+
+        // Chimahon -->
+        const val KEY_START_PAGE = "preferred_start_page"
+        const val START_PAGE_HOME = "home"
+        const val START_PAGE_HISTORY = "history"
+        const val DEFAULT_START_PAGE = START_PAGE_HISTORY
+
+        val START_PAGES = listOf(
+            START_PAGE_HOME,
+            START_PAGE_HISTORY,
+        )
+        // Chimahon <--
     }
 }
