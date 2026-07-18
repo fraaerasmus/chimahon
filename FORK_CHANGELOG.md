@@ -14,3 +14,6 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - CI: the `client_secrets.json` step in `release.yml` / `build_pull_request.yml`
   tolerates a missing `GOOGLE_CLIENT_SECRETS_JSON` secret (upstream requires it;
   Google-account features are simply disabled in builds without it).
+- YouTube extension navigation (2026-07-18): an explicit close control exits to
+  Chimahon regardless of browser history, with separate reactive back and forward
+  controls while Android back remains history-first.

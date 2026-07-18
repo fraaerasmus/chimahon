@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,6 +47,8 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
+import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.i18n.stringResource
 
 class YouTubeBrowserScreen : Screen {
 
@@ -62,8 +66,29 @@ class YouTubeBrowserScreen : Screen {
         var isLoading by remember { mutableStateOf(true) }
         var title by remember { mutableStateOf("YouTube") }
         var webView by remember { mutableStateOf<WebView?>(null) }
+        var canGoBack by remember { mutableStateOf(false) }
+        var canGoForward by remember { mutableStateOf(false) }
 
-        fun goBack() {
+        fun updateNavigationState(view: WebView?) {
+            canGoBack = view?.canGoBack() == true
+            canGoForward = view?.canGoForward() == true
+        }
+
+        fun navigateWebBack() {
+            val view = webView
+            if (view?.canGoBack() == true) {
+                view.goBack()
+            }
+        }
+
+        fun navigateWebForward() {
+            val view = webView
+            if (view?.canGoForward() == true) {
+                view.goForward()
+            }
+        }
+
+        fun navigateBackOrExit() {
             val view = webView
             if (view?.canGoBack() == true) {
                 view.goBack()
@@ -72,7 +97,7 @@ class YouTubeBrowserScreen : Screen {
             }
         }
 
-        BackHandler(onBack = ::goBack)
+        BackHandler(onBack = ::navigateBackOrExit)
 
         DisposableEffect(Unit) {
             onDispose {
@@ -90,10 +115,30 @@ class YouTubeBrowserScreen : Screen {
                 TopAppBar(
                     title = { Text(text = title) },
                     navigationIcon = {
-                        IconButton(onClick = ::goBack) {
+                        IconButton(onClick = navigator::pop) {
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = stringResource(MR.strings.action_close),
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(
+                            onClick = ::navigateWebBack,
+                            enabled = canGoBack,
+                        ) {
                             Icon(
                                 Icons.AutoMirrored.Outlined.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = stringResource(MR.strings.action_webview_back),
+                            )
+                        }
+                        IconButton(
+                            onClick = ::navigateWebForward,
+                            enabled = canGoForward,
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Outlined.ArrowForward,
+                                contentDescription = stringResource(MR.strings.action_webview_forward),
                             )
                         }
                     },
@@ -204,6 +249,7 @@ class YouTubeBrowserScreen : Screen {
                                         url: String?,
                                         isReload: Boolean,
                                     ) {
+                                        updateNavigationState(view)
                                         val requestUrl = url
                                         if (requestUrl != null && getDirectYouTubeVideoId(requestUrl) != null) {
                                             openInPlayer(requestUrl)
@@ -214,6 +260,7 @@ class YouTubeBrowserScreen : Screen {
                                     }
 
                                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                        updateNavigationState(view)
                                         val requestUrl = url
                                         if (requestUrl != null && getDirectYouTubeVideoId(requestUrl) != null) {
                                             openInPlayer(requestUrl)
@@ -225,6 +272,7 @@ class YouTubeBrowserScreen : Screen {
 
                                     override fun onPageFinished(view: WebView?, url: String?) {
                                         super.onPageFinished(view, url)
+                                        updateNavigationState(view)
                                         isLoading = false
                                         CookieManager.getInstance().flush()
                                         injectInterceptScript(view)
