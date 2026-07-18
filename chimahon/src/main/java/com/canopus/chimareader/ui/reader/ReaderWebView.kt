@@ -48,6 +48,7 @@ fun ReaderWebView(
     swipeThreshold: Int = 96,
     tapZonePx: Int = 100,
     isPopupActive: Boolean = false,
+    lookupLanguageCode: String = "",
     onTextSelected: (word: String, sentence: String, x: Float, y: Float, w: Float, h: Float) -> Unit = { _, _, _, _, _, _ -> },
     onSentenceReady: (sentence: String) -> Unit = {},
     onDismissPopupRequested: () -> Unit = {},
@@ -94,7 +95,9 @@ fun ReaderWebView(
         factory = { context ->
             ReaderAndroidWebView(
                 context = context,
+                lookupScannerJs = loadAssetText(context, "shared/lookup-scanner.js"),
                 readerJs = loadAssetText(context, "novel/reader.js"),
+                lookupLanguageCode = lookupLanguageCode,
                 continuousMode = continuousMode,
                 isImageOnly = isImageOnly,
                 readerSettings = readerSettings,
@@ -248,6 +251,7 @@ fun ReaderWebView(
             v.readerSettings = readerSettings
             v.focusMode = focusMode
             v.isPopupActive = isPopupActive
+            v.lookupLanguageCode = lookupLanguageCode
             v.setSelectionRectsCallback(onSelectionRectsReceived)
             v.setBackgroundColor(readerSettings.backgroundColor)
 
@@ -342,7 +346,9 @@ fun ReaderWebView(
 
 private class ReaderAndroidWebView(
     context: Context,
+    private val lookupScannerJs: String,
     private val readerJs: String,
+    var lookupLanguageCode: String = "",
     var continuousMode: Boolean = false,
     var isImageOnly: Boolean = false,
     var readerSettings: ReaderSettings = ReaderSettings(),
@@ -775,6 +781,8 @@ private class ReaderAndroidWebView(
                 ].join(' ');
                 document.head.appendChild(contImgStyle);
 
+                window.__chimahonLookupLanguage = ${JSONObject.quote(lookupLanguageCode)};
+                $lookupScannerJs
                 $readerJs
 
                 var b = document.body;
@@ -955,6 +963,8 @@ private class ReaderAndroidWebView(
                 ].join(' ');
                 document.head.appendChild(blockImgStyle);
 
+                window.__chimahonLookupLanguage = ${JSONObject.quote(lookupLanguageCode)};
+                $lookupScannerJs
                 $readerJs
 
                 var b = document.body;

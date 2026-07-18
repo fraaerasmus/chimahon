@@ -3,6 +3,8 @@ package chimahon
 import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
+import chimahon.dictionary.Deinflector
+import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.dictionary.ko.KoreanAnalyzerDeinflector
 import chimahon.dictionary.ko.KoreanParserMode
 import org.json.JSONArray
@@ -73,33 +75,11 @@ class DictionaryRepository(
         val results = if (effectiveLang == "ja") {
             HoshiDicts.lookup(activeSession, query, 20, 25).toList()
         } else if (genericDeinflector != null) {
-            val finalResults = mutableListOf<chimahon.LookupResult>()
-            for (i in query.length downTo 1) {
-                val substring = query.substring(0, i)
-                val candidates = mutableMapOf<String, chimahon.dictionary.DeinflectionResult>()
-                for (preprocessed in genericDeinflector.preProcess(substring).distinct()) {
-                    for (deinflected in genericDeinflector.deinflect(preprocessed, effectiveLang)) {
-                        if (deinflected.text !in candidates) {
-                            candidates[deinflected.text] = deinflected
-                        }
-                    }
-                }
-                if (candidates.isNotEmpty()) {
-                    val substringResults = candidates.flatMap { (candidateText, deinflected) ->
-                        HoshiDicts.query(activeSession, candidateText).map { termResult ->
-                            chimahon.LookupResult(
-                                matched = substring,
-                                deinflected = candidateText,
-                                process = emptyArray(),
-                                term = termResult,
-                                preprocessorSteps = 0,
-                            )
-                        }
-                    }
-                    finalResults.addAll(substringResults)
-                }
+            val lookupQueries = FrenchLookupPolicy.lookupQueries(query, effectiveLang)
+            val queryResults = lookupQueries.flatMap { lookupQuery ->
+                lookupDeinflected(activeSession, lookupQuery, genericDeinflector, effectiveLang)
             }
-            finalResults.distinctBy { it.term.expression to it.term.reading }.take(20)
+            FrenchLookupPolicy.mergeResults(queryResults, effectiveLang, 20)
         } else {
             HoshiDicts.lookup(activeSession, query, 20, 25).toList()
         }
@@ -118,6 +98,36 @@ class DictionaryRepository(
             mediaDataUris = emptyMap(),  // Empty on critical path
             error = null,
         )
+    }
+
+    private fun lookupDeinflected(
+        activeSession: Long,
+        query: String,
+        deinflector: Deinflector,
+        languageCode: String,
+    ): List<LookupResult> {
+        val results = mutableListOf<LookupResult>()
+        for (i in query.length downTo 1) {
+            val substring = query.substring(0, i)
+            val candidates = linkedMapOf<String, chimahon.dictionary.DeinflectionResult>()
+            for (preprocessed in deinflector.preProcess(substring).distinct()) {
+                for (deinflected in deinflector.deinflect(preprocessed, languageCode)) {
+                    candidates.putIfAbsent(deinflected.text, deinflected)
+                }
+            }
+            candidates.keys.forEach { candidateText ->
+                HoshiDicts.query(activeSession, candidateText).forEach { termResult ->
+                    results += LookupResult(
+                        matched = substring,
+                        deinflected = candidateText,
+                        process = emptyArray(),
+                        term = termResult,
+                        preprocessorSteps = 0,
+                    )
+                }
+            }
+        }
+        return results.distinctBy { it.term.expression to it.term.reading }.take(20)
     }
 
     @Synchronized

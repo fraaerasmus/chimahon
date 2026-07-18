@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.ui.reader.viewer
 
+import chimahon.dictionary.LookupTextScanner
+import chimahon.dictionary.LookupTextSelection
+
 /**
  * Represents an OCR-detected text block (normalized coordinates, pre-processed offline).
  *
@@ -157,17 +160,17 @@ internal fun isLookupStartChar(char: Char): Boolean {
         type != Character.OTHER_SYMBOL.toInt()
 }
 
-internal fun extractOcrLookupString(text: String, start: Int): String {
-    val result = StringBuilder()
-    var index = start.coerceIn(0, text.length)
-    while (index < text.length) {
-        val char = text[index]
-        if (!isLookupStartChar(char)) break
-        result.append(char)
-        index++
-    }
-    return result.toString()
-}
+internal fun extractOcrLookupSelection(
+    text: String,
+    start: Int,
+    languageCode: String,
+): LookupTextSelection? = LookupTextScanner.scan(
+    text = text,
+    tapOffset = start,
+    languageCode = languageCode,
+    scanAcrossSpaces = true,
+    maxCodePoints = 80,
+)
 
 internal fun uniformCharOffset(
     block: OcrTextBlock,

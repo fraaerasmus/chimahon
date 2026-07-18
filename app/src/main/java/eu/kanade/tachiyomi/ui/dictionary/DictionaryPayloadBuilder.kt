@@ -4,6 +4,7 @@ import android.content.Context
 import chimahon.DictionaryStyle
 import chimahon.LookupResult
 import chimahon.anki.AnkiProfile
+import chimahon.dictionary.FrenchLookupPolicy
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -143,7 +144,10 @@ internal fun orderLookupResultsForDisplay(
         .map { it.withOrderedDictionaries(priorityMap) }
         .withIndex()
         .sortedWith(
-            compareByDescending<IndexedValue<LookupResult>> { it.value.matched.length }
+            compareBy<IndexedValue<LookupResult>> {
+                FrenchLookupPolicy.formOfOnlyRank(it.value, profile.languageCode)
+            }
+                .thenByDescending { FrenchLookupPolicy.matchedCodePointCount(it.value) }
                 .thenBy { dictionaryPriority(priorityMap, it.value.term.glossaries.firstOrNull()?.dictName) }
                 .thenBy { it.index },
         )

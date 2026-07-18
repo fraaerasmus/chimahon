@@ -49,6 +49,7 @@ import chimahon.LookupResult
 import chimahon.anki.AnkiCardCreator
 import chimahon.anki.AnkiDroidBridge
 import chimahon.anki.AnkiResult
+import chimahon.dictionary.FrenchLookupPolicy
 import eu.kanade.presentation.util.Tab
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.TabInfo
@@ -709,16 +710,18 @@ data object DictionaryTab : Tab {
             val results = if (effectiveLang == "ja") {
                 HoshiDicts.lookup(activeSession, query, 50, 25).toList()
             } else if (genericDeinflector != null) {
-                val preprocessed = genericDeinflector.preProcess(query)
-                val deinflected = preprocessed.flatMap { genericDeinflector.deinflect(it, effectiveLang) }
-                val candidates = deinflected.map { it.text }.distinct()
-                if (candidates.isEmpty()) {
-                    emptyList()
-                } else {
-                    candidates.flatMap { candidate ->
+                fun lookupOne(lookupQuery: String): List<LookupResult> {
+                    val preprocessed = genericDeinflector.preProcess(lookupQuery)
+                    val deinflected = preprocessed.flatMap { genericDeinflector.deinflect(it, effectiveLang) }
+                    val candidates = deinflected.map { it.text }.distinct()
+                    return candidates.flatMap { candidate ->
                         HoshiDicts.lookup(activeSession, candidate, 50, 25).toList()
                     }.distinctBy { it.term.expression to it.term.reading }.take(50)
                 }
+
+                val queryResults = FrenchLookupPolicy.lookupQueries(query, effectiveLang)
+                    .flatMap(::lookupOne)
+                FrenchLookupPolicy.mergeResults(queryResults, effectiveLang, 50)
             } else {
                 HoshiDicts.lookup(activeSession, query, 50, 25).toList()
             }

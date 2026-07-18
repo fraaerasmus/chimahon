@@ -38,8 +38,7 @@ import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLineGeometry
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
-import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupString
-import eu.kanade.tachiyomi.ui.reader.viewer.isLookupStartChar
+import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.orderedFullText
 import eu.kanade.tachiyomi.ui.reader.viewer.toOrderedOffset
 import kotlinx.coroutines.Dispatchers
@@ -161,13 +160,14 @@ internal fun PlayerVideoOcrOverlay(
                 val charOffset = tapped.screenLookupCharOffset(tapX, tapY)
                 val orderedCharOffset = tapped.toOrderedOffset(charOffset)
                 val text = tapped.orderedFullText
-                if (selection?.block == tapped && selection?.sentenceOffset == orderedCharOffset) {
+                val lookupSelection = extractOcrLookupSelection(text, orderedCharOffset, activeProfile.languageCode)
+                if (selection?.block == tapped && selection?.sentenceOffset == lookupSelection?.startOffset) {
                     selection = null
                     showTapHint = false
                     matchedCharCount = 0
                     matchOffset = 0
-                } else if (orderedCharOffset in text.indices && isLookupStartChar(text[orderedCharOffset])) {
-                    val lookupString = extractOcrLookupString(text, orderedCharOffset)
+                } else if (lookupSelection != null) {
+                    val lookupString = lookupSelection.text
                     if (lookupString.isNotBlank()) {
                         lookupNonce++
                         showTapHint = false
@@ -177,7 +177,7 @@ internal fun PlayerVideoOcrOverlay(
                             block = tapped,
                             lookupString = lookupString,
                             sentence = text,
-                            sentenceOffset = orderedCharOffset,
+                            sentenceOffset = lookupSelection.startOffset,
                             anchorX = tapped.xmin * widthPx,
                             anchorY = tapped.ymin * heightPx,
                             anchorWidth = (tapped.xmax - tapped.xmin) * widthPx,

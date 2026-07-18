@@ -128,6 +128,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
     internal var activeOcrMatchedCount: Int = 0
     internal var ocrLayoutCache: Pair<OcrTextBlock, StaticLayout>? = null
     internal var ocrPopupLookupString: String? = null
+    // Chimahon -->
+    var lookupLanguageCodeProvider: () -> String = { "" }
+    // Chimahon <--
 
     private data class OcrLineHit(
         val offset: Int,
@@ -769,35 +772,35 @@ open class ReaderPageImageView @JvmOverloads constructor(
         // Immediately trigger dictionary popup at the tapped character position
         val ssiv = pageView as? SubsamplingScaleImageView ?: return true
         val charOffset = getCharOffset(block, viewX, viewY, ssiv) ?: 0
-        
-        if (wasActive == block && activeOcrCharOffset == charOffset) {
+        val lookupSelection = extractOcrLookupSelection(
+            text = block.fullText,
+            start = charOffset,
+            languageCode = lookupLanguageCodeProvider(),
+        )
+
+        if (wasActive == block && activeOcrCharOffset == lookupSelection?.startOffset) {
             logcat { "OCR tap: same character tapped, dismissing popup" }
             dismissActiveOcrBlock()
             onDismissOcrPopup?.invoke()
             return true // Consume the tap so it doesn't trigger pagination/HUD
         }
         
-        activeOcrCharOffset = charOffset
+        activeOcrCharOffset = lookupSelection?.startOffset ?: charOffset
         activeOcrMatchedCount = 0 // Reset until dictionary matches
-        if (charOffset !in block.fullText.indices) {
-            logcat(LogPriority.WARN) { "OCR char offset out of bounds: offset=$charOffset len=${block.fullText.length}" }
+        if (lookupSelection == null) {
+            logcat { "OCR tap ignored at non-lookup offset=$charOffset len=${block.fullText.length}" }
             return true
         }
-        val tappedChar = block.fullText[charOffset]
-        if (!isLookupStartChar(tappedChar)) {
-            logcat { "OCR tap ignored on punctuation/non-word char '$tappedChar' at offset=$charOffset" }
-            return true
-        }
-        val lookupString = extractOcrLookupString(block.fullText, charOffset)
+        val lookupString = lookupSelection.text
         logcat {
-            "OCR tap: lookup offset=$charOffset remainingChars=${lookupString.length} x=$viewX y=$viewY"
+            "OCR tap: lookup offset=${lookupSelection.startOffset} remainingChars=${lookupString.length} x=$viewX y=$viewY"
         }
         if (lookupString.isBlank()) {
             logcat(LogPriority.WARN) { "OCR lookup string is blank" }
             return true
         }
         val sentenceText = block.orderedDisplayText
-        val sentenceOffset = block.toOrderedOffset(charOffset)
+        val sentenceOffset = block.toOrderedOffset(lookupSelection.startOffset)
 
         ocrPopupLookupString = lookupString
 

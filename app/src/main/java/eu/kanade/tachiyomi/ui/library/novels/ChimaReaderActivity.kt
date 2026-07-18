@@ -33,6 +33,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import chimahon.DictionaryRepository
+import chimahon.dictionary.FrenchLookupPolicy
 import com.canopus.chimareader.ui.reader.NovelReaderActivity
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupWebViewWarmup
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
@@ -75,6 +76,9 @@ class ChimaReaderActivity : NovelReaderActivity() {
         val paths = cachedTermPaths ?: getDictionaryPaths(this, profile).also { cachedTermPaths = it }
         return profile to paths
     }
+
+    override fun getLookupLanguageCode(): String =
+        (cachedActiveProfile ?: getOrRefreshLookupPaths().first).languageCode
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val prefs = Injekt.get<DictionaryPreferences>()
@@ -316,11 +320,15 @@ class ChimaReaderActivity : NovelReaderActivity() {
             val result = try { lookupDeferred?.await() } catch (_: Exception) { null }
             val firstMatched = result?.results?.firstOrNull()?.matched
             if (firstMatched != null) {
-                val matchOffset = word.indexOf(firstMatched).coerceAtLeast(0)
-                val charCount = firstMatched.codePointCount(0, firstMatched.length)
+                val highlight = FrenchLookupPolicy.highlightFor(word, firstMatched)
                 withContext(Dispatchers.Main) {
                     pendingShowByRects = true
-                    readerViewModel?.bridge?.send(com.canopus.chimareader.ui.reader.WebViewCommand.GetSelectionRects(charCount, matchOffset))
+                    readerViewModel?.bridge?.send(
+                        com.canopus.chimareader.ui.reader.WebViewCommand.GetSelectionRects(
+                            highlight.codePointCount,
+                            highlight.startOffset,
+                        ),
+                    )
                 }
             } else {
                 withContext(Dispatchers.Main) {

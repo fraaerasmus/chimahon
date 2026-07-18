@@ -29,6 +29,9 @@ internal fun getDictionaryBootstrapHtml(
     val js = dictionaryRendererJs.getOrPut(Unit) {
         readTextAsset(context.applicationContext, "dictionary/renderer.js").replace("</script", "<\\/script")
     }
+    val lookupScannerJs = dictionaryLookupScannerJs.getOrPut(Unit) {
+        readTextAsset(context.applicationContext, "shared/lookup-scanner.js").replace("</script", "<\\/script")
+    }
 
     val fontUrl = FontManager.getFontUri(context, fontFamily)
     val fontFaceCss = if (fontUrl != null) {
@@ -120,6 +123,7 @@ internal fun getDictionaryBootstrapHtml(
         </head>
         <body>
           <main id="entries" class="entries"></main>
+          <script>$lookupScannerJs</script>
           <script>$js</script>
         </body>
         </html>
@@ -133,6 +137,7 @@ private fun readTextAsset(context: Context, assetPath: String): String {
 }
 
 private val dictionaryBaseCss = java.util.concurrent.ConcurrentHashMap<Unit, String>()
+private val dictionaryLookupScannerJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
 private val dictionaryRendererJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
 
 fun getDictionaryColorScheme(

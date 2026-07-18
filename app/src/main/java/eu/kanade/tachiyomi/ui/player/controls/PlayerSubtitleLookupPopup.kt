@@ -12,8 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import chimahon.DictionaryRepository
 import chimahon.MediaInfo
+import chimahon.anki.AnkiProfile
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupWebViewWarmup
-import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.getDictionaryPaths
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
@@ -48,23 +48,16 @@ internal data class SubtitleLookupRequest(
 @Composable
 internal fun PlayerSubtitleLookupPopup(
     viewModel: PlayerViewModel,
+    activeProfile: AnkiProfile,
     request: SubtitleLookupRequest?,
     onDismiss: () -> Unit,
     onTermMatched: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val dictionaryPreferences = remember { Injekt.get<DictionaryPreferences>() }
     val repository = remember { Injekt.get<DictionaryRepository>() }
     val anime by viewModel.currentAnime.collectAsState()
     val episode by viewModel.currentEpisode.collectAsState()
-    val source by viewModel.currentSource.collectAsState()
-    val activeProfile = remember(anime?.id, source?.id, source?.lang) {
-        dictionaryPreferences.profileResolver.resolve(
-            sourceId = source?.id ?: 0L,
-            sourceLang = source?.lang.orEmpty(),
-        )
-    }
     val webView: WebView = remember(activeProfile.languageCode) {
         DictionaryPopupWebViewWarmup.acquire(context, activeProfile.languageCode)
     }

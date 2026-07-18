@@ -103,6 +103,10 @@ class PagerPageHolder(
         loadJob = scope.launch { loadPageAndProcessStatus(1) }
         extraLoadJob = scope.launch { loadPageAndProcessStatus(2) }
 
+        // Chimahon -->
+        lookupLanguageCodeProvider = { viewer.lookupLanguageCodeProvider() }
+        // Chimahon <--
+
         onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, mediaInfo, block ->
             val sourcePage = block?.let { getPageForBlock(it) } ?: page
             viewer.onShowOcrPopup?.invoke(lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, mediaInfo, sourcePage)

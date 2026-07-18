@@ -791,6 +791,15 @@
     const ch = text[offset];
     if (!isWordChar(ch) || isScanBoundary(ch) || isFurigana(node)) return null;
 
+    const languageCode = document.documentElement.lang || '';
+    const lookupScanner = window.ChimahonLookupScanner;
+    if (lookupScanner && lookupScanner.primaryLanguage(languageCode) === 'fr') {
+      return lookupScanner.scan(text, offset, languageCode, {
+        scanAcrossSpaces: true,
+        maxCodePoints: MAX_SCAN_CHARS
+      });
+    }
+
     if (isCJK(ch)) {
       // Collect forward text across nodes, skipping furigana (<rt>)
       const container = node.parentElement.closest('.entry-body, .headword, .gloss-content') || document.body;
@@ -970,14 +979,20 @@
       if (!target) return;
       if (target.closest('button, .anki-add-btn, .lookup-tab, .entry-deinflection-row, .tag, .dictionary-header, details, summary, a, .gloss-link, .gloss-sc-a')) return;
 
-      const word = extractTextAtPoint(e.clientX, e.clientY);
+      const extracted = extractTextAtPoint(e.clientX, e.clientY);
+      if (!extracted) return;
+      const word = typeof extracted === 'string' ? extracted : extracted.text;
       if (!word) return;
 
       const sentenceContext = getSentenceContextAtPoint(e.clientX, e.clientY);
       let url = CHIMA_SCHEME + '//lookup?q=' + encodeURIComponent(word);
       if (sentenceContext && sentenceContext.sentence) {
         url += '&sentence=' + encodeURIComponent(sentenceContext.sentence);
-        url += '&offset=' + encodeURIComponent(String(sentenceContext.offset || 0));
+        const lookupStartDelta = typeof extracted === 'string'
+          ? 0
+          : Math.max(0, extracted.tapOffset - extracted.startOffset);
+        const sentenceOffset = Math.max(0, (sentenceContext.offset || 0) - lookupStartDelta);
+        url += '&offset=' + encodeURIComponent(String(sentenceOffset));
       }
       url += '&x=' + Math.round(e.clientX);
       url += '&y=' + Math.round(e.clientY);
@@ -1425,6 +1440,24 @@
     };
   }
 
+  // Yomitan deinflection glossary entry: [uninflectedTerm, inflectionRule[]].
+  function isDeinflectionGlossary(node) {
+    return Array.isArray(node) &&
+      node.length === 2 &&
+      typeof node[0] === 'string' &&
+      Array.isArray(node[1]) &&
+      node[1].length > 0 &&
+      node[1].every((rule) => typeof rule === 'string');
+  }
+
+  function appendDeinflectionGlossary(parent, pair) {
+    const term = document.createElement('span');
+    term.classList.add('gloss-deinflection-term');
+    term.textContent = pair[0];
+    parent.appendChild(term);
+    parent.appendChild(document.createTextNode(` ${pair[1].join(', ')}`));
+  }
+
   function appendStructured(parent, content, dictName, mediaMap, language) {
     if (content === null || typeof content === 'undefined') return;
 
@@ -1434,6 +1467,22 @@
     }
 
     if (Array.isArray(content)) {
+      if (isDeinflectionGlossary(content)) {
+        appendDeinflectionGlossary(parent, content);
+        return;
+      }
+      if (content.length > 0 && content.every(isDeinflectionGlossary)) {
+        const ul = document.createElement('ul');
+        ul.classList.add('glossary-list');
+        content.forEach((pair) => {
+          const li = document.createElement('li');
+          appendDeinflectionGlossary(li, pair);
+          ul.appendChild(li);
+        });
+        parent.appendChild(ul);
+        return;
+      }
+
       const isStringArray = content.every((item) => typeof item === 'string');
       const parentTag = parent && parent.tagName;
       const isBlockParent = parentTag === 'DIV' || parentTag === 'SECTION' || parentTag === 'ARTICLE' || !parentTag;

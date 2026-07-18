@@ -59,6 +59,7 @@ import chimahon.LookupResult
 import chimahon.MediaInfo
 import chimahon.anki.AnkiCardCreator
 import chimahon.anki.AnkiResult
+import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.util.ImageEncoder
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryEntryWebView
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
@@ -244,15 +245,9 @@ fun OcrLookupPopup(
         deferredResult: kotlinx.coroutines.Deferred<chimahon.DictionaryRepository.LookupResult2>? = null,
     ) {
         val cleanQuery = if (isRecursive) {
-            query.replace(Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+"), "").trim()
+            FrenchLookupPolicy.recursiveQuery(query, activeProfile.languageCode) ?: return
         } else {
             query.trim()
-        }
-
-        if (isRecursive) {
-            if (cleanQuery.isBlank()) return
-            // Ignore if entirely ascii/english letters and numbers
-            if (cleanQuery.all { it.code <= 127 }) return
         }
 
         val finalQuery = if (isRecursive) cleanQuery else query
@@ -289,10 +284,9 @@ fun OcrLookupPopup(
             if (!isRecursive && orderedResults.isNotEmpty()) {
                 val firstMatched = orderedResults.firstOrNull()?.matched
                 if (firstMatched != null) {
-                    val charCount = firstMatched.codePointCount(0, firstMatched.length)
-                    val matchOffset = finalQuery.indexOf(firstMatched).coerceAtLeast(0)
+                    val highlight = FrenchLookupPolicy.highlightFor(finalQuery, firstMatched)
                     scope.launch(Dispatchers.Main) {
-                        onTermMatched?.invoke(charCount, matchOffset)
+                        onTermMatched?.invoke(highlight.codePointCount, highlight.startOffset)
                     }
                 }
             }
@@ -764,8 +758,8 @@ fun OcrLookupPopup(
         if (recursiveNavMode == "popup") {
             // Sync lookup (same warm path as pushLookup's recursive branch),
             // then create a child popup with the results — no parent WebView update.
-            val cleanQuery = word.replace(Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+"), "").trim()
-            if (cleanQuery.isNotBlank() && cleanQuery.any { it.code > 127 }) {
+            val cleanQuery = FrenchLookupPolicy.recursiveQuery(word, activeProfile.languageCode)
+            if (cleanQuery != null) {
                 val termPaths = getDictionaryPaths(context, activeProfile)
                 val result = runCatching {
                     repository.lookup(cleanQuery, termPaths, activeProfile.languageCode)

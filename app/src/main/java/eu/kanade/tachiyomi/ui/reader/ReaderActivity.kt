@@ -125,6 +125,7 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
+import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.ocr.OcrBitmapDecoder
 import chimahon.util.ImageEncoder
 import uy.kohesive.injekt.Injekt
@@ -797,6 +798,9 @@ class ReaderActivity : BaseActivity() {
         // Set up OCR popup callback on the active reader viewer.
         when (val viewer = viewModel.state.value.viewer) {
             is PagerViewer -> {
+                // Chimahon -->
+                viewer.lookupLanguageCodeProvider = { getOrRefreshLookupPaths().first.languageCode }
+                // Chimahon <--
                 if (viewer.onShowOcrPopup == null) {
                     viewer.onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, _, sourcePage ->
                         val (activeProfile, deferredLookup) = preDeferLookup(lookupString)
@@ -804,7 +808,8 @@ class ReaderActivity : BaseActivity() {
                         lifecycleScope.launch(Dispatchers.Default) {
                             val result = try { deferredLookup.await() } catch (_: Exception) { null }
                             val firstMatched = result?.results?.firstOrNull()?.matched
-                            val charCount = firstMatched?.codePointCount(0, firstMatched.length)
+                            val charCount = firstMatched
+                                ?.let { FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount }
 
                             val rect = withContext(Dispatchers.Main) {
                                 if (charCount != null) {
@@ -856,6 +861,9 @@ class ReaderActivity : BaseActivity() {
                 }
             }
             is WebtoonViewer -> {
+                // Chimahon -->
+                viewer.lookupLanguageCodeProvider = { getOrRefreshLookupPaths().first.languageCode }
+                // Chimahon <--
                 if (viewer.onShowOcrPopup == null) {
                     viewer.onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, _, sourcePage ->
                         val (activeProfile, deferredLookup) = preDeferLookup(lookupString)
@@ -863,7 +871,8 @@ class ReaderActivity : BaseActivity() {
                         lifecycleScope.launch(Dispatchers.Default) {
                             val result = try { deferredLookup.await() } catch (_: Exception) { null }
                             val firstMatched = result?.results?.firstOrNull()?.matched
-                            val charCount = firstMatched?.codePointCount(0, firstMatched.length)
+                            val charCount = firstMatched
+                                ?.let { FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount }
 
                             val rect = withContext(Dispatchers.Main) {
                                 if (charCount != null) {

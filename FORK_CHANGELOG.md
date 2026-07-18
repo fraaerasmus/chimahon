@@ -17,3 +17,8 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - YouTube extension navigation (2026-07-18): an explicit close control exits to
   Chimahon regardless of browser history, with separate reactive back and forward
   controls while Android back remains history-first.
+- French dictionary lookup (2026-07-18): scans from word starts and across phrases,
+  handles elisions such as `l'homme`, ranks lemma definitions first, highlights the
+  full matched selection, and formats Yomitan deinflection glossaries consistently
+  across novel, manga/OCR, subtitle, recursive-popup, Process Text, and Dictionary-tab
+  lookups.
