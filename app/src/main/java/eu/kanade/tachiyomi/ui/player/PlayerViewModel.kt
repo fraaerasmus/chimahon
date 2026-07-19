@@ -488,7 +488,18 @@ class PlayerViewModel @JvmOverloads constructor(
                             subTracks.add(track)
                             rememberParsedSubtitleTrack(track)
                         }
-                        "audio" -> audioTracks.add(VideoTrack(getTrackMPVId(i), getTrackTitle(i), getTrackLanguage(i)))
+                        "audio" -> {
+                            // Chimahon -->
+                            audioTracks.add(
+                                VideoTrack(
+                                    id = getTrackMPVId(i),
+                                    name = getTrackTitle(i),
+                                    language = getTrackLanguage(i),
+                                    externalFilename = getTrackExternalFilename(i),
+                                ),
+                            )
+                            // Chimahon <--
+                        }
                         else -> error("Unrecognized track type")
                     }
                 }
@@ -3024,11 +3035,16 @@ class PlayerViewModel @JvmOverloads constructor(
         return runCatching {
             withIOContext {
                 output.delete()
-                val rawInput = MPVLib.getPropertyString("path")
-                    ?.takeIf { it.isNotBlank() }
-                    ?: video.videoUrl
+                // Chimahon -->
+                val rawInput = resolveSentenceAudioInput(
+                    videoUrl = video.videoUrl,
+                    playbackPath = MPVLib.getPropertyString("path"),
+                    selectedAudioId = activity.player.aid,
+                    audioTracks = audioTracks.value,
+                )
+                // Chimahon <--
                 val input = when {
-                    video.videoUrl.startsWith("content://") -> Uri.parse(video.videoUrl).toFFmpegString(activity)
+                    rawInput.startsWith("content://") -> Uri.parse(rawInput).toFFmpegString(activity)
                     rawInput.startsWith("file://") -> Uri.parse(rawInput).path ?: rawInput
                     else -> rawInput
                 }.replace("\"", "\\\"")
@@ -3050,7 +3066,12 @@ class PlayerViewModel @JvmOverloads constructor(
                     "-i \"$input\"",
                     "-vn",
                     "-map 0:a:0",
-                    "-c:a copy",
+                    // Chimahon -->
+                    "-ac 2",
+                    "-ar 44100",
+                    "-c:a aac",
+                    "-b:a 128k",
+                    // Chimahon <--
                     "\"${output.absolutePath.replace("\"", "\\\"")}\"",
                     "-y",
                 )
@@ -3408,6 +3429,21 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
 }
+
+// Chimahon -->
+internal fun resolveSentenceAudioInput(
+    videoUrl: String,
+    playbackPath: String?,
+    selectedAudioId: Int,
+    audioTracks: List<PlayerViewModel.VideoTrack>,
+): String {
+    val externalAudio = audioTracks
+        .firstOrNull { it.id == selectedAudioId }
+        ?.externalFilename
+        ?.takeIf { it.isNotBlank() }
+    return externalAudio ?: playbackPath?.takeIf { it.isNotBlank() } ?: videoUrl
+}
+// Chimahon <--
 
 fun isTorrentUrl(videoUrl: String): Boolean = videoUrl.endsWith(".torrent") || videoUrl.startsWith("magnet:")
 

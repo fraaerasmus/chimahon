@@ -23,3 +23,5 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   full matched selection, and formats Yomitan deinflection glossaries consistently
   across novel, manga/OCR, subtitle, recursive-popup, Process Text, and Dictionary-tab
   lookups.
+- Player sentence audio (2026-07-18): mines the active external audio stream for
+  adaptive YouTube playback and encodes subtitle/OCR clips as Anki-compatible M4A.
