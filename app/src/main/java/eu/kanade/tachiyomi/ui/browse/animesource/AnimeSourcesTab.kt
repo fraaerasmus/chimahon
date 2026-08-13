@@ -29,7 +29,7 @@ fun Screen.animeSourcesTab(): TabContent {
     val state by screenModel.state.collectAsState()
 
     return TabContent(
-        titleRes = MR.strings.label_anime_sources,
+        titleRes = MR.strings.label_sources,
         actions = persistentListOf(
             AppBar.Action(
                 title = stringResource(MR.strings.action_global_search),
@@ -79,5 +79,5 @@ fun Screen.animeSourcesTab(): TabContent {
 }
 
 private fun AnimeCatalogueSource.createBrowseScreen(listingQuery: String?) =
-    (this as? AnimeSourceScreenProvider)?.createBrowseScreen(listingQuery)
+    (this as? AnimeSourceScreenProvider)?.createBrowseScreen(listingQuery, null)
         ?: BrowseAnimeSourceScreen(id, listingQuery)

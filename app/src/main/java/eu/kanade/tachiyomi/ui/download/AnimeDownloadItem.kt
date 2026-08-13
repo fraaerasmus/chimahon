@@ -13,7 +13,7 @@ class AnimeDownloadItem(
     header: AnimeDownloadHeaderItem,
 ) : AbstractSectionableItem<AnimeDownloadHolder, AnimeDownloadHeaderItem>(header) {
 
-    override fun getLayoutRes(): Int = R.layout.download_item
+    override fun getLayoutRes(): Int = R.layout.download_anime_item
 
     override fun createViewHolder(
         view: View,

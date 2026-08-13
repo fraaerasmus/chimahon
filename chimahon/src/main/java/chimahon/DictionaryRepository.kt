@@ -47,6 +47,7 @@ class DictionaryRepository(
                 termPaths = paths.termPaths.toTypedArray(),
                 freqPaths = paths.freqPaths.toTypedArray(),
                 pitchPaths = paths.pitchPaths.toTypedArray(),
+                kanjiPaths = paths.kanjiPaths.toTypedArray(),
             )
             cachedStyles = HoshiDicts.getStyles(activeSession).toList()
             configuredPaths = paths
@@ -141,6 +142,17 @@ class DictionaryRepository(
             "loadMediaAsync_ms=$mediaMs query='$query' media_count=${mediaDataUris.size}",
         )
         return mediaDataUris
+    }
+
+    @Synchronized
+    fun queryKanji(char: String): KanjiResult? {
+        val activeSession = session ?: return null
+        return try {
+            HoshiDicts.queryKanji(activeSession, char)
+        } catch (e: Exception) {
+            Log.e("DictionaryRepo", "queryKanji failed for '$char'", e)
+            null
+        }
     }
 
     @Synchronized
@@ -272,7 +284,7 @@ class DictionaryRepository(
         private const val MAX_PRELOADED_MEDIA_ITEMS = 20
         private const val MAX_PRELOADED_MEDIA_BYTES = 256 * 1024
 
-        private val TYPE_SUBDIRS = listOf("term", "frequency", "pitch")
+        private val TYPE_SUBDIRS = listOf("term", "frequency", "pitch", "kanji")
 
         @Synchronized
         fun migrateFlatDictionaries(dictionariesDir: File) {
@@ -302,6 +314,7 @@ class DictionaryRepository(
                     if (counts[0] > 0) add("term")
                     if (counts[1] > 0) add("frequency")
                     if (counts[2] > 0) add("pitch")
+                    if (counts.size > 3 && counts[3] > 0) add("kanji")
                 }.ifEmpty { TYPE_SUBDIRS }
 
                 for (type in types) {

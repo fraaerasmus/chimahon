@@ -45,12 +45,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +76,7 @@ import kotlin.math.roundToInt
 @Composable
 fun SubtitleDelayPanel(
     animeId: Long?,
+    episodeId: Long?,
     onPrimaryDelayChange: (Int) -> Unit,
     onSpeedChange: (Double) -> Unit,
     onDismissRequest: () -> Unit,
@@ -122,6 +125,46 @@ fun SubtitleDelayPanel(
                 ) * 1000
                 ).toInt()
             delay = (MPVLib.getPropertyDouble("sub-delay") * 1000).toInt()
+        }
+        var lastSavedDelay by remember { mutableIntStateOf(delay) }
+        var lastSavedSecondaryDelay by remember { mutableIntStateOf(secondaryDelay) }
+        var lastSavedSpeed by remember { mutableFloatStateOf(speed) }
+        LaunchedEffect(delay, secondaryDelay, speed) {
+            if (episodeId == null) return@LaunchedEffect
+            delay(300)
+            if (delay != lastSavedDelay) {
+                preferences.subtitlesDelayForEpisode(episodeId, animeId).set(delay)
+                lastSavedDelay = delay
+            }
+            if (secondaryDelay != lastSavedSecondaryDelay) {
+                preferences.subtitlesSecondaryDelayForEpisode(episodeId, animeId).set(secondaryDelay)
+                lastSavedSecondaryDelay = secondaryDelay
+            }
+            if (speed != lastSavedSpeed) {
+                preferences.subtitlesSpeedForEpisode(episodeId).set(speed)
+                lastSavedSpeed = speed
+            }
+        }
+        val currentDelay by rememberUpdatedState(delay)
+        val currentSecondaryDelay by rememberUpdatedState(secondaryDelay)
+        val currentSpeed by rememberUpdatedState(speed)
+        val currentLastSavedDelay by rememberUpdatedState(lastSavedDelay)
+        val currentLastSavedSecondaryDelay by rememberUpdatedState(lastSavedSecondaryDelay)
+        val currentLastSavedSpeed by rememberUpdatedState(lastSavedSpeed)
+        DisposableEffect(episodeId) {
+            onDispose {
+                if (episodeId != null) {
+                    if (currentDelay != currentLastSavedDelay) {
+                        preferences.subtitlesDelayForEpisode(episodeId, animeId).set(currentDelay)
+                    }
+                    if (currentSecondaryDelay != currentLastSavedSecondaryDelay) {
+                        preferences.subtitlesSecondaryDelayForEpisode(episodeId, animeId).set(currentSecondaryDelay)
+                    }
+                    if (currentSpeed != currentLastSavedSpeed) {
+                        preferences.subtitlesSpeedForEpisode(episodeId).set(currentSpeed)
+                    }
+                }
+            }
         }
         SubtitleDelayCard(
             delay = if (affectedSubtitle == SubtitleDelayType.Secondary) secondaryDelay else delay,

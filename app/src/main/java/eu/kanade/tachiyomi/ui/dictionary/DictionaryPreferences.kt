@@ -27,8 +27,19 @@ class DictionaryPreferences(
 
     fun ocrBoxOpacity() = preferenceStore.getFloat("pref_ocr_box_opacity", 0.0f)
 
+    /** Floating screen-lookup OCR capture button size in dp. */
+    fun ocrButtonSize() = preferenceStore.getInt("pref_ocr_button_size", 56)
+
+    /** Floating screen-lookup OCR capture button opacity (0..1). */
+    fun ocrButtonAlpha() = preferenceStore.getFloat("pref_ocr_button_alpha", 0.92f)
+
+    /** Floating screen-lookup OCR capture button background color as ARGB int; 0 = theme primary. */
+    fun ocrButtonColor() = preferenceStore.getInt("pref_ocr_button_color", 0)
+
     /** "cloud" (default) or "local" */
     fun ocrEngine() = preferenceStore.getString("pref_ocr_engine", "cloud")
+
+    fun parallelOcrLimit() = preferenceStore.getInt("pref_parallel_ocr_limit", 1)
 
     fun videoOcrSentenceAudioPaddingSeconds() = preferenceStore.getInt("pref_video_ocr_sentence_audio_padding_seconds", 3)
 
@@ -87,6 +98,15 @@ class DictionaryPreferences(
     fun eInkMode() = preferenceStore.getBoolean("pref_dictionary_eink_mode", false)
 
     fun paginatedScrolling() = preferenceStore.getBoolean("pref_dictionary_paginated_scrolling", false)
+
+    /** Paginated scroll step size as percentage of viewport height (50-100, default 90). */
+    fun paginatedScrollStepSize() = preferenceStore.getInt("pref_dictionary_paginated_scroll_step_size", 90)
+
+    /** Scroll behavior for floating navigation buttons: "smooth" (default) or "instant". */
+    fun scrollBehavior() = preferenceStore.getString("pref_dictionary_scroll_behavior", SCROLL_SMOOTH)
+
+    /** Whether volume keys can be used to navigate between dictionary entries. */
+    fun volumeKeyNavigation() = preferenceStore.getBoolean("pref_dictionary_volume_key_navigation", true)
 
     fun customCss() = preferenceStore.getString("pref_dictionary_custom_css", "")
 
@@ -156,6 +176,11 @@ class DictionaryPreferences(
                     chimahon.dictionary.DictionaryProfileResolver.mangaOverrideKey(mangaId), "",
                 ).get()
             },
+            readAnimeOverride = { animeId ->
+                preferenceStore.getString(
+                    chimahon.dictionary.DictionaryProfileResolver.animeOverrideKey(animeId), "",
+                ).get()
+            },
             readSourceOverride = { sourceId ->
                 preferenceStore.getString(
                     chimahon.dictionary.DictionaryProfileResolver.sourceOverrideKey(sourceId), "",
@@ -180,10 +205,14 @@ class DictionaryPreferences(
 
         // Sweep all pref keys — any override that matched the deleted ID becomes ""
         val mangaPrefix = "pref_dict_profile_manga_"
+        val animePrefix = "pref_dict_profile_anime_"
         val sourcePrefix = "pref_dict_profile_source_"
         val novelPrefix = "pref_dict_profile_novel_"
         preferenceStore.getAll().keys
-            .filter { it.startsWith(mangaPrefix) || it.startsWith(sourcePrefix) || it.startsWith(novelPrefix) }
+            .filter {
+                it.startsWith(mangaPrefix) || it.startsWith(animePrefix) ||
+                    it.startsWith(sourcePrefix) || it.startsWith(novelPrefix)
+            }
             .forEach { key ->
                 val pref = preferenceStore.getString(key, "")
                 if (pref.get() == profileId) pref.delete()
@@ -272,6 +301,9 @@ class DictionaryPreferences(
         const val PITCH_DIAGRAM = "diagram"
         const val PITCH_NUMBER = "number"
         const val PITCH_TEXT = "text"
+
+        const val SCROLL_SMOOTH = "smooth"
+        const val SCROLL_INSTANT = "instant"
     }
 
     // -------------------------------------------------------------------------

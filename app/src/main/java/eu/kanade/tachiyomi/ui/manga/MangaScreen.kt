@@ -52,6 +52,7 @@ import eu.kanade.presentation.manga.DuplicateMangaDialog
 import eu.kanade.presentation.manga.EditCoverAction
 import eu.kanade.presentation.manga.MangaScreen
 import eu.kanade.presentation.manga.components.ClearMangaDialog
+import eu.kanade.presentation.manga.components.ClearOcrCacheDialog
 import eu.kanade.presentation.manga.components.DeleteChaptersDialog
 import eu.kanade.presentation.manga.components.MangaCoverDialog
 import eu.kanade.presentation.manga.components.ScanlatorFilterDialog
@@ -64,6 +65,7 @@ import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.source.ConfigurableSource
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.isLocalOrStub
+import tachiyomi.source.local.isLocal
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.browse.BulkFavoriteScreenModel
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsScreen
@@ -281,8 +283,8 @@ class MangaScreen(
             onChapterClicked = { openChapter(context, it) },
             onDownloadChapter = screenModel::runChapterDownloadActions.takeIf { !successState.source.isLocalOrStub() },
             onAddToLibraryClicked = {
-                screenModel.toggleFavorite()
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                screenModel.toggleFavorite()
             },
             // SY -->
             onWebViewClicked = {
@@ -415,6 +417,7 @@ class MangaScreen(
                 }
             }.takeIf { isConfigurableSource },
             onClearManga = { screenModel.showClearMangaDialog() },
+            onClearOcrCache = { screenModel.showClearOcrCacheDialog() },
             onOpenMangaFolder = {
                 if (successState.mergedData == null) {
                     screenModel.openMangaFolder(screenModel.source, screenModel.manga)
@@ -423,7 +426,7 @@ class MangaScreen(
                         context,
                         navigator,
                         successState.mergedData,
-                        action = { _, nav, manga, source -> screenModel.openMangaFolder(source, manga) },
+                        action = { _, _, manga, source -> screenModel.openMangaFolder(source, manga) },
                         titleRes = KMR.strings.action_open_folder,
                     )
                 }
@@ -467,6 +470,11 @@ class MangaScreen(
             onClickDictionaryProfile = { screenModel.showSetDictionaryProfileDialog() }
                 .takeIf { successState.manga.favorite },
             onClickMangaStats = { showMangaStats = true },
+            onClickPreOcr = { screenModel.runOcrForLocalManga() }
+                .takeIf {
+                    successState.source.isLocal() &&
+                        successState.processedChapters.any { !it.chapter.isOcrReady }
+                },
             // KMK <--
         )
 
@@ -643,8 +651,17 @@ class MangaScreen(
             // KMK -->
             is MangaScreenModel.Dialog.ClearManga -> {
                 ClearMangaDialog(
-                    onDismissRequest = onDismissRequest,
+                    onDismissRequest = screenModel::dismissDialog,
                     onConfirm = screenModel::clearManga,
+                )
+            }
+            is MangaScreenModel.Dialog.ClearOcrCache -> {
+                ClearOcrCacheDialog(
+                    onDismissRequest = screenModel::dismissDialog,
+                    onConfirm = {
+                        screenModel.clearOcrCache()
+                        screenModel.dismissDialog()
+                    },
                 )
             }
             // KMK <--

@@ -1,16 +1,23 @@
 package eu.kanade.presentation.more.settings
 
+import android.os.Build
+import android.os.Environment
 import androidx.annotation.IntRange
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.vector.ImageVector
+import eu.kanade.core.preference.asState
 import eu.kanade.tachiyomi.data.connections.ConnectionsService
 import eu.kanade.tachiyomi.data.track.Tracker
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.coroutines.CoroutineScope
+import tachiyomi.core.common.preference.Preference as PreferenceData
+import tachiyomi.domain.storage.service.StorageManager
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.core.common.preference.Preference as PreferenceData
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 sealed class Preference {
     abstract val title: String
@@ -157,6 +164,40 @@ sealed class Preference {
         ) : PreferenceItem<String, Boolean>() {
             override val icon: ImageVector? = null
         }
+
+        /**
+         * A [PreferenceItem] for editing MPV config files.
+         * If [fileName] is not null, it will update this file in the config directory.
+         */
+        data class MPVConfPreference(
+            val preference: PreferenceData<String>,
+            val scope: CoroutineScope,
+            val fileName: String? = null,
+            val canBeBlank: Boolean = true,
+            override val title: String,
+            override val subtitle: String? = preference.asState(scope).value
+                .lines()
+                .take(2)
+                .joinToString(
+                    separator = "\n",
+                    postfix = if (preference.asState(scope).value.lines().size > 2) "\n..." else "",
+                ),
+            override val icon: ImageVector? = null,
+            override val enabled: Boolean = true,
+            override val onValueChanged: suspend (value: String) -> Boolean = { value ->
+                if (fileName != null) {
+                    val storageManager: StorageManager = Injekt.get()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
+                        storageManager.getMPVConfigDirectory()
+                            ?.createFile(fileName)
+                            ?.openOutputStream()
+                            ?.use { it.write(value.toByteArray()) }
+                        preference.set(value)
+                    }
+                }
+                true
+            },
+        ) : PreferenceItem<String, Boolean>()
 
         /**
          * A [PreferenceItem] for individual tracker.

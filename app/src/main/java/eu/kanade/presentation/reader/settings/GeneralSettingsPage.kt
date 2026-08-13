@@ -40,6 +40,9 @@ internal fun GeneralPage(screenModel: ReaderSettingsScreenModel) {
     val flashMillisPref = screenModel.preferences.flashDurationMillis()
     val flashMillis by flashMillisPref.collectAsState()
 
+    val flashDelayPref = screenModel.preferences.flashDelayMillis()
+    val flashDelayMillis by flashDelayPref.collectAsState()
+
     val flashIntervalPref = screenModel.preferences.flashPageInterval()
     val flashInterval by flashIntervalPref.collectAsState()
 
@@ -110,6 +113,11 @@ internal fun GeneralPage(screenModel: ReaderSettingsScreenModel) {
     )
 
     CheckboxItem(
+        label = stringResource(MR.strings.pref_ocr_two_finger_gesture),
+        pref = screenModel.preferences.ocrTwoFingerGestureEnabled(),
+    )
+
+    CheckboxItem(
         label = stringResource(MR.strings.pref_always_show_chapter_transition),
         pref = screenModel.preferences.alwaysShowChapterTransition(),
     )
@@ -135,6 +143,14 @@ internal fun GeneralPage(screenModel: ReaderSettingsScreenModel) {
             pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         )
         SliderItem(
+            value = flashDelayMillis / ReaderPreferences.MILLI_CONVERSION,
+            valueRange = 0..10,
+            label = stringResource(MR.strings.pref_flash_delay),
+            valueString = stringResource(MR.strings.pref_flash_delay_summary, flashDelayMillis),
+            onChange = { flashDelayPref.set(it * ReaderPreferences.MILLI_CONVERSION) },
+            pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        )
+        SliderItem(
             value = flashInterval,
             valueRange = 1..10,
             label = stringResource(MR.strings.pref_flash_page_interval),
@@ -154,6 +170,11 @@ internal fun GeneralPage(screenModel: ReaderSettingsScreenModel) {
             }
         }
     }
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_flash_on_scroll),
+        pref = screenModel.preferences.flashOnScroll(),
+    )
 
     // SY -->
     CheckboxItem(

@@ -19,7 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionContext
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.platform.ViewConfiguration
 import eu.kanade.presentation.theme.TachiyomiTheme
 import eu.kanade.tachiyomi.R
 
@@ -29,9 +31,16 @@ inline fun ComponentActivity.setComposeContent(
 ) {
     setContent(parent) {
         TachiyomiTheme {
+            val defaultViewConfig = LocalViewConfiguration.current
             CompositionLocalProvider(
                 LocalTextStyle provides MaterialTheme.typography.bodySmall,
                 LocalContentColor provides MaterialTheme.colorScheme.onBackground,
+                LocalViewConfiguration provides object : ViewConfiguration {
+                    override val longPressTimeoutMillis: Long = 200
+                    override val doubleTapTimeoutMillis: Long = defaultViewConfig.doubleTapTimeoutMillis
+                    override val doubleTapMinTimeMillis: Long = defaultViewConfig.doubleTapMinTimeMillis
+                    override val touchSlop: Float = defaultViewConfig.touchSlop
+                },
             ) {
                 content()
             }

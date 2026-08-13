@@ -74,18 +74,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import chimahon.HoshiDicts
 import chimahon.anki.AnkiCardCreator
 import chimahon.anki.AnkiDroidBridge
 import chimahon.anki.AnkiProfile
+import chimahon.anki.AnkiScreenshotMode
 import chimahon.anki.LapisPreset
 import chimahon.anki.Marker
 import chimahon.dictionary.readDictionaryIndex
+import chimahon.ocr.CropPresets
 import com.canopus.chimareader.data.FontManager
 import com.hippo.unifile.UniFile
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.network.ProgressListener
 import eu.kanade.tachiyomi.data.dictionary.DictionaryUpdateJob
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.getDictionaryTitle
@@ -129,6 +136,52 @@ import java.util.Collections.emptyList
 import kotlin.math.roundToInt
 
 private const val TAG = "DictionaryImport"
+
+@Composable
+private fun ProfileResolutionDropdown(
+    label: String,
+    resolvedName: String,
+    entries: List<Pair<String, String>>,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.padding(top = 8.dp)) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("$label: ${resolvedName}")
+            Icon(Icons.Outlined.KeyboardArrowDown, null)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            entries.forEach { (value, name) ->
+                DropdownMenuItem(
+                    text = { Text(name) },
+                    onClick = { onSelect(value); expanded = false },
+                )
+            }
+        }
+    }
+}
+
+private fun scanResolutionName(stored: String): String {
+    return when (stored) {
+        AnkiProfile.SCAN_RESOLUTION_WORD -> "Word"
+        AnkiProfile.SCAN_RESOLUTION_CHARACTER -> "Character"
+        else -> "Auto (word for non-CJK)"
+    }
+}
+
+private fun searchResolutionName(stored: String): String {
+    return when (stored) {
+        AnkiProfile.SEARCH_RESOLUTION_WORD -> "Word"
+        AnkiProfile.SEARCH_RESOLUTION_LETTER -> "Letter"
+        else -> "Auto (word for non-CJK)"
+    }
+}
 
 private enum class OcrScaleAxis(val label: String) {
     X("X"),
@@ -266,7 +319,7 @@ private fun loadDictionaryList(context: Context) {
     Log.d(TAG, "loadDictionaryList: called")
     val dictionariesDir = File(context.getExternalFilesDir(null), "dictionaries")
     val names = if (dictionariesDir.exists()) {
-        listOf("term", "frequency", "pitch")
+        listOf("term", "frequency", "pitch", "kanji")
             .flatMap { type ->
                 val typeDir = File(dictionariesDir, type)
                 if (!typeDir.isDirectory) emptyList()
@@ -545,6 +598,10 @@ object SettingsDictionaryScreen : SearchableSettings {
         val popupSwipeThreshold by popupSwipeThresholdPref.collectAsState()
         val popupSwipeToDismiss by dictionaryPreferences.popupSwipeToDismiss().collectAsState()
 
+        val paginatedScrolling by dictionaryPreferences.paginatedScrolling().collectAsState()
+        val paginatedScrollStepSizePref = dictionaryPreferences.paginatedScrollStepSize()
+        val paginatedScrollStepSize by paginatedScrollStepSizePref.collectAsState()
+
         val fontSizePref = dictionaryPreferences.fontSize()
         val fontSize by fontSizePref.collectAsState()
 
@@ -557,8 +614,29 @@ object SettingsDictionaryScreen : SearchableSettings {
         val ocrBoxOpacityPref = dictionaryPreferences.ocrBoxOpacity()
         val ocrBoxOpacity by ocrBoxOpacityPref.collectAsState()
 
+        val ocrButtonSizePref = dictionaryPreferences.ocrButtonSize()
+        val ocrButtonSize by ocrButtonSizePref.collectAsState()
+
+        val ocrButtonAlphaPref = dictionaryPreferences.ocrButtonAlpha()
+        val ocrButtonAlpha by ocrButtonAlphaPref.collectAsState()
+
+        val ocrButtonColorPref = dictionaryPreferences.ocrButtonColor()
+        val ocrButtonColor by ocrButtonColorPref.collectAsState()
+
         val videoOcrAudioPaddingPref = dictionaryPreferences.videoOcrSentenceAudioPaddingSeconds()
         val videoOcrAudioPadding by videoOcrAudioPaddingPref.collectAsState()
+
+        val parallelOcrLimitPref = dictionaryPreferences.parallelOcrLimit()
+        val parallelOcrLimit by parallelOcrLimitPref.collectAsState()
+
+        val ocrEnginePref = dictionaryPreferences.ocrEngine()
+        val ocrEngine by ocrEnginePref.collectAsState()
+
+        val parallelOcrSubtitle = when {
+            parallelOcrLimit == 1 -> "1 chapter (Recommended - safe and stable)"
+            ocrEngine == "local" -> "$parallelOcrLimit chapters (Running multiple OCR tasks on-device simultaneously will increase battery drain and cause the device to heat up)"
+            else -> "$parallelOcrLimit chapters (Running multiple OCR tasks online simultaneously may cause temporary rate limits or IP blocks)"
+        }
 
         val navigator = LocalNavigator.currentOrThrow
         val customCssPref = dictionaryPreferences.customCss()
@@ -636,6 +714,36 @@ object SettingsDictionaryScreen : SearchableSettings {
                     ),
                 )
             }
+            if (paginatedScrolling) {
+                add(
+                    Preference.PreferenceItem.SliderPreference(
+                        value = paginatedScrollStepSize,
+                        title = "Paginated scroll step",
+                        subtitle = "${paginatedScrollStepSize}% of viewport height",
+                        valueRange = 50..100,
+                        steps = 50,
+                        onValueChanged = { paginatedScrollStepSizePref.set(it) },
+                    ),
+                )
+            }
+            add(
+                Preference.PreferenceItem.ListPreference(
+                    preference = dictionaryPreferences.scrollBehavior(),
+                    entries = persistentListOf(
+                        DictionaryPreferences.SCROLL_SMOOTH to "Smooth",
+                        DictionaryPreferences.SCROLL_INSTANT to "Instant",
+                    ).associate { it.first to it.second }.toPersistentMap(),
+                    title = "Scroll behavior",
+                    subtitle = "Controls how floating navigation buttons scroll between entries",
+                ),
+            )
+            add(
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = dictionaryPreferences.volumeKeyNavigation(),
+                    title = "Volume key navigation",
+                    subtitle = "Use volume keys to scroll between dictionary entries",
+                ),
+            )
         }.toPersistentList() as kotlinx.collections.immutable.ImmutableList<Preference.PreferenceItem<out Any, out Any>>
 
         return listOf(
@@ -1025,6 +1133,72 @@ object SettingsDictionaryScreen : SearchableSettings {
                         steps = 19,
                         onValueChanged = { ocrBoxOpacityPref.set(it / 100f) },
                     ),
+                    Preference.PreferenceItem.SliderPreference(
+                        value = ocrButtonSize,
+                        title = stringResource(MR.strings.pref_dict_ocr_button_size),
+                        subtitle = "${ocrButtonSize}dp",
+                        valueRange = 40..96 step 2,
+                        steps = 27,
+                        onValueChanged = { ocrButtonSizePref.set(it) },
+                    ),
+                    Preference.PreferenceItem.SliderPreference(
+                        value = (ocrButtonAlpha * 100).toInt(),
+                        title = stringResource(MR.strings.pref_dict_ocr_button_alpha),
+                        subtitle = "${(ocrButtonAlpha * 100).toInt()}%",
+                        valueRange = 10..100 step 5,
+                        steps = 17,
+                        onValueChanged = { ocrButtonAlphaPref.set(it / 100f) },
+                    ),
+                    Preference.PreferenceItem.CustomPreference(
+                        title = stringResource(MR.strings.pref_dict_ocr_button_color),
+                        content = {
+                            val btnCtx = LocalContext.current
+                            val defaultColor = ContextCompat.getColor(btnCtx, eu.kanade.tachiyomi.R.color.tachiyomi_primary)
+                            val presets = listOf(
+                                "Default" to defaultColor,
+                                "White" to Color.White.toArgb(),
+                                "Black" to Color.Black.toArgb(),
+                                "Red" to Color(0xFFD32F2F).toArgb(),
+                                "Orange" to Color(0xFFF57C00).toArgb(),
+                                "Amber" to Color(0xFFFFA000).toArgb(),
+                                "Green" to Color(0xFF388E3C).toArgb(),
+                                "Teal" to Color(0xFF00897B).toArgb(),
+                                "Blue" to Color(0xFF1976D2).toArgb(),
+                                "Indigo" to Color(0xFF3949AB).toArgb(),
+                                "Purple" to Color(0xFF7B1FA2).toArgb(),
+                                "Pink" to Color(0xFFC2185B).toArgb(),
+                            )
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    presets.forEach { (name, argb) ->
+                                        FilterChip(
+                                            selected = (if (argb == defaultColor) 0 else argb) == ocrButtonColor,
+                                            onClick = {
+                                                ocrButtonColorPref.set(if (argb == defaultColor) 0 else argb)
+                                            },
+                                            label = { Text(name) },
+                                            leadingIcon = {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(Color(argb)),
+                                                )
+                                            },
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                    ),
                     Preference.PreferenceItem.ListPreference(
                         preference = dictionaryPreferences.ocrEngine(),
                         entries = persistentListOf(
@@ -1042,6 +1216,14 @@ object SettingsDictionaryScreen : SearchableSettings {
                             }
                             true
                         },
+                    ),
+                    Preference.PreferenceItem.SliderPreference(
+                        value = parallelOcrLimit,
+                        title = "Concurrent OCR tasks",
+                        subtitle = parallelOcrSubtitle,
+                        valueRange = 1..5,
+                        steps = 3,
+                        onValueChanged = { parallelOcrLimitPref.set(it) },
                     ),
                     Preference.PreferenceItem.SliderPreference(
                         value = videoOcrAudioPadding,
@@ -1136,7 +1318,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            profileStore.deleteProfile(profile.id)
+                            dictionaryPreferences.deleteProfileWithOverrides(profile.id)
                             showDeleteDialog = null
                         }
                     ) { Text("Delete") }
@@ -1233,6 +1415,33 @@ object SettingsDictionaryScreen : SearchableSettings {
                                     }
                                 }
                             }
+
+                            // Scan/search resolution (yomitan `scanning.scanResolution`
+                            // / `translation.searchResolution`)
+                            ProfileResolutionDropdown(
+                                label = "Scan",
+                                resolvedName = scanResolutionName(activeProfile.scanResolution),
+                                entries = listOf(
+                                    "" to "Auto (word for non-CJK)",
+                                    AnkiProfile.SCAN_RESOLUTION_WORD to "Word",
+                                    AnkiProfile.SCAN_RESOLUTION_CHARACTER to "Character",
+                                ),
+                                onSelect = { value ->
+                                    profileStore.updateProfile(profileStore.getActiveProfile().copy(scanResolution = value))
+                                },
+                            )
+                            ProfileResolutionDropdown(
+                                label = "Search",
+                                resolvedName = searchResolutionName(activeProfile.searchResolution),
+                                entries = listOf(
+                                    "" to "Auto (word for non-CJK)",
+                                    AnkiProfile.SEARCH_RESOLUTION_WORD to "Word",
+                                    AnkiProfile.SEARCH_RESOLUTION_LETTER to "Letter",
+                                ),
+                                onSelect = { value ->
+                                    profileStore.updateProfile(profileStore.getActiveProfile().copy(searchResolution = value))
+                                },
+                            )
                         }
                     }
                 )
@@ -1266,7 +1475,7 @@ object SettingsDictionaryScreen : SearchableSettings {
         val dictTypes = remember(dictionaries) {
             val dir = File(context.getExternalFilesDir(null), "dictionaries")
             dictionaries.map { name ->
-                name to listOf("term", "frequency", "pitch").filter { type ->
+                name to listOf("term", "frequency", "pitch", "kanji").filter { type ->
                     File(dir, "$type/$name").isDirectory
                 }
             }.toMap()
@@ -1294,7 +1503,17 @@ object SettingsDictionaryScreen : SearchableSettings {
             if (fromIdx in dictNamesState.indices && toIdx in dictNamesState.indices) {
                 val item = dictNamesState.removeAt(fromIdx)
                 dictNamesState.add(toIdx, item)
-                profileStore.updateProfile(profileStore.getActiveProfile().copy(dictionaryOrder = dictNamesState.toList()))
+                val newOrder = if (typeFilter == null) {
+                    dictNamesState.toList()
+                } else {
+                    val fullList = orderedDicts.toMutableList()
+                    val visibleIndices = fullList.indices.filter { fullList[it] in filteredOrderedDicts }
+                    visibleIndices.forEachIndexed { i, originalIndex ->
+                        fullList[originalIndex] = dictNamesState[i]
+                    }
+                    fullList.toList()
+                }
+                profileStore.updateProfile(profileStore.getActiveProfile().copy(dictionaryOrder = newOrder))
             }
         }
 
@@ -1332,7 +1551,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                         onClick = {
                             Log.d(TAG, "deleting dictionary: $dictName")
                             val dictionariesDir = File(context.getExternalFilesDir(null), "dictionaries")
-                            val typeSubdirs = listOf("term", "frequency", "pitch").map { File(dictionariesDir, it) }.filter { it.isDirectory }
+                            val typeSubdirs = listOf("term", "frequency", "pitch", "kanji").map { File(dictionariesDir, it) }.filter { it.isDirectory }
                             for (typeDir in typeSubdirs) {
                                 val dictDir = File(typeDir, dictName)
                                 if (dictDir.exists()) {
@@ -1574,7 +1793,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
-                                            listOf("term" to "term", "frequency" to "freq", "pitch" to "pitch").forEach { (typeVal, label) ->
+                                            listOf("term" to "term", "frequency" to "freq", "pitch" to "pitch", "kanji" to "kanji").forEach { (typeVal, label) ->
                                                 val isActive = typeFilter == typeVal
                                                 val chipColor = when (typeVal) {
                                                     "term" -> if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
@@ -1784,6 +2003,7 @@ object SettingsDictionaryScreen : SearchableSettings {
         val dupAction = activeProfile.ankiDupAction
         val tags = activeProfile.ankiTags
         val cropMode = activeProfile.ankiCropMode
+        val cropPreset = activeProfile.ankiCropPreset
         val enabled = activeProfile.ankiEnabled
 
         var decks by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -1938,9 +2158,16 @@ object SettingsDictionaryScreen : SearchableSettings {
             "overwrite" to stringResource(MR.strings.pref_anki_duplicate_overwrite),
         ).associate { it.first to it.second }.toPersistentMap()
         val cropModeEntries = persistentListOf(
-            "full" to "Full Image",
-            "crop" to "Crop Selection",
+            "full" to "Screenshot",
+            "crop" to "Crop Overlay",
+            AnkiScreenshotMode.ANIMATED_SCENE.storageValue to
+                stringResource(MR.strings.pref_anki_screenshot_animated_scene),
+            "no_screenshot" to "No Screenshot",
         ).associate { it.first to it.second }.toPersistentMap()
+        val cropPresetEntries = persistentListOf(
+            "full" to "Full",
+        ) + CropPresets.ASPECT_RATIO_PRESETS.map { it.key to it.label }
+        val cropPresetMap = cropPresetEntries.associate { it.first to it.second }.toPersistentMap()
 
         val preferenceItems = buildList<Preference.PreferenceItem<*, *>> {
             add(
@@ -2212,12 +2439,26 @@ object SettingsDictionaryScreen : SearchableSettings {
 
                 add(
                     Preference.PreferenceItem.BasicListPreference(
-                        value = if (cropMode == "crop") "crop" else "full",
+                        value = cropMode.takeIf { it in cropModeEntries } ?: "full",
                         entries = cropModeEntries,
                         title = "Screenshot mode",
                         onValueChanged = { updateProfile { copy(ankiCropMode = it) } },
                     ),
                 )
+
+                if (
+                    cropMode != "no_screenshot" &&
+                    cropMode != AnkiScreenshotMode.ANIMATED_SCENE.storageValue
+                ) {
+                    add(
+                        Preference.PreferenceItem.BasicListPreference(
+                            value = cropPreset.takeIf { it in cropPresetMap } ?: "full",
+                            entries = cropPresetMap,
+                            title = "Crop preset",
+                            onValueChanged = { updateProfile { copy(ankiCropPreset = it) } },
+                        ),
+                    )
+                }
 
                 add(
                     Preference.PreferenceItem.CustomPreference(
@@ -2601,16 +2842,24 @@ object SettingsDictionaryScreen : SearchableSettings {
                                         }
                                     }
 
-                                    if (localUri.isNotBlank()) {
+                                    if (localUri.isNotBlank() || localPath.isNotBlank()) {
                                         OutlinedButton(
                                             onClick = {
-                                                try {
-                                                    context.contentResolver.releasePersistableUriPermission(
-                                                        Uri.parse(localUri),
-                                                        Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                                                    )
-                                                } catch (_: Exception) { }
-                                                prefs.wordAudioLocalUri().set("")
+                                                if (localUri.isNotBlank()) {
+                                                    try {
+                                                        context.contentResolver.releasePersistableUriPermission(
+                                                            Uri.parse(localUri),
+                                                            Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                                                        )
+                                                    } catch (_: Exception) { }
+                                                    prefs.wordAudioLocalUri().set("")
+                                                }
+                                                if (localPath.isNotBlank()) {
+                                                    try {
+                                                        File(localPath).delete()
+                                                    } catch (_: Exception) { }
+                                                    prefs.wordAudioLocalPath().set("")
+                                                }
                                             },
                                             enabled = !isImportingDb
                                         ) {
@@ -2739,7 +2988,7 @@ private suspend fun importDictionaryFromStream(
                 zipPath = tempZip.absolutePath,
                 outputDir = tempImportDir.absolutePath,
             )
-            Log.d(TAG, "importDictionaryFromStream: HoshiDicts result: success=${result.success} terms=${result.termCount} freq=${result.freqCount} pitch=${result.pitchCount} media=${result.mediaCount}")
+            Log.d(TAG, "importDictionaryFromStream: HoshiDicts result: success=${result.success} terms=${result.termCount} freq=${result.freqCount} pitch=${result.pitchCount} kanji=${result.kanjiCount} media=${result.mediaCount}")
 
             if (!result.success) {
                 Log.e(TAG, "importDictionaryFromStream: import failed")
@@ -2760,10 +3009,11 @@ private suspend fun importDictionaryFromStream(
                 if (result.termCount > 0) add(CopyTarget("term", result.termCount))
                 if (result.freqCount > 0) add(CopyTarget("frequency", result.freqCount))
                 if (result.pitchCount > 0) add(CopyTarget("pitch", result.pitchCount))
+                if (result.kanjiCount > 0) add(CopyTarget("kanji", result.kanjiCount))
             }
 
             if (targets.isEmpty()) {
-                Log.e(TAG, "importDictionaryFromStream: no term/freq/pitch entries found")
+                Log.e(TAG, "importDictionaryFromStream: no entries found")
                 return@withContext Pair("Dictionary has no recognizable entries", false)
             }
 
@@ -2774,6 +3024,24 @@ private suspend fun importDictionaryFromStream(
                 if (destDir.exists()) destDir.deleteRecursively()
                 importedDir.copyRecursively(destDir, overwrite = true)
                 Log.d(TAG, "importDictionaryFromStream: copied to ${target.type}/$title")
+            }
+
+            // Auto-download kanji stroke font if any kanji dicts were imported
+            if (result.kanjiCount > 0 && !FontManager.hasKanjiStrokeFont(context)) {
+                try {
+                    val fontFile = FontManager.getKanjiStrokeFontFile(context)
+                    Log.d(TAG, "importDictionaryFromStream: downloading kanji stroke font to ${fontFile.absolutePath}")
+                    Injekt.get<NetworkHelper>().downloadFileWithResume(
+                        url = FontManager.KANJI_STROKE_FONT_URL,
+                        outputFile = fontFile,
+                        progressListener = object : ProgressListener {
+                            override fun update(bytesRead: Long, contentLength: Long, done: Boolean) {}
+                        },
+                    )
+                    Log.d(TAG, "importDictionaryFromStream: kanji stroke font downloaded successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "importDictionaryFromStream: failed to download kanji stroke font", e)
+                }
             }
 
             // Add to profile order once (dict name, no type prefix)

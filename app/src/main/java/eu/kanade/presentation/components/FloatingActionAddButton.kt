@@ -4,7 +4,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.material3.SmallExtendedFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -18,11 +18,11 @@ fun FloatingActionAddButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LargeFloatingActionButton(
+    SmallExtendedFloatingActionButton(
+        text = { Text(text = stringResource(MR.strings.action_add)) },
+        icon = { Icon(imageVector = Icons.Outlined.Add, contentDescription = null) },
         onClick = onClick,
+        expanded = lazyListState.shouldExpandFAB(),
         modifier = modifier,
-    ) {
-        Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-        Text(text = stringResource(MR.strings.action_add))
-    }
+    )
 }

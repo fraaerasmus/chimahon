@@ -2,6 +2,9 @@ package eu.kanade.tachiyomi.ui.reader.viewer
 
 import chimahon.dictionary.LookupTextScanner
 import chimahon.dictionary.LookupTextSelection
+import chimahon.ocr.extractOcrLookupText
+import chimahon.ocr.extractWholeWord
+import chimahon.ocr.isOcrLookupStartChar
 
 /**
  * Represents an OCR-detected text block (normalized coordinates, pre-processed offline).
@@ -145,21 +148,10 @@ private val OcrLineGeometry.centerY: Float
     get() = (ymin + ymax) / 2f
 
 internal fun isLookupStartChar(char: Char): Boolean {
-    if (char.isWhitespace()) return false
-    val type = Character.getType(char)
-    return type != Character.CONNECTOR_PUNCTUATION.toInt() &&
-        type != Character.DASH_PUNCTUATION.toInt() &&
-        type != Character.START_PUNCTUATION.toInt() &&
-        type != Character.END_PUNCTUATION.toInt() &&
-        type != Character.INITIAL_QUOTE_PUNCTUATION.toInt() &&
-        type != Character.FINAL_QUOTE_PUNCTUATION.toInt() &&
-        type != Character.OTHER_PUNCTUATION.toInt() &&
-        type != Character.MATH_SYMBOL.toInt() &&
-        type != Character.CURRENCY_SYMBOL.toInt() &&
-        type != Character.MODIFIER_SYMBOL.toInt() &&
-        type != Character.OTHER_SYMBOL.toInt()
+    return isOcrLookupStartChar(char)
 }
 
+// Chimahon -->
 internal fun extractOcrLookupSelection(
     text: String,
     start: Int,
@@ -171,6 +163,35 @@ internal fun extractOcrLookupSelection(
     scanAcrossSpaces = true,
     maxCodePoints = 80,
 )
+// Chimahon <--
+
+internal fun extractOcrLookupString(text: String, start: Int): String {
+    return extractOcrLookupText(text, start)
+}
+
+/**
+ * Lookup string for the tap at [global] offset of the block. When [wholeWord]
+ * is true the tap position expands to the full surrounding word, clamped so it
+ * never crosses into a neighboring OCR line (block text concatenates lines
+ * without a separator).
+ */
+internal fun OcrTextBlock.extractLookupString(global: Int, wholeWord: Boolean): String {
+    if (!wholeWord) return extractOcrLookupText(fullText, global)
+    val (lineStart, lineEnd) = lineBoundariesFor(global)
+    return extractWholeWord(fullText, global, lineStart, lineEnd)
+}
+
+/** [start, end) range of the line containing [offset] within [fullText]. */
+internal fun OcrTextBlock.lineBoundariesFor(offset: Int): Pair<Int, Int> {
+    if (lines.isEmpty()) return 0 to 0
+    var lineStart = 0
+    for (line in lines) {
+        val lineEnd = lineStart + line.length
+        if (offset < lineEnd) return lineStart to lineEnd
+        lineStart = lineEnd
+    }
+    return lineStart to fullText.length
+}
 
 internal fun uniformCharOffset(
     block: OcrTextBlock,

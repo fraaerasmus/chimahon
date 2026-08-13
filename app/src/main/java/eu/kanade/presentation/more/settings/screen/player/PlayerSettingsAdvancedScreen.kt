@@ -12,14 +12,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
-import eu.kanade.presentation.more.settings.screen.player.editor.codeeditor.CodeEditScreen
 import eu.kanade.tachiyomi.ui.player.settings.AdvancedPlayerPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import cafe.adriel.voyager.navigator.LocalNavigator
-import cafe.adriel.voyager.navigator.currentOrThrow
 
 object PlayerSettingsAdvancedScreen : SearchableSettings {
 
@@ -36,8 +33,6 @@ object PlayerSettingsAdvancedScreen : SearchableSettings {
         val enableScripts = advancedPlayerPreferences.mpvScripts()
         val mpvConf = advancedPlayerPreferences.mpvConf()
         val mpvInput = advancedPlayerPreferences.mpvInput()
-
-        val navigator = LocalNavigator.currentOrThrow
 
         return listOf(
             Preference.PreferenceItem.SwitchPreference(
@@ -56,19 +51,17 @@ object PlayerSettingsAdvancedScreen : SearchableSettings {
                     true
                 },
             ),
-            Preference.PreferenceItem.TextPreference(
+            Preference.PreferenceItem.MPVConfPreference(
+                preference = mpvConf,
+                scope = scope,
+                fileName = "mpv.conf",
                 title = stringResource(MR.strings.pref_mpv_conf),
-                subtitle = "mpv.conf",
-                onClick = {
-                    navigator.push(CodeEditScreen("mpv.conf"))
-                },
             ),
-            Preference.PreferenceItem.TextPreference(
+            Preference.PreferenceItem.MPVConfPreference(
+                preference = mpvInput,
+                scope = scope,
+                fileName = "input.conf",
                 title = stringResource(MR.strings.pref_mpv_input),
-                subtitle = "input.conf",
-                onClick = {
-                    navigator.push(CodeEditScreen("input.conf"))
-                },
             ),
         )
     }

@@ -40,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import eu.kanade.presentation.player.components.ExpandableCard
 import eu.kanade.presentation.player.components.SliderItem
-import eu.kanade.presentation.player.components.SwitchPreference
 import eu.kanade.tachiyomi.ui.player.controls.CARDS_MAX_WIDTH
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.toFixed
 import eu.kanade.tachiyomi.ui.player.controls.panelCardsColors
@@ -70,21 +69,6 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
         colors = panelCardsColors(),
     ) {
         Column {
-            var overrideAssSubs by remember {
-                mutableStateOf(MPVLib.getPropertyString("sub-ass-override").also { println(it) } == "force")
-            }
-            SwitchPreference(
-                overrideAssSubs,
-                onValueChange = {
-                    overrideAssSubs = it
-                    preferences.overrideSubsASS().set(it)
-                    MPVLib.setPropertyString("sub-ass-override", if (it) "force" else "scale")
-                },
-                content = { Text(stringResource(MR.strings.player_sheets_sub_override_ass)) },
-                modifier = Modifier
-                    .padding(MaterialTheme.padding.medium)
-                    .fillMaxWidth(),
-            )
             var subScale by remember {
                 mutableStateOf(MPVLib.getPropertyDouble("sub-scale").toFloat())
             }
@@ -141,8 +125,6 @@ fun SubtitlesMiscellaneousCard(modifier: Modifier = Modifier) {
                             subScale = it
                             MPVLib.setPropertyDouble("sub-scale", it.toDouble())
                         }
-                        preferences.overrideSubsASS().deleteAndGet().let { overrideAssSubs = it }
-                        MPVLib.setPropertyString("sub-ass-override", "scale") // mpv's default is 'scale'
                     },
                 ) {
                     Row {

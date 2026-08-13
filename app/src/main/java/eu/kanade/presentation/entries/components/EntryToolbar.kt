@@ -41,6 +41,7 @@ fun EntryToolbar(
     onClickSettings: (() -> Unit)?,
     // Anime only
     changeAnimeSkipIntro: (() -> Unit)?,
+    onClickDictionaryProfile: (() -> Unit)?,
     onClickRelatedAnime: (() -> Unit)?,
     // For action mode
     actionModeCounter: Int,
@@ -128,6 +129,14 @@ fun EntryToolbar(
                             AppBar.OverflowAction(
                                 title = stringResource(MR.strings.action_change_intro_length),
                                 onClick = changeAnimeSkipIntro,
+                            ),
+                        )
+                    }
+                    if (onClickDictionaryProfile != null) {
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(MR.strings.pref_dict_profile_override_manga),
+                                onClick = onClickDictionaryProfile,
                             ),
                         )
                     }

@@ -10,7 +10,7 @@ import eu.kanade.tachiyomi.data.backup.create.creators.AnimeCategoriesBackupCrea
 import eu.kanade.tachiyomi.data.backup.create.creators.AnimeExtensionRepoBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.AnimeSourcesBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.CategoriesBackupCreator
-import eu.kanade.tachiyomi.data.backup.create.creators.ExtensionRepoBackupCreator
+import eu.kanade.tachiyomi.data.backup.create.creators.ExtensionStoresBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.FeedBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.MangaBackupCreator
 import eu.kanade.tachiyomi.data.backup.create.creators.PreferenceBackupCreator
@@ -21,6 +21,7 @@ import eu.kanade.tachiyomi.data.backup.models.BackupAnime
 import eu.kanade.tachiyomi.data.backup.models.BackupAnimeSource
 import eu.kanade.tachiyomi.data.backup.models.BackupCategory
 import eu.kanade.tachiyomi.data.backup.models.BackupExtensionRepos
+import eu.kanade.tachiyomi.data.backup.models.BackupExtensionStore
 import eu.kanade.tachiyomi.data.backup.models.BackupFeed
 import eu.kanade.tachiyomi.data.backup.models.BackupManga
 import eu.kanade.tachiyomi.data.backup.models.BackupPreference
@@ -51,6 +52,9 @@ import java.text.SimpleDateFormat
 import java.time.Instant
 import java.util.Date
 import java.util.Locale
+import eu.kanade.tachiyomi.data.backup.models.BackupSearchHistory
+import tachiyomi.domain.history.interactor.GetSearchHistory
+import tachiyomi.domain.history.model.SearchHistory
 
 class BackupCreator(
     private val context: Context,
@@ -69,7 +73,7 @@ class BackupCreator(
     private val mangaBackupCreator: MangaBackupCreator = MangaBackupCreator(),
     private val animeBackupCreator: AnimeBackupCreator = AnimeBackupCreator(),
     private val preferenceBackupCreator: PreferenceBackupCreator = PreferenceBackupCreator(),
-    private val extensionRepoBackupCreator: ExtensionRepoBackupCreator = ExtensionRepoBackupCreator(),
+    private val extensionStoresBackupCreator: ExtensionStoresBackupCreator = ExtensionStoresBackupCreator(),
     private val animeExtensionRepoBackupCreator: AnimeExtensionRepoBackupCreator = AnimeExtensionRepoBackupCreator(),
     private val sourcesBackupCreator: SourcesBackupCreator = SourcesBackupCreator(),
     private val animeSourcesBackupCreator: AnimeSourcesBackupCreator = AnimeSourcesBackupCreator(),
@@ -78,6 +82,7 @@ class BackupCreator(
     // KMK <--
     // Chimahon -->
     private val novelBackupCreator: eu.kanade.tachiyomi.data.backup.create.creators.NovelBackupCreator = eu.kanade.tachiyomi.data.backup.create.creators.NovelBackupCreator(context),
+    private val getSearchHistory: GetSearchHistory = Injekt.get(),
     // Chimahon <--
     // SY -->
     private val savedSearchBackupCreator: SavedSearchBackupCreator = SavedSearchBackupCreator(),
@@ -125,7 +130,7 @@ class BackupCreator(
                 backupAnimeCategories = backupAnimeCategories(options),
                 backupAnimeSources = backupAnimeSources(backupAnime),
                 backupPreferences = backupAppPreferences(options),
-                backupExtensionRepo = backupExtensionRepos(options),
+                backupExtensionStores = backupExtensionStores(options),
                 backupAnimeExtensionRepo = backupAnimeExtensionRepos(options),
                 backupSourcePreferences = backupSourcePreferences(options),
 
@@ -142,6 +147,7 @@ class BackupCreator(
                 backupNovelCategories = backupNovelCategories(options),
                 backupMangaStats = backupMangaStats(options),
                 backupAnkiStats = backupAnkiStats(options),
+                backupSearchHistory = backupSearchHistory(options),
                 // Chimahon <--
             )
 
@@ -217,14 +223,14 @@ class BackupCreator(
         return preferenceBackupCreator.createApp(includePrivatePreferences = options.privateSettings)
     }
 
-    suspend fun backupExtensionRepos(options: BackupOptions): List<BackupExtensionRepos> {
-        if (!options.extensionRepoSettings) return emptyList()
+    internal suspend fun backupExtensionStores(options: BackupOptions): List<BackupExtensionStore> {
+        if (!options.extensionStores) return emptyList()
 
-        return extensionRepoBackupCreator()
+        return extensionStoresBackupCreator()
     }
 
     suspend fun backupAnimeExtensionRepos(options: BackupOptions): List<BackupExtensionRepos> {
-        if (!options.extensionRepoSettings) return emptyList()
+        if (!options.extensionStores) return emptyList<BackupExtensionRepos>()
 
         return animeExtensionRepoBackupCreator()
     }
@@ -275,6 +281,18 @@ class BackupCreator(
     fun backupAnkiStats(options: BackupOptions): List<com.canopus.chimareader.data.AnkiStats> {
         if (!options.appSettings) return emptyList()
         return com.canopus.chimareader.data.AnkiStatsStorage.loadAll(context)
+    }
+
+    suspend fun backupSearchHistory(options: BackupOptions): List<BackupSearchHistory> {
+        if (!options.history) return emptyList()
+
+        return getSearchHistory.awaitAll().map {
+            BackupSearchHistory(
+                scope = it.scope,
+                query = it.query,
+                lastSearchedAt = it.lastSearchedAt,
+            )
+        }
     }
     // Chimahon <--
 

@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.DeleteSweep
@@ -23,14 +25,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.zIndex
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -69,12 +69,14 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import mihon.feature.migration.dialog.MigrateMangaDialog
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.episode.model.Episode
+import tachiyomi.domain.history.model.SearchHistory
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.TabText
@@ -120,7 +122,9 @@ data object HistoryTab : Tab {
         val state by screenModel.state.collectAsState()
         val animeScreenModel = rememberScreenModel { AnimeHistoryScreenModel() }
         val animeState by animeScreenModel.state.collectAsState()
-        var selectedTab by rememberSaveable { mutableIntStateOf(TAB_MANGA) }
+        val scope = rememberCoroutineScope()
+        val pagerState = rememberPagerState(initialPage = TAB_MANGA) { TAB_COUNT }
+        val selectedTab = pagerState.currentPage
         // KMK -->
         val settingsScreenModel = rememberScreenModel { HistorySettingsScreenModel() }
         val usePanoramaCover by settingsScreenModel.historyPreferences.usePanoramaCover().collectAsState()
@@ -149,6 +153,7 @@ data object HistoryTab : Tab {
                                 else -> screenModel.updateSearchQuery(it)
                             }
                         },
+                        searchHistoryScope = SearchHistory.SCOPE_ANIME_MANGA,
                         actions = {
                             val actions = when (selectedTab) {
                                 TAB_ANIME -> listOf(
@@ -200,58 +205,64 @@ data object HistoryTab : Tab {
                 ) {
                     Tab(
                         selected = selectedTab == TAB_MANGA,
-                        onClick = { selectedTab = TAB_MANGA },
-                        text = { TabText(text = stringResource(MR.strings.label_library)) },
+                        onClick = { scope.launch { pagerState.animateScrollToPage(TAB_MANGA) } },
+                        text = { TabText(text = stringResource(MR.strings.manga_singular)) },
                         unselectedContentColor = MaterialTheme.colorScheme.onSurface,
                     )
                     Tab(
                         selected = selectedTab == TAB_ANIME,
-                        onClick = { selectedTab = TAB_ANIME },
+                        onClick = { scope.launch { pagerState.animateScrollToPage(TAB_ANIME) } },
                         text = { TabText(text = stringResource(MR.strings.label_anime)) },
                         unselectedContentColor = MaterialTheme.colorScheme.onSurface,
                     )
                 }
 
-                val pagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
-                when (selectedTab) {
-                    TAB_ANIME -> AnimeHistoryScreen(
-                        state = animeState,
-                        contentPadding = pagePadding,
-                        onClickCover = { navigator.push(AnimeScreen(it)) },
-                        onClickResume = animeScreenModel::getNextEpisodeForAnime,
-                        onDialogChange = animeScreenModel::setDialog,
-                        onClickFavorite = animeScreenModel::addFavorite,
-                    )
-                    else -> {
-                        when {
-                            state.isLoading -> LoadingScreen(Modifier.padding(pagePadding))
-                            state.list.isEmpty() -> {
-                                val msg = if (!state.searchQuery.isNullOrEmpty()) {
-                                    MR.strings.no_results_found
-                                } else {
-                                    MR.strings.information_no_recent_manga
+                HorizontalPager(
+                    modifier = Modifier.fillMaxSize(),
+                    state = pagerState,
+                    verticalAlignment = Alignment.Top,
+                ) { page ->
+                    val pagePadding = PaddingValues(bottom = contentPadding.calculateBottomPadding())
+                    when (page) {
+                        TAB_ANIME -> AnimeHistoryScreen(
+                            state = animeState,
+                            contentPadding = pagePadding,
+                            onClickCover = { navigator.push(AnimeScreen(it)) },
+                            onClickResume = animeScreenModel::getNextEpisodeForAnime,
+                            onDialogChange = animeScreenModel::setDialog,
+                            onClickFavorite = animeScreenModel::addFavorite,
+                        )
+                        else -> {
+                            when {
+                                state.isLoading -> LoadingScreen(Modifier.padding(pagePadding))
+                                state.list.isEmpty() -> {
+                                    val msg = if (!state.searchQuery.isNullOrEmpty()) {
+                                        MR.strings.no_results_found
+                                    } else {
+                                        MR.strings.information_no_recent_manga
+                                    }
+                                    EmptyScreen(
+                                        stringRes = msg,
+                                        modifier = Modifier.padding(pagePadding),
+                                    )
                                 }
-                                EmptyScreen(
-                                    stringRes = msg,
-                                    modifier = Modifier.padding(pagePadding),
-                                )
-                            }
-                            else -> {
-                                val uiModels = remember(state.list) { state.getUiModel() }
-                                HistoryScreenContent(
-                                    state = state,
-                                    history = uiModels,
-                                    contentPadding = pagePadding,
-                                    onClickCover = { history -> navigator.push(MangaScreen(history.mangaId)) },
-                                    onClickResume = { history ->
-                                        screenModel.getNextChapterForManga(history.mangaId, history.chapterId)
-                                    },
-                                    onClickDelete = { item -> screenModel.setDialog(HistoryScreenModel.Dialog.Delete(item)) },
-                                    onClickFavorite = { history -> screenModel.addFavorite(history.mangaId) },
-                                    selectionMode = state.selectionMode,
-                                    onHistorySelected = screenModel::toggleSelection,
-                                    usePanoramaCover = usePanoramaCover,
-                                )
+                                else -> {
+                                    val uiModels = remember(state.list) { state.getUiModel() }
+                                    HistoryScreenContent(
+                                        state = state,
+                                        history = uiModels,
+                                        contentPadding = pagePadding,
+                                        onClickCover = { history -> navigator.push(MangaScreen(history.mangaId)) },
+                                        onClickResume = { history ->
+                                            screenModel.getNextChapterForManga(history.mangaId, history.chapterId)
+                                        },
+                                        onClickDelete = { item -> screenModel.setDialog(HistoryScreenModel.Dialog.Delete(item)) },
+                                        onClickFavorite = { history -> screenModel.addFavorite(history.mangaId) },
+                                        selectionMode = state.selectionMode,
+                                        onHistorySelected = screenModel::toggleSelection,
+                                        usePanoramaCover = usePanoramaCover,
+                                    )
+                                }
                             }
                         }
                     }
@@ -450,3 +461,4 @@ data object HistoryTab : Tab {
 
 private const val TAB_MANGA = 0
 private const val TAB_ANIME = 1
+private const val TAB_COUNT = 2

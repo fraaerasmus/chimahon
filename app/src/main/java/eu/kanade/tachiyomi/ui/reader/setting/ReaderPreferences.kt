@@ -5,6 +5,7 @@ import androidx.compose.ui.graphics.BlendMode
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerConfig
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 import tachiyomi.i18n.MR
@@ -25,7 +26,11 @@ class ReaderPreferences(
 
     fun flashOnPageChange() = preferenceStore.getBoolean("pref_reader_flash", false)
 
+    fun flashOnScroll() = preferenceStore.getBoolean("pref_reader_flash_on_scroll", false)
+
     fun flashDurationMillis() = preferenceStore.getInt("pref_reader_flash_duration", MILLI_CONVERSION)
+
+    fun flashDelayMillis() = preferenceStore.getInt("pref_reader_flash_delay", 0)
 
     fun flashPageInterval() = preferenceStore.getInt("pref_reader_flash_interval", 1)
 
@@ -109,9 +114,16 @@ class ReaderPreferences(
     // Chimahon -->
     fun ocrOverlayEnabled() = preferenceStore.getBoolean("reader_ocr_overlay_enabled", false)
 
+    fun ocrSource(mangaId: Long) = preferenceStore.getEnum(
+        readerOcrSourcePreferenceKey(mangaId),
+        ReaderOcrSource.AUTOMATIC,
+    )
+
     fun ocrOutlineVisible() = preferenceStore.getBoolean("reader_ocr_outline_visible", false)
 
     fun ocrAutoOnDownload() = preferenceStore.getBoolean("ocr_auto_on_download", false)
+
+    fun ocrTwoFingerGestureEnabled() = preferenceStore.getBoolean("reader_ocr_two_finger_gesture", true)
 
     fun readerStartupDelay() = preferenceStore.getBoolean("reader_startup_delay", false)
     // Chimahon <--
@@ -351,4 +363,8 @@ class ReaderPreferences(
         )
         // SY <--
     }
+}
+
+internal fun readerOcrSourcePreferenceKey(mangaId: Long): String {
+    return Preference.appStateKey("reader_ocr_source_$mangaId")
 }

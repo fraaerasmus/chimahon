@@ -53,6 +53,7 @@ import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.components.BulkSelectionToolbar
 import eu.kanade.presentation.components.SearchToolbar
+import tachiyomi.domain.history.model.SearchHistory
 import eu.kanade.presentation.components.TabContent
 import tachiyomi.presentation.core.components.material.TabText
 import eu.kanade.presentation.util.Tab
@@ -110,6 +111,12 @@ data object BrowseTab : Tab {
     }
 
     private val switchToExtensionTabChannel = Channel<BrowseViewMode>(1, BufferOverflow.DROP_OLDEST)
+
+    private val modeSelectionEvent = Channel<BrowseViewMode>(Channel.BUFFERED)
+
+    suspend fun selectBrowseMode(mode: BrowseViewMode) {
+        modeSelectionEvent.send(mode)
+    }
 
     fun showExtension() {
         switchToExtensionTabChannel.trySend(BrowseViewMode.Sources)
@@ -176,21 +183,17 @@ data object BrowseTab : Tab {
         }
         val pagerState = rememberPagerState { currentTabs.size }
 
-        LaunchedEffect(browseMode) {
-            pagerState.scrollToPage(0)
-        }
-
         val currentTabIndex = pagerState.currentPage.coerceAtMost(currentTabs.lastIndex)
         val currentTab = currentTabs.getOrNull(currentTabIndex)
         val searchEnabled = currentTab?.searchEnabled ?: false
 
         val searchQuery: String? = when {
-            browseMode == BrowseViewMode.Anime && currentTab?.titleRes == MR.strings.label_anime_extensions -> animeExtensionsState.searchQuery
+            browseMode == BrowseViewMode.Anime && currentTab?.titleRes == MR.strings.label_extensions -> animeExtensionsState.searchQuery
             browseMode == BrowseViewMode.Sources && currentTab?.titleRes == MR.strings.label_extensions -> extensionsState.searchQuery
             else -> null
         }
         val onChangeSearchQuery: (String?) -> Unit = when {
-            browseMode == BrowseViewMode.Anime && currentTab?.titleRes == MR.strings.label_anime_extensions -> animeExtensionsScreenModel::search
+            browseMode == BrowseViewMode.Anime && currentTab?.titleRes == MR.strings.label_extensions -> animeExtensionsScreenModel::search
             browseMode == BrowseViewMode.Sources && currentTab?.titleRes == MR.strings.label_extensions -> extensionsScreenModel::search
             else -> { _ -> }
         }
@@ -261,6 +264,7 @@ data object BrowseTab : Tab {
                         searchEnabled = searchEnabled,
                         searchQuery = if (searchEnabled) searchQuery else null,
                         onChangeSearchQuery = onChangeSearchQuery,
+                        searchHistoryScope = if (currentTab?.titleRes == MR.strings.label_extensions || currentTab?.titleRes == MR.strings.label_migration) SearchHistory.SCOPE_EXTENSION_MIGRATE else SearchHistory.SCOPE_ANIME_MANGA,
                         actions = {
                             AppBarActions(currentTab?.actions ?: persistentListOf())
                         },
@@ -315,6 +319,13 @@ data object BrowseTab : Tab {
                         pagerState.scrollToPage(extensionsIndex)
                     }
                 }
+        }
+
+        LaunchedEffect(Unit) {
+            modeSelectionEvent.receiveAsFlow().collectLatest { mode ->
+                browseMode = mode
+                uiPreferences.lastUsedBrowseMode().set(mode.ordinal)
+            }
         }
 
         LaunchedEffect(Unit) {

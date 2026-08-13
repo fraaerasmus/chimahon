@@ -21,6 +21,8 @@ internal fun getDictionaryBootstrapHtml(
     fontFamily: String = "",
     eInkMode: Boolean = false,
     paginatedScrolling: Boolean = false,
+    paginatedScrollStepSize: Int = 90,
+    scrollBehavior: String = "smooth",
     languageCode: String = "",
 ): String {
     val css = dictionaryBaseCss.getOrPut(Unit) {
@@ -29,11 +31,28 @@ internal fun getDictionaryBootstrapHtml(
     val js = dictionaryRendererJs.getOrPut(Unit) {
         readTextAsset(context.applicationContext, "dictionary/renderer.js").replace("</script", "<\\/script")
     }
+    // Chimahon -->
     val lookupScannerJs = dictionaryLookupScannerJs.getOrPut(Unit) {
         readTextAsset(context.applicationContext, "shared/lookup-scanner.js").replace("</script", "<\\/script")
     }
+    // Chimahon <--
+    val kanjiJs = dictionaryKanjiRendererJs.getOrPut(Unit) {
+        readTextAsset(context.applicationContext, "dictionary/kanji-renderer.js")
+    }
 
     val fontUrl = FontManager.getFontUri(context, fontFamily)
+    val kanjiFontUrl = FontManager.getKanjiStrokeFontUri(context)
+    val kanjiFontFaceCss = if (kanjiFontUrl != null) {
+        """
+          <style>
+            @font-face {
+              font-family: '${FontManager.KANJI_STROKE_FONT_FAMILY}';
+              src: url('$kanjiFontUrl');
+            }
+          </style>
+        """.trimIndent()
+    } else ""
+
     val fontFaceCss = if (fontUrl != null) {
         """
           @font-face {
@@ -83,16 +102,18 @@ internal fun getDictionaryBootstrapHtml(
 
     val eInkAttr = if (eInkMode) "true" else "false"
     val paginatedScrollingAttr = if (paginatedScrolling) "true" else "false"
+    val paginatedStepAttr = if (paginatedScrolling) paginatedScrollStepSize.toString() else "90"
+    val scrollBehaviorAttr = scrollBehavior
     val themeAttr = if (isDark == true) "dark" else "light"
     val langAttr = if (languageCode.isNotEmpty()) """lang="$languageCode" """ else ""
 
     return """
         <!doctype html>
-        <html $langAttr data-theme="$themeAttr" data-chima-eink-mode="$eInkAttr" data-chima-paginated-scrolling="$paginatedScrollingAttr">
+        <html $langAttr data-theme="$themeAttr" data-chima-eink-mode="$eInkAttr" data-chima-paginated-scrolling="$paginatedScrollingAttr" data-chima-paginated-step="$paginatedStepAttr" data-chima-scroll-behavior="$scrollBehaviorAttr">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-          <style>$css</style>$dynamicThemeCss
+          <style>$css</style>$kanjiFontFaceCss$dynamicThemeCss
           <style>$fontFaceCss</style>
           <style id="dictionary-styles"></style>
           <style id="chima-custom-css"></style>
@@ -125,6 +146,7 @@ internal fun getDictionaryBootstrapHtml(
           <main id="entries" class="entries"></main>
           <script>$lookupScannerJs</script>
           <script>$js</script>
+          <script>$kanjiJs</script>
         </body>
         </html>
     """.trimIndent()
@@ -139,6 +161,7 @@ private fun readTextAsset(context: Context, assetPath: String): String {
 private val dictionaryBaseCss = java.util.concurrent.ConcurrentHashMap<Unit, String>()
 private val dictionaryLookupScannerJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
 private val dictionaryRendererJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
+private val dictionaryKanjiRendererJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
 
 fun getDictionaryColorScheme(
     isDark: Boolean,

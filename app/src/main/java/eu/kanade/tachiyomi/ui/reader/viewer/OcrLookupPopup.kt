@@ -55,12 +55,20 @@ import eu.kanade.domain.ui.model.ThemeMode
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.theme.colorscheme.CustomColorScheme
 import chimahon.DictionaryRepository
+import chimahon.KanjiEntry
+import chimahon.KanjiResult
 import chimahon.LookupResult
 import chimahon.MediaInfo
 import chimahon.anki.AnkiCardCreator
+import chimahon.anki.AnkiMediaRequest
+import chimahon.anki.AnkiMediaWarning
+import chimahon.anki.AnkiProfile
 import chimahon.anki.AnkiResult
 import chimahon.dictionary.FrenchLookupPolicy
+import chimahon.ocr.effectiveSearchResolution
+import chimahon.ocr.nextWordBoundarySubstring
 import chimahon.util.ImageEncoder
+import eu.kanade.tachiyomi.ui.dictionary.buildKanjiEntryJson
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryEntryWebView
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.getDictionaryColorScheme
@@ -103,6 +111,7 @@ private data class LookupFrame(
     val styles: List<chimahon.DictionaryStyle>,
     val mediaDataUris: Map<String, String>,
     val existingExpressions: Set<String>,
+    val entryJsons: List<String>? = null,
 )
 
 private data class RecursivePopupRequest(
@@ -112,7 +121,10 @@ private data class RecursivePopupRequest(
     val sentenceOffset: Int,
     val tapX: Float? = null,
     val tapY: Float? = null,
+    val anchorWidth: Float = 0f,
+    val anchorHeight: Float = 0f,
     val deferredResult: kotlinx.coroutines.Deferred<chimahon.DictionaryRepository.LookupResult2>,
+    val entryJsons: List<String>? = null,
 )
 
 
@@ -135,13 +147,18 @@ fun OcrLookupPopup(
     mediaInfo: MediaInfo? = null,
     screenshot: Bitmap? = null,
     onRequestScreenshot: (suspend () -> Bitmap?)? = null,
+    onRequestAnimatedScene: (suspend () -> ByteArray?)? = null,
     onRequestSentenceAudio: (suspend () -> ByteArray?)? = null,
+    mediaRequest: AnkiMediaRequest? = null,
+    onAnkiMediaWarnings: (List<AnkiMediaWarning>) -> Unit = {},
     onCropTriggered: ((Long, Int?) -> Unit)? = null,
     initialLookupDeferred: kotlinx.coroutines.Deferred<chimahon.DictionaryRepository.LookupResult2>? = null,
+    initialEntryJsons: List<String>? = null,
     usePopup: Boolean = true,
     onTermMatched: ((Int, Int) -> Unit)? = null,
     onContentReadyChange: ((Boolean) -> Unit)? = null,
     dismissOnOutsideTap: Boolean = false,
+    isRecursiveChild: Boolean = false,
     modifier: Modifier = Modifier,
     titleId: String? = null,
 ) {
@@ -168,6 +185,7 @@ fun OcrLookupPopup(
     val styles = currentFrame?.styles ?: emptyList()
     val mediaDataUris = currentFrame?.mediaDataUris ?: emptyMap()
     val existingExpressions = currentFrame?.existingExpressions ?: emptySet()
+    val entryJsons = currentFrame?.entryJsons
     var childPopupRequest by remember { mutableStateOf<RecursivePopupRequest?>(null) }
     val childPopupWebView = remember(context) { WebView(context) }
     var contentReady by remember(visible) { mutableStateOf(false) }
@@ -179,6 +197,30 @@ fun OcrLookupPopup(
 
     androidx.compose.runtime.DisposableEffect(childPopupWebView) {
         onDispose { childPopupWebView.destroy() }
+    }
+
+    fun dismissPopup() {
+        if (!isRecursiveChild) {
+            childPopupRequest = null
+            webView.evaluateJavascript(
+                "window.DictionaryRenderer && window.DictionaryRenderer.clearRecursiveSelection();",
+                null,
+            )
+        }
+        onDismiss()
+    }
+
+    androidx.compose.runtime.DisposableEffect(webView, childPopupRequest) {
+        if (childPopupRequest != null) {
+            webView.setOnScrollChangeListener { _, _, _, _, _ ->
+                childPopupRequest = null
+                webView.evaluateJavascript(
+                    "window.DictionaryRenderer && window.DictionaryRenderer.clearRecursiveSelection();",
+                    null,
+                )
+            }
+        }
+        onDispose { webView.setOnScrollChangeListener(null) }
     }
 
 
@@ -243,7 +285,27 @@ fun OcrLookupPopup(
         sentenceContext: String = fullText,
         sentenceOffsetContext: Int = charOffset,
         deferredResult: kotlinx.coroutines.Deferred<chimahon.DictionaryRepository.LookupResult2>? = null,
+        entryJsons: List<String>? = null,
     ) {
+        if (entryJsons != null) {
+            val frame = LookupFrame(
+                id = UUID.randomUUID().toString(),
+                query = query,
+                sentence = sentenceContext,
+                sentenceOffset = sentenceOffsetContext,
+                results = emptyList(),
+                styles = emptyList(),
+                mediaDataUris = emptyMap(),
+                existingExpressions = emptySet(),
+                entryJsons = entryJsons,
+            )
+            val truncated = lookupStackState.stack.take(lookupStackState.activeIndex + 1) + frame
+            lookupStackState = LookupStackState(stack = truncated, activeIndex = truncated.size - 1)
+            errorMessage = null
+            isLoading = false
+            return
+        }
+
         val cleanQuery = if (isRecursive) {
             FrenchLookupPolicy.recursiveQuery(query, activeProfile.languageCode) ?: return
         } else {
@@ -338,7 +400,7 @@ fun OcrLookupPopup(
             // internal caching so the stat call is fast.
             val termPaths = getDictionaryPaths(context, activeProfile)
             val result = runCatching {
-                repository.lookup(finalQuery, termPaths, activeProfile.languageCode)
+                lookupWithSearchResolution(repository, finalQuery, termPaths, activeProfile)
             }.getOrElse {
                 chimahon.DictionaryRepository.LookupResult2(
                     results = emptyList(),
@@ -353,7 +415,7 @@ fun OcrLookupPopup(
         } else {
             scope.async(Dispatchers.IO) {
                 val termPaths = getDictionaryPaths(context, activeProfile)
-                repository.lookup(finalQuery, termPaths, activeProfile.languageCode)
+                lookupWithSearchResolution(repository, finalQuery, termPaths, activeProfile)
             }
         }
 
@@ -412,9 +474,16 @@ fun OcrLookupPopup(
     val (maxWidthDp, maxHeightDp) = with(density) {
         val sw = screenWidthPx.toDp()
         val sh = screenHeightPx.toDp()
+        val childMaxWidth = (sw - 12.dp).coerceAtLeast(120.dp)
+        val childMaxHeight = maxOf(
+            anchorY - with(density) { 12.dp.toPx() },
+            screenHeightPx - anchorY - anchorHeight - with(density) { 12.dp.toPx() },
+        ).toDp().coerceAtLeast(120.dp)
         Pair(
-            popupWidthPref.dp.coerceIn(280.dp, sw * 0.9f),
-            popupHeightPref.dp.coerceIn(200.dp, sh * 0.8f),
+            if (isRecursiveChild) popupWidthPref.dp.coerceAtMost(childMaxWidth).coerceAtLeast(120.dp)
+            else popupWidthPref.dp.coerceIn(280.dp, sw * 0.9f),
+            if (isRecursiveChild) popupHeightPref.dp.coerceAtMost(childMaxHeight).coerceAtLeast(120.dp)
+            else popupHeightPref.dp.coerceIn(200.dp, sh * 0.8f),
         )
     }
 
@@ -480,7 +549,7 @@ fun OcrLookupPopup(
 
         if (shouldUseCropMode) {
             miningScope.launch {
-                val sentenceAudioBytes = if (sentenceAudioFieldMapped) {
+                val sentenceAudioBytes = if (sentenceAudioFieldMapped && mediaRequest == null) {
                     onRequestSentenceAudio?.invoke()
                 } else {
                     null
@@ -509,13 +578,15 @@ fun OcrLookupPopup(
                     syncOnCreate = ankiSyncOnCreate,
                     profileId = activeProfile.id,
                     titleId = titleId,
+                    mediaRequest = mediaRequest,
                 )
                 if (ankiResult is AnkiResult.Success || ankiResult is AnkiResult.CardExists || ankiResult is AnkiResult.OpenCard) {
                     withContext(kotlinx.coroutines.Dispatchers.Main) {
                         when (ankiResult) {
                             is AnkiResult.Success -> {
                                 updateStatus(result.term.expression)
-                                onDismiss()
+                                onAnkiMediaWarnings(ankiResult.mediaWarnings)
+                                dismissPopup()
                                 onCropTriggered.invoke(ankiResult.noteId, glossaryIndex)
                             }
                             is AnkiResult.CardExists -> {
@@ -544,12 +615,20 @@ fun OcrLookupPopup(
             }
         } else {
             miningScope.launch {
-                val encoding = if (screenshotFieldMapped) {
+                val encoding = if (screenshotFieldMapped && cropMode != "no_screenshot") {
                     onRequestScreenshot?.invoke()?.let { ImageEncoder.encode(it) }
                 } else {
                     null
                 }
-                val sentenceAudioBytes = if (sentenceAudioFieldMapped) {
+                val screenshotBytes = if (
+                    cropMode == chimahon.anki.AnkiScreenshotMode.ANIMATED_SCENE.storageValue &&
+                    onRequestAnimatedScene != null
+                ) {
+                    onRequestAnimatedScene.invoke()
+                } else {
+                    encoding?.bytes
+                }
+                val sentenceAudioBytes = if (sentenceAudioFieldMapped && mediaRequest == null) {
                     onRequestSentenceAudio?.invoke()
                 } else {
                     null
@@ -568,7 +647,7 @@ fun OcrLookupPopup(
                     offset = miningOffset,
                     media = mediaInfo,
                     glossaryIndex = glossaryIndex,
-                    screenshotBytes = encoding?.bytes,
+                    screenshotBytes = screenshotBytes,
                     sentenceAudioBytes = sentenceAudioBytes,
                     selection = result.matched,
                     selectedDict = selectedDict,
@@ -579,11 +658,13 @@ fun OcrLookupPopup(
                     syncOnCreate = ankiSyncOnCreate,
                     profileId = activeProfile.id,
                     titleId = titleId,
+                    mediaRequest = mediaRequest,
                 )
                 withContext(kotlinx.coroutines.Dispatchers.Main) {
                     when (ankiResult) {
                         is AnkiResult.Success -> {
                             updateStatus(result.term.expression)
+                            onAnkiMediaWarnings(ankiResult.mediaWarnings)
                             context.toast(MR.strings.anki_card_added)
                         }
                         is AnkiResult.CardExists -> {
@@ -619,13 +700,14 @@ fun OcrLookupPopup(
     val layoutResult = remember(
         anchorX, anchorY, anchorWidth, anchorHeight,
         screenWidthPx, screenHeightPx, popupWidthPx, popupHeightPx, isVertical, popupModePref,
+        isRecursiveChild,
     ) {
         val w: Float
         val h: Float
         val bestX: Float
         val bestY: Float
 
-        when (popupModePref) {
+        when (if (isRecursiveChild) "floating" else popupModePref) {
             "full_width" -> {
                 w = screenWidthPx
                 h = minOf(popupHeightPx, screenHeightPx)
@@ -672,7 +754,9 @@ fun OcrLookupPopup(
             val all = listOf(right, left, below, above)
 
             // Priority order: 0=Right, 1=Left, 2=Below, 3=Above
-            val order = if (isVertical) {
+            val order = if (isRecursiveChild) {
+                if (acy < screenHeightPx / 2f) listOf(2, 3, 0, 1) else listOf(3, 2, 0, 1)
+            } else if (isVertical) {
                 if (acx < screenWidthPx / 2f) listOf(0, 1, 2, 3) else listOf(1, 0, 2, 3)
             } else {
                 if (acy < screenHeightPx / 2f) listOf(2, 3, 0, 1) else listOf(3, 2, 0, 1)
@@ -684,8 +768,10 @@ fun OcrLookupPopup(
 
             for (idx in order) {
                 val p = all[idx]
-                val cx = p.x.coerceIn(paddingPx, screenWidthPx - w - paddingPx)
-                val cy = p.y.coerceIn(paddingPx, screenHeightPx - h - paddingPx)
+                val maxCx = (screenWidthPx - w - paddingPx).coerceAtLeast(paddingPx)
+                val maxCy = (screenHeightPx - h - paddingPx).coerceAtLeast(paddingPx)
+                val cx = p.x.coerceIn(paddingPx, maxCx)
+                val cy = p.y.coerceIn(paddingPx, maxCy)
 
                 val overlaps = cx < ax + expW && cx + w > ax &&
                     cy < ay + expH && cy + h > ay
@@ -700,8 +786,8 @@ fun OcrLookupPopup(
 
             if (!found) {
                 val pref = all[order[0]]
-                bestX = pref.x.coerceIn(paddingPx, screenWidthPx - w - paddingPx)
-                bestY = pref.y.coerceIn(paddingPx, screenHeightPx - h - paddingPx)
+                bestX = pref.x.coerceIn(paddingPx, (screenWidthPx - w - paddingPx).coerceAtLeast(paddingPx))
+                bestY = pref.y.coerceIn(paddingPx, (screenHeightPx - h - paddingPx).coerceAtLeast(paddingPx))
             } else {
                 bestX = bx
                 bestY = by
@@ -717,7 +803,16 @@ fun OcrLookupPopup(
 
 
     LaunchedEffect(visible) {
-        if (!visible) stopDictionaryAudio(webView)
+        if (!visible) {
+            stopDictionaryAudio(webView)
+            if (!isRecursiveChild) {
+                childPopupRequest = null
+                webView.evaluateJavascript(
+                    "window.DictionaryRenderer && window.DictionaryRenderer.clearRecursiveSelection();",
+                    null,
+                )
+            }
+        }
     }
 
     LaunchedEffect(lookupString, ankiEnabled, ankiModel, visible) {
@@ -737,7 +832,7 @@ fun OcrLookupPopup(
         // when a genuinely new lookup generation begins (see onContentReadyChange).
         lookupStackState = LookupStackState()
         isLoading = false
-        pushLookup(lookupString, deferredResult = initialLookupDeferred)
+        pushLookup(lookupString, deferredResult = initialLookupDeferred, entryJsons = initialEntryJsons)
     }
 
     fun recursiveSentence(sentence: String?): String {
@@ -752,10 +847,43 @@ fun OcrLookupPopup(
     }
 
     // Callbacks forwarded from the WebView bridge
-    val onRecursiveLookup: (String, String?, Int?, Float?, Float?) -> Unit = { word, sentence, offset, x, y ->
+    val onRecursiveLookup: (String, String?, Int?, Float?, Float?, String?) -> Unit = { word, sentence, offset, x, y, type ->
         val targetSentence = recursiveSentence(sentence)
         val targetOffset = recursiveOffset(sentence, offset)
-        if (recursiveNavMode == "popup") {
+        if (type == "kanji") {
+            val paths = getDictionaryPaths(context, activeProfile)
+            val kanjiResult = runCatching {
+                repository.queryKanji(word)
+            }.getOrNull()
+            val jsonStrings = kanjiResult?.entries?.map { e ->
+                buildKanjiEntryJson(kanjiResult.character, e).toString()
+            } ?: emptyList()
+            if (recursiveNavMode == "popup") {
+                val resolvedResult = CompletableDeferred(
+                    chimahon.DictionaryRepository.LookupResult2(
+                        results = emptyList(),
+                        styles = emptyList(),
+                        mediaDataUris = emptyMap(),
+                        error = null,
+                    )
+                )
+                childPopupRequest = RecursivePopupRequest(
+                    query = word,
+                    sentence = targetSentence,
+                    sentenceOffset = targetOffset,
+                    deferredResult = resolvedResult,
+                    entryJsons = jsonStrings,
+                )
+            } else {
+                pushLookup(
+                    query = word,
+                    isRecursive = true,
+                    sentenceContext = targetSentence,
+                    sentenceOffsetContext = targetOffset,
+                    entryJsons = jsonStrings,
+                )
+            }
+        } else if (recursiveNavMode == "popup") {
             // Sync lookup (same warm path as pushLookup's recursive branch),
             // then create a child popup with the results — no parent WebView update.
             val cleanQuery = FrenchLookupPolicy.recursiveQuery(word, activeProfile.languageCode)
@@ -772,21 +900,42 @@ fun OcrLookupPopup(
                     )
                 }
                 val orderedResults = orderLookupResultsForDisplay(result.results, activeProfile, context)
-                childPopupRequest = RecursivePopupRequest(
-                    query = word,
-                    sentence = targetSentence,
-                    sentenceOffset = targetOffset,
-                    tapX = x,
-                    tapY = y,
-                    deferredResult = CompletableDeferred(
+                val matched = orderedResults.firstOrNull()?.matched
+                if (!matched.isNullOrBlank()) {
+                    val resolvedResult = CompletableDeferred(
                         chimahon.DictionaryRepository.LookupResult2(
                             results = orderedResults,
                             styles = result.styles,
                             mediaDataUris = result.mediaDataUris,
                             error = result.error,
                         ),
-                    ),
-                )
+                    )
+                    val matchedLength = matched.codePointCount(0, matched.length)
+                    webView.evaluateJavascript(
+                        "window.DictionaryRenderer && window.DictionaryRenderer.resolveRecursiveSelection($matchedLength);",
+                    ) { encodedRect ->
+                        val rect = runCatching {
+                            val decoded = org.json.JSONTokener(encodedRect).nextValue() as? String
+                            decoded?.let { org.json.JSONObject(it) }
+                        }.getOrNull()
+                        val cssScale = density.density
+                        childPopupRequest = RecursivePopupRequest(
+                            query = matched,
+                            sentence = targetSentence,
+                            sentenceOffset = targetOffset,
+                            tapX = (rect?.optDouble("x")?.toFloat() ?: x ?: 0f) * cssScale,
+                            tapY = (rect?.optDouble("y")?.toFloat() ?: y ?: 0f) * cssScale,
+                            anchorWidth = (rect?.optDouble("width")?.toFloat() ?: 0f) * cssScale,
+                            anchorHeight = (rect?.optDouble("height")?.toFloat() ?: 0f) * cssScale,
+                            deferredResult = resolvedResult,
+                        )
+                    }
+                } else {
+                    webView.evaluateJavascript(
+                        "window.DictionaryRenderer && window.DictionaryRenderer.clearRecursiveSelection();",
+                        null,
+                    )
+                }
             }
         } else {
             pushLookup(
@@ -957,7 +1106,7 @@ fun OcrLookupPopup(
                         .clickable(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() },
-                        ) { onDismiss() },
+                        ) { dismissPopup() },
                     shape = RoundedCornerShape(if (eInkMode) 0.dp else 14.dp),
                     color = Color.Transparent,
                     contentColor = chromeText,
@@ -1000,7 +1149,7 @@ fun OcrLookupPopup(
                                     if (kotlin.math.abs(totalDragX) > swipeThreshold &&
                                         kotlin.math.abs(totalDragX) > kotlin.math.abs(totalDragY) * 1.75f
                                     ) {
-                                        onDismiss()
+                                        dismissPopup()
                                         throw CancellationException("Dismissed by swipe")
                                     }
                                 }
@@ -1057,6 +1206,7 @@ fun OcrLookupPopup(
                     wordAudioAutoplayOverride = if (visible) wordAudioAutoplay else false,
                     groupPitches = groupPitches,
                     requestFocusOnMount = true,
+                    entryJsons = entryJsons,
                     webViewProvider = { webView },
                     onAnkiLookup = onAnkiLookup,
                     onRecursiveLookup = onRecursiveLookup,
@@ -1101,7 +1251,7 @@ fun OcrLookupPopup(
         if (visible) {
             Popup(
                 offset = IntOffset(layoutResult.x.roundToInt(), layoutResult.y.roundToInt()),
-                onDismissRequest = { onDismiss() },
+                onDismissRequest = { dismissPopup() },
                 properties = PopupProperties(
                     focusable = dismissOnOutsideTap,
                     dismissOnClickOutside = dismissOnOutsideTap,
@@ -1133,7 +1283,7 @@ fun OcrLookupPopup(
                             indication = null,
                             interactionSource = remember { MutableInteractionSource() },
                         ) {
-                            onDismiss()
+                            dismissPopup()
                         }
                 )
             }
@@ -1142,7 +1292,11 @@ fun OcrLookupPopup(
     }
 
     childPopupRequest?.let { request ->
-        val closeChromePx = with(density) { 32.dp.toPx() }
+        val closeChromePx = if (dismissOnOutsideTap && recursiveNavMode == "popup") {
+            with(density) { 32.dp.toPx() }
+        } else {
+            0f
+        }
         val tapScreenX = layoutResult.x + (request.tapX ?: layoutResult.widthPx / 2f)
         val tapScreenY = layoutResult.y + closeChromePx + (request.tapY ?: layoutResult.heightPx / 2f)
         OcrLookupPopup(
@@ -1150,14 +1304,20 @@ fun OcrLookupPopup(
             lookupString = request.query,
             fullText = request.sentence,
             charOffset = request.sentenceOffset,
-            onDismiss = { childPopupRequest = null },
+            onDismiss = {
+                childPopupRequest = null
+                webView.evaluateJavascript(
+                    "window.DictionaryRenderer && window.DictionaryRenderer.clearRecursiveSelection();",
+                    null,
+                )
+            },
             dismissOnOutsideTap = true,
             webView = childPopupWebView,
             repository = repository,
             anchorX = tapScreenX,
             anchorY = tapScreenY,
-            anchorWidth = 0f,
-            anchorHeight = 0f,
+            anchorWidth = request.anchorWidth,
+            anchorHeight = request.anchorHeight,
             isVertical = isVertical,
             activeProfile = activeProfile,
             type = type,
@@ -1165,12 +1325,50 @@ fun OcrLookupPopup(
             screenshot = screenshot,
             onRequestScreenshot = onRequestScreenshot,
             onRequestSentenceAudio = onRequestSentenceAudio,
+            mediaRequest = mediaRequest,
+            onAnkiMediaWarnings = onAnkiMediaWarnings,
             onCropTriggered = onCropTriggered,
             usePopup = usePopup,
             onTermMatched = null,
             onContentReadyChange = null,
             initialLookupDeferred = request.deferredResult,
+            initialEntryJsons = request.entryJsons,
+            isRecursiveChild = true,
             titleId = titleId,
         )
     }
+}
+
+/**
+ * Runs [repository.lookup] honoring the profile's effective search resolution.
+ * With "word" resolution (yomitan `translation.searchResolution='word'`), when
+ * a query yields no results it is retried cutting at word boundaries. Returns
+ * the last empty (or first non-empty) result.
+ */
+private fun lookupWithSearchResolution(
+    repository: DictionaryRepository,
+    query: String,
+    termPaths: chimahon.DictionaryPaths,
+    activeProfile: AnkiProfile,
+): chimahon.DictionaryRepository.LookupResult2 {
+    fun lookupOne(text: String) = repository.lookup(text, termPaths, activeProfile.languageCode)
+
+    if (effectiveSearchResolution(activeProfile.searchResolution, activeProfile.languageCode) != AnkiProfile.SEARCH_RESOLUTION_WORD) {
+        return lookupOne(query)
+    }
+
+    var current = query
+    var result = lookupOne(current)
+    var guard = 0
+    while (
+        current.isNotEmpty() &&
+        result.error == null &&
+        result.results.isEmpty() &&
+        guard++ < 8
+    ) {
+        current = nextWordBoundarySubstring(current)
+        if (current.isEmpty()) break
+        result = lookupOne(current)
+    }
+    return result
 }

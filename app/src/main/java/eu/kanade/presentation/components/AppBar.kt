@@ -59,9 +59,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.collections.immutable.ImmutableList
+import eu.kanade.domain.ui.UiPreferences
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import tachiyomi.domain.history.interactor.DeleteSearchHistory
+import tachiyomi.domain.history.interactor.GetSearchHistory
+import tachiyomi.domain.history.interactor.UpsertSearchHistory
+import tachiyomi.domain.history.model.SearchHistory
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import tachiyomi.presentation.core.util.clearFocusOnSoftKeyboardHide
+import tachiyomi.presentation.core.util.collectAsState
 import tachiyomi.presentation.core.util.runOnEnterKeyPressed
 import tachiyomi.presentation.core.util.secondaryItemAlpha
 import tachiyomi.presentation.core.util.showSoftKeyboard
@@ -336,128 +347,194 @@ fun SearchToolbar(
     scrollBehavior: TopAppBarScrollBehavior? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
+    searchHistoryScope: String? = null,
+    searchHistoryList: List<SearchHistory>? = null,
+    onSelectSearchHistory: ((String) -> Unit)? = null,
+    onDeleteSearchHistory: ((String) -> Unit)? = null,
+    onClearSearchHistory: (() -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
 
-    AppBar(
-        modifier = modifier,
-        titleContent = {
-            if (searchQuery == null) return@AppBar titleContent()
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
+    val searchHistoryEnabled by uiPreferences.searchHistoryEnabled().collectAsState()
 
-            val keyboardController = LocalSoftwareKeyboardController.current
-            val focusManager = LocalFocusManager.current
+    val getSearchHistory: GetSearchHistory = remember { Injekt.get() }
+    val upsertSearchHistory: UpsertSearchHistory = remember { Injekt.get() }
+    val deleteSearchHistory: DeleteSearchHistory = remember { Injekt.get() }
 
-            val searchAndClearFocus: () -> Unit = f@{
-                if (searchQuery.isBlank()) return@f
-                onSearch(searchQuery)
-                focusManager.clearFocus()
-                keyboardController?.hide()
-                focusManager.moveFocus(FocusDirection.Next)
+    val historyState by produceState<List<SearchHistory>>(
+        initialValue = emptyList(),
+        key1 = searchHistoryScope,
+    ) {
+        if (searchHistoryScope != null && searchHistoryEnabled) {
+            getSearchHistory.subscribe(searchHistoryScope).collect { value = it }
+        } else {
+            value = emptyList()
+        }
+    }
+
+    val finalHistory = searchHistoryList ?: historyState
+
+    val handleSearch: (String) -> Unit = { query ->
+        val trimmed = query.trim()
+        if (trimmed.isNotBlank()) {
+            if (searchHistoryScope != null && searchHistoryEnabled) {
+                scope.launch {
+                    upsertSearchHistory.await(searchHistoryScope, trimmed)
+                }
             }
+            onSearch(trimmed)
+        }
+    }
 
-            BasicTextField(
-                value = searchQuery,
-                onValueChange = onChangeSearchQuery,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-                    .runOnEnterKeyPressed(action = searchAndClearFocus)
-                    .showSoftKeyboard(remember { searchQuery.isEmpty() })
-                    .clearFocusOnSoftKeyboardHide(),
-                textStyle = MaterialTheme.typography.titleMedium.copy(
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 18.sp,
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { searchAndClearFocus() }),
-                singleLine = true,
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),
-                visualTransformation = visualTransformation,
-                interactionSource = interactionSource,
-                decorationBox = { innerTextField ->
-                    TextFieldDefaults.DecorationBox(
-                        value = searchQuery,
-                        innerTextField = innerTextField,
-                        enabled = true,
-                        singleLine = true,
-                        visualTransformation = visualTransformation,
-                        interactionSource = interactionSource,
-                        placeholder = {
-                            Text(
-                                modifier = Modifier.secondaryItemAlpha(),
-                                text = (placeholderText ?: stringResource(MR.strings.action_search_hint)),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.titleMedium.copy(
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Normal,
-                                ),
-                            )
-                        },
-                        container = {},
-                    )
-                },
-            )
-        },
-        navigateUp = if (searchQuery == null) navigateUp else onClickCloseSearch,
-        actions = {
-            key("search") {
-                val onClick = { onChangeSearchQuery("") }
+    Column(modifier = modifier) {
+        AppBar(
+            titleContent = {
+                if (searchQuery == null) return@AppBar titleContent()
 
-                if (!searchEnabled) {
-                    // Don't show search action
-                } else if (searchQuery == null) {
-                    TooltipBox(
-                        positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-                        tooltip = {
-                            PlainTooltip {
-                                Text(stringResource(MR.strings.action_search))
-                            }
-                        },
-                        state = rememberTooltipState(),
-                        focusable = false,
-                    ) {
-                        IconButton(
-                            onClick = onClick,
-                        ) {
-                            Icon(
-                                Icons.Outlined.Search,
-                                contentDescription = stringResource(MR.strings.action_search),
-                            )
-                        }
-                    }
-                } else if (searchQuery.isNotEmpty()) {
-                    TooltipBox(
-                        positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-                        tooltip = {
-                            PlainTooltip {
-                                Text(stringResource(MR.strings.action_reset))
-                            }
-                        },
-                        state = rememberTooltipState(),
-                        focusable = false,
-                    ) {
-                        IconButton(
-                            onClick = {
-                                onClick()
-                                focusRequester.requestFocus()
+                val keyboardController = LocalSoftwareKeyboardController.current
+                val focusManager = LocalFocusManager.current
+
+                val searchAndClearFocus: () -> Unit = f@{
+                    if (searchQuery.isBlank()) return@f
+                    handleSearch(searchQuery)
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                    focusManager.moveFocus(FocusDirection.Next)
+                }
+
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = onChangeSearchQuery,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        .runOnEnterKeyPressed(action = searchAndClearFocus)
+                        .showSoftKeyboard(remember { searchQuery.isEmpty() })
+                        .clearFocusOnSoftKeyboardHide(),
+                    textStyle = MaterialTheme.typography.titleMedium.copy(
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 18.sp,
+                    ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { searchAndClearFocus() }),
+                    singleLine = true,
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onBackground),
+                    visualTransformation = visualTransformation,
+                    interactionSource = interactionSource,
+                    decorationBox = { innerTextField ->
+                        TextFieldDefaults.DecorationBox(
+                            value = searchQuery,
+                            innerTextField = innerTextField,
+                            enabled = true,
+                            singleLine = true,
+                            visualTransformation = visualTransformation,
+                            interactionSource = interactionSource,
+                            placeholder = {
+                                Text(
+                                    modifier = Modifier.secondaryItemAlpha(),
+                                    text = (placeholderText ?: stringResource(MR.strings.action_search_hint)),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.titleMedium.copy(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Normal,
+                                    ),
+                                )
                             },
+                            container = {},
+                        )
+                    },
+                )
+            },
+            navigateUp = if (searchQuery == null) navigateUp else onClickCloseSearch,
+            actions = {
+                key("search") {
+                    val onClick = { onChangeSearchQuery("") }
+
+                    if (!searchEnabled) {
+                        // Don't show search action
+                    } else if (searchQuery == null) {
+                        TooltipBox(
+                            positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text(stringResource(MR.strings.action_search))
+                                }
+                            },
+                            state = rememberTooltipState(),
+                            focusable = false,
                         ) {
-                            Icon(
-                                Icons.Outlined.Close,
-                                contentDescription = stringResource(MR.strings.action_reset),
-                            )
+                            IconButton(
+                                onClick = onClick,
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Search,
+                                    contentDescription = stringResource(MR.strings.action_search),
+                                )
+                            }
+                        }
+                    } else if (searchQuery.isNotEmpty()) {
+                        TooltipBox(
+                            positionProvider = rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+                            tooltip = {
+                                PlainTooltip {
+                                    Text(stringResource(MR.strings.action_reset))
+                                }
+                            },
+                            state = rememberTooltipState(),
+                            focusable = false,
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    onClick()
+                                    focusRequester.requestFocus()
+                                },
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Close,
+                                    contentDescription = stringResource(MR.strings.action_reset),
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            key("actions") { actions() }
-        },
-        isActionMode = false,
-        scrollBehavior = scrollBehavior,
-    )
+                key("actions") { actions() }
+            },
+            isActionMode = false,
+            scrollBehavior = scrollBehavior,
+        )
+
+        if (searchQuery != null && finalHistory.isNotEmpty()) {
+            SearchHistoryRow(
+                historyList = finalHistory,
+                onSelectQuery = { query ->
+                    onChangeSearchQuery(query)
+                    handleSearch(query)
+                    onSelectSearchHistory?.invoke(query)
+                },
+                onDeleteQuery = { query ->
+                    if (searchHistoryScope != null && searchHistoryEnabled) {
+                        scope.launch {
+                            deleteSearchHistory.await(searchHistoryScope, query)
+                        }
+                    }
+                    onDeleteSearchHistory?.invoke(query)
+                },
+                onClearAll = {
+                    if (searchHistoryScope != null && searchHistoryEnabled) {
+                        scope.launch {
+                            deleteSearchHistory.clearScope(searchHistoryScope)
+                        }
+                    }
+                    onClearSearchHistory?.invoke()
+                },
+            )
+        }
+    }
 }
 
 @Composable

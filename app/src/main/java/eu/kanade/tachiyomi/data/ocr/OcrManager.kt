@@ -5,12 +5,15 @@ import chimahon.ocr.LensClient
 import chimahon.ocr.OcrCacheManager
 import chimahon.ocr.OcrLanguage
 import chimahon.ocr.OcrResult
+import chimahon.ocr.isOcrAllowedForLanguage
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.source.Source
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.util.lang.compareToCaseInsensitiveNaturalOrder
+import tachiyomi.domain.storage.service.StorageManager
+import tachiyomi.source.local.isLocal
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +48,7 @@ class OcrManager(
     private val chapterRepository: ChapterRepository = Injekt.get(),
     private val sourceManager: SourceManager = Injekt.get(),
     private val ocrStore: OcrStore = Injekt.get(),
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
 ) {
     private val ocrCacheManager: OcrCacheManager = Injekt.get()
     private val lensClient: LensClient = Injekt.get()
@@ -78,6 +82,8 @@ class OcrManager(
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val stateMutex = Mutex()
+    private val runningJobs = java.util.concurrent.ConcurrentHashMap<Long, kotlinx.coroutines.Job>()
+    private val triggerChannel = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
 
     init {
         scope.launch {
@@ -134,6 +140,7 @@ class OcrManager(
         }
 
         if (changed || ocrStore.hasRunnableTasks()) {
+            triggerChannel.trySend(Unit)
             OcrJob.start(context)
         }
     }
@@ -155,6 +162,7 @@ class OcrManager(
         scope.launch {
             refreshQueueState()
         }
+        triggerChannel.trySend(Unit)
         OcrJob.start(context)
         return true
     }
@@ -180,6 +188,7 @@ class OcrManager(
 
     suspend fun cancelChapter(chapterId: Long) {
         ocrStore.remove(chapterId)
+        runningJobs[chapterId]?.cancel()
         stateMutex.withLock {
             _queueState.update { current ->
                 current.filterNot { it.chapter.id == chapterId }
@@ -246,40 +255,83 @@ class OcrManager(
         }
     }
 
-    suspend fun runPendingQueue(stopRequested: () -> Boolean) {
-        while (!stopRequested()) {
-            val task = ocrStore.getAll().firstOrNull { it.status.isRunnable() } ?: return
-            val manga = mangaRepository.getMangaById(task.mangaId)
-            val chapter = chapterRepository.getChapterById(task.chapterId)
-
-            if (manga == null || chapter == null) {
-                ocrStore.remove(task.chapterId)
-                refreshQueueState()
-                continue
+    suspend fun runPendingQueue(stopRequested: () -> Boolean) = kotlinx.coroutines.supervisorScope {
+        val dictPrefs = Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>()
+        
+        val prefJob = launch {
+            dictPrefs.parallelOcrLimit().changes().collect {
+                triggerChannel.trySend(Unit)
             }
+        }
 
-            val result = try {
-                processTask(task, manga, chapter, stopRequested)
-            } catch (e: CancellationException) {
-                if (ocrStore.get(task.chapterId) != null) {
-                    updateStoredTask(task.chapterId) { current ->
-                        current.copy(status = OcrQueueStatus.PENDING)
+        try {
+            while (!stopRequested()) {
+                val parallelLimit = dictPrefs.parallelOcrLimit().get()
+                
+                val runnableTasks = ocrStore.getAll().filter { it.status.isRunnable() }
+                val nextTask = runnableTasks.firstOrNull { !runningJobs.containsKey(it.chapterId) }
+
+                if (nextTask == null) {
+                    if (runningJobs.isEmpty()) {
+                        break
+                    }
+                    kotlinx.coroutines.withTimeoutOrNull(5000) {
+                        triggerChannel.receive()
+                    }
+                    continue
+                }
+
+                if (runningJobs.size >= parallelLimit) {
+                    kotlinx.coroutines.withTimeoutOrNull(5000) {
+                        triggerChannel.receive()
+                    }
+                    continue
+                }
+
+                val manga = mangaRepository.getMangaById(nextTask.mangaId)
+                val chapter = chapterRepository.getChapterById(nextTask.chapterId)
+
+                if (manga == null || chapter == null) {
+                    ocrStore.remove(nextTask.chapterId)
+                    refreshQueueState()
+                    continue
+                }
+
+                val job = launch(ioDispatcher, start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                    try {
+                        val result = processTask(nextTask, manga, chapter, stopRequested)
+                        when (result) {
+                            OcrTaskResult.SUCCESS,
+                            OcrTaskResult.CANCELLED,
+                            -> {
+                                ocrStore.remove(nextTask.chapterId)
+                            }
+                            OcrTaskResult.ERROR -> Unit
+                            OcrTaskResult.STOPPED -> Unit
+                        }
+                    } catch (e: CancellationException) {
+                        if (ocrStore.get(nextTask.chapterId) != null) {
+                            updateStoredTask(nextTask.chapterId) { current ->
+                                current.copy(status = OcrQueueStatus.PENDING)
+                            }
+                        }
+                        throw e
+                    } catch (e: Exception) {
+                        logcat(LogPriority.ERROR, e) { "Error processing OCR task ${nextTask.chapterId}" }
+                        try {
+                            updateStoredTask(nextTask.chapterId) { it.copy(status = OcrQueueStatus.ERROR) }
+                        } catch (_: Exception) {}
+                    } finally {
+                        runningJobs.remove(nextTask.chapterId)
+                        refreshQueueState()
+                        triggerChannel.trySend(Unit)
                     }
                 }
-                refreshQueueState()
-                throw e
+                runningJobs[nextTask.chapterId] = job
+                job.start()
             }
-
-            when (result) {
-                OcrTaskResult.SUCCESS,
-                OcrTaskResult.CANCELLED,
-                -> {
-                    ocrStore.remove(task.chapterId)
-                }
-                OcrTaskResult.ERROR -> Unit
-                OcrTaskResult.STOPPED -> return
-            }
-            refreshQueueState()
+        } finally {
+            prefJob.cancel()
         }
     }
 
@@ -366,7 +418,7 @@ class OcrManager(
         }
     }
 
-    private suspend fun processTask(
+    internal suspend fun processTask(
         _task: OcrTask,
         manga: Manga,
         chapter: Chapter,
@@ -376,7 +428,7 @@ class OcrManager(
         logcat { "OcrManager: processing chapter ${chapter.name}" }
 
         try {
-            val source = sourceManager.get(manga.source) as? HttpSource
+            val source = sourceManager.get(manga.source)
             if (source == null) {
                 logcat(LogPriority.WARN) { "OcrManager: source not found for manga ${manga.id}" }
                 chapterRepository.update(ChapterUpdate(id = chapterId, isOcrReady = false))
@@ -384,14 +436,17 @@ class OcrManager(
                 return OcrTaskResult.ERROR
             }
 
+            val isLocalSource = source.isLocal()
+            val sourceLang = if (isLocalSource) "other" else (source as? HttpSource)?.lang ?: "other"
+
             val dictPrefs = Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>()
             val profile = dictPrefs.profileResolver.resolve(
                 mangaId = manga.id,
                 sourceId = manga.source,
-                sourceLang = source.lang,
+                sourceLang = sourceLang,
             )
-            if (!isOcrAllowedForLanguage(source.lang, profile.languageCode)) {
-                logcat { "OcrManager: skipping OCR for source language ${source.lang} and profile language ${profile.languageCode}" }
+            if (!isOcrAllowedForLanguage(sourceLang, profile.languageCode)) {
+                logcat { "OcrManager: skipping OCR for source language $sourceLang and profile language ${profile.languageCode}" }
                 chapterRepository.update(ChapterUpdate(id = chapterId, isOcrReady = false))
                 updateStoredTask(chapterId) { it.copy(status = OcrQueueStatus.COMPLETED) }
                 return OcrTaskResult.SUCCESS
@@ -402,7 +457,7 @@ class OcrManager(
             if (stopRequested()) return OcrTaskResult.STOPPED
             if (ocrStore.get(chapterId) == null) return OcrTaskResult.CANCELLED
 
-            val isDownloaded = downloadManager.isChapterDownloaded(
+            val isDownloaded = isLocalSource || downloadManager.isChapterDownloaded(
                 chapter.name,
                 chapter.scanlator,
                 chapter.url,
@@ -417,7 +472,11 @@ class OcrManager(
                 return OcrTaskResult.ERROR
             }
 
-            val imageProvider = getChapterImageProvider(manga, chapter, source)
+            val imageProvider = if (isLocalSource) {
+                getLocalChapterImageProvider(manga, chapter)
+            } else {
+                getChapterImageProvider(manga, chapter, source)
+            }
             if (imageProvider == null) {
                 logcat(LogPriority.WARN) { "OcrManager: no images found in downloaded chapter" }
                 chapterRepository.update(ChapterUpdate(id = chapterId, isOcrReady = false))
@@ -525,7 +584,7 @@ class OcrManager(
                                     ymin = ymin,
                                     xmax = xmax,
                                     ymax = ymax,
-                                    lines = r.text.split("\n").filter { it.isNotBlank() },
+                                    lines = r.text.split("\n"),
                                     vertical = r.forcedOrientation == "vertical",
                                     lineGeometries = lineGeometries,
                                 )
@@ -565,7 +624,7 @@ class OcrManager(
                                     }
                                 )
                             },
-                            language = OcrLanguage.JAPANESE.bcp47,
+                            language = ocrLang.bcp47,
                         )
                     } catch (e: Exception) {
                         logcat(LogPriority.WARN, e) { "OcrManager: failed to cache OCR for page $pageIndex" }
@@ -639,6 +698,25 @@ class OcrManager(
         }
     }
 
+    private fun getLocalChapterImageProvider(
+        manga: Manga,
+        chapter: Chapter,
+    ): ChapterImageProvider? {
+        val splitUrl = chapter.url.split('/', limit = 2)
+        if (splitUrl.size < 2) return null
+        val (mangaDirName, chapterDirName) = splitUrl
+        val storageManager: StorageManager = Injekt.get()
+        val chapterFile = storageManager.getLocalSourceDirectory()
+            ?.findFile(mangaDirName)
+            ?.findFile(chapterDirName)
+            ?: return null
+        return when {
+            chapterFile.isDirectory -> DirectoryImageProvider(chapterFile)
+            chapterFile.name?.endsWith(".cbz") == true -> CbzImageProvider(context, chapterFile)
+            else -> null
+        }
+    }
+
     data class OcrLineGeometry(
         val xmin: Float,
         val ymin: Float,
@@ -666,7 +744,7 @@ interface ChapterImageProvider : AutoCloseable {
 class DirectoryImageProvider(private val chapterDir: UniFile) : ChapterImageProvider {
     private val imageFiles: List<UniFile> = chapterDir.listFiles()
         ?.filter { it.isFile && ImageUtil.isImage(it.name) { it.openInputStream() } }
-        ?.sortedBy { it.name }
+        ?.sortedWith { f1, f2 -> f1.name.orEmpty().compareToCaseInsensitiveNaturalOrder(f2.name.orEmpty()) }
         ?: emptyList()
 
     override val pageCount: Int = imageFiles.size
@@ -718,7 +796,7 @@ class CbzImageProvider(
     }
 }
 
-private enum class OcrTaskResult {
+internal enum class OcrTaskResult {
     SUCCESS,
     ERROR,
     CANCELLED,

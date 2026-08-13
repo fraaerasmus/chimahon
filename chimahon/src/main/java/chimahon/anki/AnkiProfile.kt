@@ -27,6 +27,7 @@ data class AnkiProfile(
     val ankiDupScope: String = "deck",
     val ankiDupAction: String = "prevent",
     val ankiCropMode: String = "full",
+    val ankiCropPreset: String = "full",
     val ankiSyncOnCreate: Boolean = false,
     // Dictionary configuration
     val dictionaryOrder: List<String> = emptyList(),
@@ -41,6 +42,22 @@ data class AnkiProfile(
      * Empty string means "any / not language-specific".
      */
     val languageCode: String = "",
+
+    /**
+     * OCR scan resolution (yomitan "scanning.scanResolution"). Controls whether
+     * the tapped position expands to the whole word ("word", default for
+     * space-delimited languages) or stays character-based ("character", default
+     * for CJK). Empty means auto-derive from [languageCode].
+     */
+    val scanResolution: String = "",
+
+    /**
+     * Lookup search resolution (yomitan "translation.searchResolution"). When
+     * no dictionary entry matches the full source, "word" retries cutting at
+     * word boundaries while "letter" retries one character at a time.
+     * Empty means auto (derive from [languageCode]).
+     */
+    val searchResolution: String = "",
 ) {
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -55,12 +72,15 @@ data class AnkiProfile(
         put("ankiDupScope", ankiDupScope)
         put("ankiDupAction", ankiDupAction)
         put("ankiCropMode", ankiCropMode)
+        put("ankiCropPreset", ankiCropPreset)
         put("ankiSyncOnCreate", ankiSyncOnCreate)
         put("dictionaryOrder", JSONArray(dictionaryOrder))
         put("enabledDictionaries", JSONArray(enabledDictionaries.toList()))
         put("dictionaryCollapseMode", dictionaryCollapseMode)
         put("dictionaryDisplayModes", JSONObject(dictionaryDisplayModes))
         put("languageCode", languageCode)
+        put("scanResolution", scanResolution)
+        put("searchResolution", searchResolution)
     }
 
     companion object {
@@ -73,6 +93,14 @@ data class AnkiProfile(
         const val DICTIONARY_DISPLAY_ALWAYS_EXPANDED = "always_expanded"
         const val DICTIONARY_DISPLAY_FALLBACK = "fallback"
         const val DICTIONARY_DISPLAY_ALWAYS_COLLAPSED = "always_collapsed"
+
+        const val SCAN_RESOLUTION_AUTO = ""
+        const val SCAN_RESOLUTION_CHARACTER = "character"
+        const val SCAN_RESOLUTION_WORD = "word"
+
+        const val SEARCH_RESOLUTION_AUTO = ""
+        const val SEARCH_RESOLUTION_LETTER = "letter"
+        const val SEARCH_RESOLUTION_WORD = "word"
 
         fun fromJson(json: JSONObject): AnkiProfile = AnkiProfile(
             id = json.getString("id"),
@@ -93,6 +121,7 @@ data class AnkiProfile(
             ankiDupScope = json.optString("ankiDupScope", "deck"),
             ankiDupAction = json.optString("ankiDupAction", "prevent"),
             ankiCropMode = json.optString("ankiCropMode", "full"),
+            ankiCropPreset = json.optString("ankiCropPreset", "full"),
             ankiSyncOnCreate = json.optBoolean("ankiSyncOnCreate", false),
             dictionaryOrder = json.optJSONArray("dictionaryOrder")
                 ?.let { arr -> (0 until arr.length()).map { arr.getString(it) } }
@@ -113,6 +142,8 @@ data class AnkiProfile(
                 }
                 ?: emptyMap(),
             languageCode = json.optString("languageCode", ""),
+            scanResolution = json.optString("scanResolution", ""),
+            searchResolution = json.optString("searchResolution", ""),
         )
 
         /**
@@ -131,6 +162,7 @@ data class AnkiProfile(
             ankiDupScope: String = "deck",
             ankiDupAction: String = "prevent",
             ankiCropMode: String = "full",
+            ankiCropPreset: String = "full",
             ankiSyncOnCreate: Boolean = false,
             dictionaryOrder: List<String> = emptyList(),
         ): AnkiProfile = AnkiProfile(
@@ -149,6 +181,7 @@ data class AnkiProfile(
             ankiDupScope = ankiDupScope,
             ankiDupAction = ankiDupAction,
             ankiCropMode = ankiCropMode,
+            ankiCropPreset = ankiCropPreset,
             ankiSyncOnCreate = ankiSyncOnCreate,
             dictionaryOrder = dictionaryOrder,
             enabledDictionaries = emptySet(),

@@ -13,7 +13,7 @@ internal fun List<OcrResult>.toScreenLookupBlocks(language: String): List<OcrTex
         val ymin = bbox.y.toFloat().coerceIn(0f, 1f)
         val xmax = (bbox.x + bbox.width).toFloat().coerceIn(0f, 1f)
         val ymax = (bbox.y + bbox.height).toFloat().coerceIn(0f, 1f)
-        val lines = result.text.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+        val lines = result.text.split("\n")
 
         if (xmax <= xmin || ymax <= ymin || lines.isEmpty()) {
             null

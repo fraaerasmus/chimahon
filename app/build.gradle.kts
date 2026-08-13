@@ -6,27 +6,16 @@ import mihon.buildlogic.getGitSha
 plugins {
     id("mihon.android.application")
     id("mihon.android.application.compose")
-    id("com.github.zellius.shortcut-helper")
     kotlin("plugin.parcelize")
     kotlin("plugin.serialization")
     alias(libs.plugins.aboutLibraries)
     id("com.github.ben-manes.versions")
 }
 
-val includeTelemetry = false
 val enableUpdater = Config.enableUpdater
 val hasLocalOcr = file("../chimahon-local-ocr/build.gradle.kts").exists()
 val releaseVersionName = providers.gradleProperty("releaseVersionName").orNull
 val releaseVersionCode = providers.gradleProperty("releaseVersionCode").orNull?.toIntOrNull()
-
-if (includeTelemetry) {
-    pluginManager.apply {
-        apply(libs.plugins.google.services.get().pluginId)
-        apply(libs.plugins.firebase.crashlytics.get().pluginId)
-    }
-}
-
-shortcutHelper.setFilePath("./shortcuts.xml")
 
 android {
     namespace = "eu.kanade.tachiyomi"
@@ -40,7 +29,6 @@ android {
         buildConfigField("String", "COMMIT_COUNT", "\"${getCommitCount()}\"")
         buildConfigField("String", "COMMIT_SHA", "\"${getGitSha()}\"")
         buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
-        buildConfigField("boolean", "TELEMETRY_INCLUDED", "false")
         buildConfigField("boolean", "UPDATER_ENABLED", enableUpdater.toString())
         buildConfigField("boolean", "HAS_LOCAL_OCR", hasLocalOcr.toString())
 
@@ -52,7 +40,6 @@ android {
             applicationIdSuffix = ".dev"
             versionNameSuffix = "-${getCommitCount()}"
             isPseudoLocalesEnabled = true
-            buildConfigField("boolean", "TELEMETRY_INCLUDED", "false")
             buildConfigField("boolean", "UPDATER_ENABLED", "false")
         }
         val release by getting {
@@ -62,7 +49,6 @@ android {
             proguardFiles("proguard-android-optimize.txt", "proguard-rules.pro")
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = true)}\"")
-            buildConfigField("boolean", "TELEMETRY_INCLUDED", "false")
             buildConfigField("boolean", "UPDATER_ENABLED", enableUpdater.toString())
         }
 
@@ -84,7 +70,6 @@ android {
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
 
-            buildConfigField("boolean", "TELEMETRY_INCLUDED", "false")
             buildConfigField("boolean", "UPDATER_ENABLED", enableUpdater.toString())
         }
         create("preview") {
@@ -98,7 +83,6 @@ android {
             matchingFallbacks.addAll(commonMatchingFallbacks)
 
             buildConfigField("String", "BUILD_TIME", "\"${getBuildTime(useLastCommitTime = false)}\"")
-            buildConfigField("boolean", "TELEMETRY_INCLUDED", "false")
             buildConfigField("boolean", "UPDATER_ENABLED", enableUpdater.toString())
         }
         create("benchmark") {
@@ -113,7 +97,6 @@ android {
 
             matchingFallbacks.addAll(commonMatchingFallbacks)
 
-            buildConfigField("boolean", "TELEMETRY_INCLUDED", "false")
             buildConfigField("boolean", "UPDATER_ENABLED", enableUpdater.toString())
         }
     }
@@ -239,8 +222,6 @@ dependencies {
     implementation(projects.domain)
     implementation(projects.presentationCore)
     implementation(projects.presentationWidget)
-    implementation(projects.telemetry)
-
     // Compose
     implementation(compose.activity)
     implementation(compose.foundation)
@@ -260,9 +241,7 @@ dependencies {
     implementation(androidx.paging.compose)
 
     implementation(libs.bundles.sqlite)
-    // SY -->
-    implementation(sylibs.sqlcipher)
-    // SY <--
+
 
     implementation(kotlinx.reflect)
     implementation(kotlinx.immutables)
@@ -370,6 +349,7 @@ dependencies {
     implementation(libs.aniyomi.mpv)
     implementation(libs.seeker)
     implementation(libs.ffmpeg.kit)
+    implementation(libs.libavif)
     implementation(libs.smart.exception.java)
     implementation(libs.mediasession)
     implementation(libs.truetypeparser)
@@ -394,8 +374,6 @@ dependencies {
 
     // NewPipe Extractor for YouTube stream resolution
     implementation(libs.newpipe.extractor)
-    // Match NewPipe dev's protobuf patch while staying on the stable extractor release.
-    implementation(libs.protobuf.javalite)
 }
 
 androidComponents {

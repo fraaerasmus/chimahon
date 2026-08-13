@@ -7,13 +7,13 @@ import eu.davidea.viewholders.FlexibleViewHolder
 import eu.kanade.presentation.theme.colorscheme.AndroidViewColorScheme.Companion.setColors
 import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.data.animedownload.model.AnimeDownload
-import eu.kanade.tachiyomi.databinding.DownloadItemBinding
+import eu.kanade.tachiyomi.databinding.DownloadAnimeItemBinding
 import eu.kanade.tachiyomi.util.view.popupMenu
 
 class AnimeDownloadHolder(view: View, val adapter: DownloadAdapter) :
     FlexibleViewHolder(view, adapter) {
 
-    private val binding = DownloadItemBinding.bind(view)
+    private val binding = DownloadAnimeItemBinding.bind(view)
 
     init {
         setDragHandleView(binding.reorder)

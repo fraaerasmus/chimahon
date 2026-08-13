@@ -1446,6 +1446,7 @@ class AnimeScreenModel(
         data class DuplicateAnime(val anime: Anime, val duplicates: List<Anime>) : Dialog
         data class Migrate(val newAnime: Anime, val oldAnime: Anime) : Dialog
         data class SetAnimeFetchInterval(val anime: Anime) : Dialog
+        data class SetDictionaryProfile(val anime: Anime) : Dialog
         data class ShowQualities(val episode: Episode, val anime: Anime, val source: AnimeSource) : Dialog
         data object ChangeAnimeSkipIntro : Dialog
         data object EpisodeSettingsSheet : Dialog
@@ -1545,6 +1546,35 @@ class AnimeScreenModel(
 
     fun showAnimeSkipIntroDialog() {
         updateSuccessState { it.copy(dialog = Dialog.ChangeAnimeSkipIntro) }
+    }
+
+    fun showSetDictionaryProfileDialog() {
+        val anime = successState?.anime ?: return
+        updateSuccessState { it.copy(dialog = Dialog.SetDictionaryProfile(anime)) }
+    }
+
+    /**
+     * Persist (or clear) an anime-level dictionary profile override.
+     * [profileId] == null clears the override, falling back to source/language/global resolution.
+     */
+    fun setAnimeDictionaryProfile(profileId: String?) {
+        val prefs = Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>()
+        val key = chimahon.dictionary.DictionaryProfileResolver.animeOverrideKey(animeId)
+        if (profileId == null) {
+            prefs.rawProfileOverride(key).delete()
+        } else {
+            prefs.rawProfileOverride(key).set(profileId)
+        }
+        dismissDialog()
+    }
+
+    fun resolveAutoProfile(sourceId: Long): chimahon.anki.AnkiProfile {
+        val source = animeSourceManager.getOrStub(sourceId)
+        return Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>().profileResolver.resolve(
+            animeId = 0L, // 0 to avoid hitting the anime override itself
+            sourceId = sourceId, // But DO check source override
+            sourceLang = source.lang,
+        )
     }
 
     private fun showQualitiesDialog(episode: Episode) {

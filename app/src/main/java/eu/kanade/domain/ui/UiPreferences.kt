@@ -90,6 +90,8 @@ class UiPreferences(
 
     fun lastUsedBrowseMode() = preferenceStore.getInt("browse_last_used_mode", 0)
 
+    fun searchHistoryEnabled() = preferenceStore.getBoolean("search_history_enabled", true)
+
     fun useConsolidatedLibrary() = preferenceStore.getBoolean("use_consolidated_library", true)
 
     // SY <--

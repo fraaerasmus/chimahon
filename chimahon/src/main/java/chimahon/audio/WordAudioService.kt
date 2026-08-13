@@ -116,10 +116,21 @@ class WordAudioService(
         // New path: SAF Uri
         val uriStr = preferences.wordAudioLocalUri().get()
         if (uriStr.isNotBlank()) {
-            if (!localDatabase.isOpenFor(uriStr)) {
+            // SAF providers can invalidate or replace a descriptor while the
+            // process is alive. Re-probe the schema before using a cached
+            // native handle so we can reopen and use the stable-copy fallback.
+            if (!localDatabase.isOpenFor(uriStr) || !localDatabase.testConnection()) {
                 localDatabase.close()
-                if (!localDatabase.updateUri(android.net.Uri.parse(uriStr))) {
+                if (!localDatabase.updateUri(android.net.Uri.parse(uriStr)) || !localDatabase.testConnection()) {
                     return emptyList()
+                }
+                if (localDatabase.fallbackUsed) {
+                    // Keep using the verified private copy if the provider
+                    // supplied a virtual or unstable descriptor.
+                    preferences.wordAudioLocalPath().set(
+                        File(context.getExternalFilesDir(null), "word_audio.db").absolutePath,
+                    )
+                    preferences.wordAudioLocalUri().set("")
                 }
             }
             return localDatabase.findEntries(term, reading)

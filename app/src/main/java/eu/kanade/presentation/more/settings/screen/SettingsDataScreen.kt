@@ -10,17 +10,24 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MultiChoiceSegmentedButtonRow
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -39,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -48,6 +56,7 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.presentation.more.settings.screen.SettingsSecurityScreen.PasswordDialog
 import eu.kanade.presentation.more.settings.screen.data.CreateBackupScreen
 import eu.kanade.presentation.more.settings.screen.data.RestoreBackupScreen
 import eu.kanade.presentation.more.settings.screen.data.StorageInfo
@@ -62,6 +71,7 @@ import eu.kanade.tachiyomi.data.backup.create.BackupCreateJob
 import eu.kanade.tachiyomi.data.backup.restore.BackupRestoreJob
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.data.cache.PagePreviewCache
+import eu.kanade.tachiyomi.data.dictionary.DictionaryBackupManager
 import eu.kanade.tachiyomi.data.export.LibraryExporter
 import eu.kanade.tachiyomi.data.export.LibraryExporter.ExportOptions
 import eu.kanade.tachiyomi.data.sync.SyncDataJob
@@ -75,6 +85,7 @@ import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.storage.displayablePath
@@ -95,6 +106,10 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object SettingsDataScreen : SearchableSettings {
     @Suppress("unused")
@@ -133,6 +148,7 @@ object SettingsDataScreen : SearchableSettings {
             getBackupAndRestoreGroup(backupPreferences = backupPreferences),
             getDataGroup(),
             getExportGroup(),
+            getDictionaryGroup(),
         ) +
             // SY -->
             getSyncPreferences(syncPreferences = syncPreferences, syncService = syncService)
@@ -547,6 +563,184 @@ object SettingsDataScreen : SearchableSettings {
         )
     }
 
+    @Composable
+    private fun getDictionaryGroup(): Preference.PreferenceGroup {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var isWorking by remember { mutableStateOf(false) }
+
+        fun dictionariesDir(): File = File(context.getExternalFilesDir(null), "dictionaries")
+
+        fun summarizeReport(report: DictionaryBackupManager.ImportReport): String = buildString {
+            if (report.imported.isNotEmpty()) {
+                append("\u2713 Imported: ${report.imported.joinToString()}")
+            }
+            if (report.updated.isNotEmpty()) {
+                append("\n\u21BB Updated: ${report.updated.joinToString()}")
+            }
+            if (report.skipped.isNotEmpty()) {
+                append("\n\u2696 Skipped (same version): ${report.skipped.joinToString()}")
+            }
+            if (report.kept.isNotEmpty()) {
+                append("\n\u23EC Kept existing (newer): ${report.kept.joinToString()}")
+            }
+            if (report.isEmpty) append("Nothing to import")
+        }
+
+        val pickImportFile = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent(),
+        ) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    isWorking = true
+                    val message = withContext(Dispatchers.IO) {
+                        val result = try {
+                            val stream = context.contentResolver.openInputStream(uri)
+                            val tempZip = File(context.cacheDir, "dict_backup_${System.currentTimeMillis()}.zip")
+                            val dir = dictionariesDir()
+                            if (stream == null) {
+                                DictionaryBackupManager.ImportResult.Failure("Could not open file")
+                            } else {
+                                DictionaryBackupManager.import(stream, tempZip, dir)
+                            }
+                        } catch (e: Exception) {
+                            DictionaryBackupManager.ImportResult.Failure(e.message ?: "Failed to open file")
+                        }
+                        when (result) {
+                            is DictionaryBackupManager.ImportResult.Success ->
+                                context.stringResource(MR.strings.pref_dictionary_import_success) +
+                                    "\n\n" + summarizeReport(result.report)
+                            is DictionaryBackupManager.ImportResult.Failure ->
+                                context.stringResource(MR.strings.pref_dictionary_import_error) + "\n\n" + result.message
+                        }
+                    }
+                    context.toast(message)
+                    isWorking = false
+                }
+            }
+        }
+
+        val pickExportFolder = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree(),
+        ) { uri ->
+            if (uri != null) {
+                val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                try {
+                    context.contentResolver.takePersistableUriPermission(uri, flags)
+                } catch (e: SecurityException) {
+                    logcat(LogPriority.ERROR, e)
+                }
+
+                scope.launch {
+                    isWorking = true
+                    val message = withContext(Dispatchers.IO) {
+                        val dir = dictionariesDir()
+                        val folder = UniFile.fromUri(context, uri)
+                        val fileName = "dictionaries_${SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.ENGLISH).format(Date())}.zip"
+                        val outFile = folder?.createFile(fileName)
+                        val ok = outFile?.let { file ->
+                            if (!dir.isDirectory) {
+                                false
+                            } else {
+                                try {
+                                    file.openOutputStream().use { out -> DictionaryBackupManager.export(dir, out) }
+                                    true
+                                } catch (e: Exception) {
+                                    logcat(LogPriority.ERROR, e)
+                                    false
+                                }
+                            }
+                        } ?: false
+                        if (ok) {
+                            context.stringResource(MR.strings.pref_dictionary_export_success)
+                        } else {
+                            context.stringResource(MR.strings.pref_dictionary_export_error)
+                        }
+                    }
+                    context.toast(message)
+                    isWorking = false
+                }
+            }
+        }
+
+        return Preference.PreferenceGroup(
+            title = stringResource(MR.strings.pref_category_dictionary),
+            preferenceItems = persistentListOf(
+                Preference.PreferenceItem.CustomPreference(
+                    title = stringResource(MR.strings.pref_category_dictionary),
+                ) {
+                    BasePreferenceWidget(
+                        subcomponent = {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = PrefsHorizontalPadding),
+                            ) {
+                                MultiChoiceSegmentedButtonRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(intrinsicSize = IntrinsicSize.Min),
+                                ) {
+                                    SegmentedButton(
+                                        modifier = Modifier.fillMaxHeight(),
+                                        checked = false,
+                                        enabled = !isWorking,
+                                        onCheckedChange = {
+                                            if (!isWorking) {
+                                                try {
+                                                    pickImportFile.launch("*/*")
+                                                } catch (_: Exception) {
+                                                    context.toast(MR.strings.file_picker_error)
+                                                }
+                                            }
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(0, 2),
+                                    ) {
+                                        Icon(Icons.Outlined.FileDownload, null)
+                                        Text(stringResource(MR.strings.pref_dictionary_import))
+                                    }
+                                    SegmentedButton(
+                                        modifier = Modifier.fillMaxHeight(),
+                                        checked = false,
+                                        enabled = !isWorking,
+                                        onCheckedChange = {
+                                            if (!isWorking) {
+                                                try {
+                                                    allowAccessStorage(context, Injekt.get<StoragePreferences>().baseStorageDirectory()) {
+                                                        pickExportFolder.launch(null)
+                                                    }
+                                                } catch (_: Exception) {
+                                                    context.toast(MR.strings.file_picker_error)
+                                                }
+                                            }
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(1, 2),
+                                    ) {
+                                        Icon(Icons.Outlined.FileUpload, null)
+                                        Text(stringResource(MR.strings.pref_dictionary_export))
+                                    }
+                                }
+
+                                if (isWorking) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            text = stringResource(MR.strings.pref_dictionary_progress),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                    )
+                },
+            ),
+        )
+    }
+
     // SY -->
     @Composable
     private fun getSyncPreferences(syncPreferences: SyncPreferences, syncService: Int): List<Preference> {
@@ -562,7 +756,7 @@ object SettingsDataScreen : SearchableSettings {
                             SyncManager.SyncService.SYNCYOMI.value to stringResource(SYMR.strings.syncyomi),
                             SyncManager.SyncService.GOOGLE_DRIVE.value to stringResource(SYMR.strings.google_drive),
                             // KMK -->
-                            SyncManager.SyncService.WebDAV.value to stringResource(KMR.strings.web_dav),
+                            SyncManager.SyncService.WEB_DAV.value to stringResource(KMR.strings.web_dav),
                             // KMK <--
                         ),
                         title = stringResource(SYMR.strings.pref_sync_service),
@@ -625,7 +819,7 @@ object SettingsDataScreen : SearchableSettings {
             SyncManager.SyncService.SYNCYOMI -> getSelfHostPreferences(syncPreferences)
             SyncManager.SyncService.GOOGLE_DRIVE -> getGoogleDrivePreferences()
             // KMK -->
-            SyncManager.SyncService.WebDAV -> getWebDavPreferences(syncPreferences)
+            SyncManager.SyncService.WEB_DAV -> getWebDavPreferences(syncPreferences)
             // KMK <--
         }
 
@@ -778,7 +972,9 @@ object SettingsDataScreen : SearchableSettings {
                     title = stringResource(SYMR.strings.pref_sync_api_key),
                     subtitle = stringResource(SYMR.strings.pref_sync_api_key_summ),
                     onConfirm = {
-                        syncPreferences.clientAPIKey().set(it)
+                        scope.launch {
+                            syncPreferences.clientAPIKey().set(it)
+                        }
                         true
                     },
                     icon = null,
@@ -827,17 +1023,28 @@ object SettingsDataScreen : SearchableSettings {
                     true
                 },
             ),
-            Preference.PreferenceItem.EditTextPreference(
-                preference = syncPreferences.webDavPassword(),
-                title = stringResource(KMR.strings.pref_webdav_password),
-                subtitle = stringResource(KMR.strings.pref_webdav_password_summ),
-                onValueChanged = { newValue ->
-                    scope.launch {
-                        syncPreferences.webDavPassword().set(newValue)
-                    }
-                    true
-                },
-            ),
+            run {
+                var dialogOpen by remember { mutableStateOf(false) }
+                if (dialogOpen) {
+                    PasswordDialog(
+                        onDismissRequest = { dialogOpen = false },
+                        onReturnPassword = { password ->
+                            dialogOpen = false
+                            scope.launch {
+                                syncPreferences.webDavPassword().set(password.replace("\n", ""))
+                            }
+                        },
+                        title = KMR.strings.pref_webdav_password,
+                    )
+                }
+                Preference.PreferenceItem.TextPreference(
+                    title = stringResource(KMR.strings.pref_webdav_password),
+                    subtitle = stringResource(KMR.strings.pref_webdav_password_summ),
+                    onClick = {
+                        dialogOpen = true
+                    },
+                )
+            },
             Preference.PreferenceItem.EditTextPreference(
                 preference = syncPreferences.webDavFolder(),
                 title = stringResource(KMR.strings.pref_webdav_folder),
@@ -851,7 +1058,7 @@ object SettingsDataScreen : SearchableSettings {
             ),
         )
     }
-    // MK <--
+    // KMK <--
 
     @Composable
     private fun getSyncNowPref(): Preference.PreferenceGroup {

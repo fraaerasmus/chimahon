@@ -305,13 +305,24 @@ object OwOCRMerger {
             return createParagraphFromLinesLegacy(sorted.take(1), isVertical, isRtl, config)
         }
 
-        val left = filtered.minOf { it.bbox.left }
-        val right = filtered.maxOf { it.bbox.right }
-        val top = filtered.minOf { it.bbox.top }
-        val bottom = filtered.maxOf { it.bbox.bottom }
+        // Reading order for horizontal Latin text: top-to-bottom rows, left-to-right
+        // within each row. This matches the display order used by the viewer's
+        // OcrTextBlock.orderedLineIndices() so the rendered overlay and the
+        // selection/popup text stay consistent. mergeOverlappingLines re-sorts by the
+        // primary axis, so the reading order is applied after fragment merging.
+        val ordered = if (isVertical || isRtl) {
+            filtered
+        } else {
+            filtered.sortedWith(compareBy<LineDict> { it.bbox.centerY }.thenBy { it.bbox.left })
+        }
+
+        val left = ordered.minOf { it.bbox.left }
+        val right = ordered.maxOf { it.bbox.right }
+        val top = ordered.minOf { it.bbox.top }
+        val bottom = ordered.maxOf { it.bbox.bottom }
 
         val textContent = buildString {
-            for ((idx, line) in filtered.withIndex()) {
+            for ((idx, line) in ordered.withIndex()) {
                 if (idx > 0) {
                     append('\n')
                 }
@@ -329,15 +340,15 @@ object OwOCRMerger {
         val paraObj = OcrResult(
             text = textContent,
             tightBoundingBox = BoundingBox(x = left, y = top, width = right - left, height = bottom - top),
-            isMerged = filtered.size > 1,
+            isMerged = ordered.size > 1,
             forcedOrientation = forcedOrientation,
-            constituentBoxes = filtered.map { it.bbox.toBoundingBox() },
+            constituentBoxes = ordered.map { it.bbox.toBoundingBox() },
         )
 
         val largestLineCharSize = if (isVertical) {
-            filtered.maxByOrNull { it.bbox.width }?.characterSize ?: 0.0
+            ordered.maxByOrNull { it.bbox.width }?.characterSize ?: 0.0
         } else {
-            filtered.maxByOrNull { it.bbox.height }?.characterSize ?: 0.0
+            ordered.maxByOrNull { it.bbox.height }?.characterSize ?: 0.0
         }
 
         return ParagraphWithMeta(
@@ -345,7 +356,7 @@ object OwOCRMerger {
             writingDirection = writingDirection,
             characterSize = largestLineCharSize,
             isVertical = isVertical,
-            sourceLines = filtered,
+            sourceLines = ordered,
         )
     }
 
@@ -356,7 +367,9 @@ object OwOCRMerger {
     private fun mergeOverlappingLines(lines: List<LineDict>, isVertical: Boolean): List<LineDict> {
         if (lines.size < 2) return lines
 
-        // Sort by primary axis to enable sliding window
+        // Sort by primary axis to enable the sliding-window break below. Re-sorting
+        // doesn't scramble final paragraph text because createParagraphFromLinesLegacy
+        // applies reading order (top-to-bottom, then left-to-right) after merging.
         val sorted = if (isVertical) {
             lines.sortedBy { it.bbox.top }
         } else {
@@ -377,8 +390,11 @@ object OwOCRMerger {
                 if (j in usedIndices) continue
                 val nextLine = sorted[j]
 
-                // Optimization: Break early if the next line starts far past where this one ends
-                // Lines that are far apart on the primary axis cannot be fragments of the same line.
+                // Break early if the next line starts far past where this one ends.
+                // Lines that are far apart on the primary axis cannot be fragments of
+                // the same line. With the primary-axis sort restored, same-row
+                // side-by-side phrases (e.g. "HELLO" "WORLD") hit this break instead
+                // of being text-merged into a single line.
                 if (isVertical) {
                     if (nextLine.bbox.top - lastLine.bbox.bottom > 0.5 * lastLine.characterSize) break
                 } else {
@@ -879,7 +895,7 @@ object OwOCRMerger {
                                 a.paragraphObj.tightBoundingBox,
                                 b.paragraphObj.tightBoundingBox,
                             ) <=
-                            3 * charSize &&
+                            2 * charSize &&
                             verticalOverlap(a.paragraphObj.tightBoundingBox, b.paragraphObj.tightBoundingBox) >
                             0.9
                     }

@@ -69,8 +69,9 @@ internal fun PlayerVideoOcrOverlay(
     val source by viewModel.currentSource.collectAsState()
     val anime by viewModel.currentAnime.collectAsState()
     val episode by viewModel.currentEpisode.collectAsState()
-    val activeProfile = remember(source?.id, source?.lang) {
+    val activeProfile = remember(source?.id, anime?.id, source?.lang) {
         dictionaryPreferences.profileResolver.resolve(
+            animeId = anime?.id ?: 0L,
             sourceId = source?.id ?: 0L,
             sourceLang = source?.lang.orEmpty(),
         )
@@ -212,6 +213,9 @@ internal fun PlayerVideoOcrOverlay(
 
         val selected = selection
         if (selected != null) {
+            val mediaRequest = remember(selected, lookupNonce) {
+                viewModel.createVideoOcrAudioMediaRequest()
+            }
             key(selected.lookupString, lookupNonce) {
                 OcrLookupPopup(
                     visible = true,
@@ -232,7 +236,9 @@ internal fun PlayerVideoOcrOverlay(
                         mangaTitle = anime?.title.orEmpty(),
                         chapterName = episode?.name.orEmpty(),
                     ),
-                    onRequestSentenceAudio = { viewModel.captureVideoOcrAudioForAnki() },
+                    onRequestAnimatedScene = { viewModel.captureVideoOcrAnimatedForAnki() },
+                    mediaRequest = mediaRequest,
+                    onAnkiMediaWarnings = context::showPlayerAnkiMediaWarnings,
                     usePopup = false,
                     titleId = anime?.id?.toString(),
                     onTermMatched = { count, off ->

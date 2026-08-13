@@ -1,7 +1,6 @@
 package eu.kanade.tachiyomi.ui.youtube
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
@@ -48,11 +47,12 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
+import tachiyomi.domain.source.anime.interactor.GetRemoteAnime
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.i18n.stringResource
 
-class YouTubeBrowserScreen : Screen {
+class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: String? = null) : Screen {
 
     private companion object {
         private const val PLAYER_LAUNCH_DEBOUNCE_MS = 1_500L
@@ -217,10 +217,7 @@ class YouTubeBrowserScreen : Screen {
                                 lastPlayerLaunchAt = now
 
                                 stopYoutubeWebViewPlayback(webView)
-                                val intent = PlayerActivity.newStandaloneIntent(context, Uri.parse(url), "YouTube")
-                                intent.putExtra("youtube_page_url", url)
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
+                                context.startActivity(PlayerActivity.newYoutubeIntent(context, url))
                             }
 
                             CookieManager.getInstance().setAcceptCookie(true)
@@ -358,18 +355,23 @@ class YouTubeBrowserScreen : Screen {
                                 )
 
                                 // Chimahon -->
+                                // Explicit browse targets win; otherwise restore the retained
+                                // session, then fall back to the configured start page
                                 val retainedSession = YouTubeBrowserSession.consume()
                                 val restoredState = retainedSession?.state?.let { state ->
                                     runCatching { restoreState(state) }.getOrNull()
                                 }
                                 when {
+                                    targetUrl != null -> loadUrl(YouTubeSource.baseUrl + targetUrl!!)
+                                    listingQuery == GetRemoteAnime.QUERY_LATEST ->
+                                        loadUrl(YouTubeSource.baseUrl + YouTubeSource.SUBSCRIPTIONS_SUFFIX)
                                     restoredState != null -> updateNavigationState(this)
                                     retainedSession?.currentUrl != null -> loadUrl(retainedSession.currentUrl)
                                     preferences.preferredStartPage == YouTubePreferences.START_PAGE_HISTORY -> {
                                         pendingFreshHistoryLoginCheck = true
                                         loadUrl(YOUTUBE_HISTORY_URL)
                                     }
-                                    else -> loadUrl(YOUTUBE_HOME_URL)
+                                    else -> loadUrl(YouTubeSource.baseUrl)
                                 }
                                 // Chimahon <--
                             }

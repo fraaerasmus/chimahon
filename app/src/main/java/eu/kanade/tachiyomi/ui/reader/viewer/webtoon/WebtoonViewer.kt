@@ -149,6 +149,10 @@ class WebtoonViewer(
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                     onScrolled()
 
+                    if (dy != 0) {
+                        activity.onReaderScroll()
+                    }
+
                     if ((dy > threshold || dy < -threshold) && activity.viewModel.state.value.menuVisible) {
                         activity.hideMenu()
                     }

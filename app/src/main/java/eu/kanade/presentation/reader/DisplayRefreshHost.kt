@@ -26,6 +26,7 @@ class DisplayRefreshHost {
 
     internal val flashMillis = readerPreferences.flashDurationMillis()
     internal val flashMode = readerPreferences.flashColor()
+    internal val flashDelayMillisPref = readerPreferences.flashDelayMillis()
 
     internal val flashIntervalPref = readerPreferences.flashPageInterval()
 
@@ -38,6 +39,15 @@ class DisplayRefreshHost {
             currentDisplayRefresh = true
         }
         timesCalled += 1
+    }
+
+    /**
+     * Triggers a refresh immediately, without the every-[flashInterval]-call gating used by
+     * [flash]. Used for movement/scroll in continuous readers where each gesture should repaint
+     * the display rather than waiting for a page turn.
+     */
+    fun flashOnScroll() {
+        currentDisplayRefresh = true
     }
 
     fun setInterval(interval: Int) {
@@ -55,6 +65,7 @@ fun DisplayRefreshHost(
     val refreshDuration by hostState.flashMillis.collectAsState()
     val flashMode by hostState.flashMode.collectAsState()
     val flashInterval by hostState.flashIntervalPref.collectAsState()
+    val flashDelay by hostState.flashDelayMillisPref.collectAsState()
 
     var currentColor by remember { mutableStateOf<Color?>(null) }
 
@@ -63,6 +74,8 @@ fun DisplayRefreshHost(
             currentColor = null
             return@LaunchedEffect
         }
+
+        delay(flashDelay.milliseconds)
 
         val refreshDurationHalf = refreshDuration.milliseconds / 2
         currentColor = if (flashMode == ReaderPreferences.FlashColor.BLACK) {

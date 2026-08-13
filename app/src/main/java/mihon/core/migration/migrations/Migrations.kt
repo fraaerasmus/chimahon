@@ -8,7 +8,6 @@ val migrations: List<Migration>
         SetupLibraryUpdateMigration(),
         SetupEHentaiUpdateMigration(),
         SetupSyncDataMigration(),
-        // DelegateHBrowseMigration(),
         // DelegateNHentaiMigration(),
         // MergedMangaRewriteMigration(),
         // LogoutFromMALMigration(),
@@ -53,4 +52,10 @@ val migrations: List<Migration>
         TrustExtensionRepositoryMigration(),
         CategoryPreferencesCleanupMigration(),
         RemoveDuplicateReaderPreferenceMigration(),
+        // KMK -->
+        DisabledRepoMigration(),
+        SyncPrefKeyMigration(),
+        ChapterUrlHashMigration(),
+        MoveJimakuApiKeyToPrivateMigration(),
+        // KMK <--
     )

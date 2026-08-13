@@ -20,6 +20,7 @@ package eu.kanade.tachiyomi.ui.player
 import android.content.Context
 import android.os.Build
 import android.os.Environment
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
@@ -51,15 +52,42 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
     var isExiting = false
     var surfaceReady = false
         private set
+    private val playbackLoadGate = SurfacePlaybackLoadGate { url ->
+        if (isExiting) {
+            false
+        } else {
+            MPVLib.command(arrayOf("loadfile", url, "replace"))
+            true
+        }
+    }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         super.surfaceCreated(holder)
         surfaceReady = true
+        playbackLoadGate.onSurfaceCreated()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        playbackLoadGate.onSurfaceDestroyed()
         surfaceReady = false
         super.surfaceDestroyed(holder)
+    }
+
+    fun loadFileWhenSurfaceReady(url: String) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            playbackLoadGate.load(url)
+        } else {
+            post { playbackLoadGate.load(url) }
+        }
+    }
+
+    fun retryPendingLoad() {
+        playbackLoadGate.retryPending()
+    }
+
+    fun destroyPlayer() {
+        playbackLoadGate.close()
+        destroy()
     }
 
     private fun getPropertyInt(property: String): Int? {
@@ -233,6 +261,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         "sid" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "secondary-sid" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "sub-text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
+        "secondary-sub-text" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
         "aid" to MPVLib.mpvFormat.MPV_FORMAT_STRING,
 
         "speed" to MPVLib.mpvFormat.MPV_FORMAT_DOUBLE,
@@ -280,10 +309,11 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
         )
 
         MPVLib.setOptionString("sub-font", subtitlePreferences.subtitleFont().get())
-        if (subtitlePreferences.overrideSubsASS().get()) {
-            MPVLib.setOptionString("sub-ass-override", "force")
-            MPVLib.setOptionString("sub-ass-justify", "yes")
-        }
+        // Force-apply mpv's subtitle styling options to ASS so the sub-* options take effect.
+        // Without this, libass renders ASS with the script's own colors/effects, which would
+        // double-render alongside the Compose overlay. Text is drawn by Compose below.
+        MPVLib.setOptionString("sub-ass-override", "force")
+        MPVLib.setOptionString("sub-ass-justify", "yes")
         MPVLib.setOptionString("sub-font-size", subtitlePreferences.subtitleFontSize().get().toString())
         MPVLib.setOptionString("sub-bold", if (subtitlePreferences.boldSubtitles().get()) "yes" else "no")
         MPVLib.setOptionString("sub-italic", if (subtitlePreferences.italicSubtitles().get()) "yes" else "no")

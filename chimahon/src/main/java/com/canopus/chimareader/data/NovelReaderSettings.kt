@@ -260,8 +260,16 @@ class NovelReaderSettings(private val context: Context, private val namespace: S
         prefs[keys.EINK_REFRESH_ON_PAGE_TURN] ?: false
     }
 
+    val einkRefreshOnScroll: Flow<Boolean> = dataStore.data.map { prefs ->
+        prefs[keys.EINK_REFRESH_ON_SCROLL] ?: false
+    }
+
     val einkRefreshDurationMillis: Flow<Int> = dataStore.data.map { prefs ->
         prefs.getSafeInt(keys.EINK_REFRESH_DURATION_MILLIS, 100)
+    }
+
+    val einkRefreshDelayMillis: Flow<Int> = dataStore.data.map { prefs ->
+        prefs.getSafeInt(keys.EINK_REFRESH_DELAY_MILLIS, 0)
     }
 
     val einkRefreshPageInterval: Flow<Int> = dataStore.data.map { prefs ->
@@ -537,9 +545,21 @@ class NovelReaderSettings(private val context: Context, private val namespace: S
         }
     }
 
+    suspend fun setEinkRefreshOnScroll(value: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[keys.EINK_REFRESH_ON_SCROLL] = value
+        }
+    }
+
     suspend fun setEinkRefreshDurationMillis(value: Int) {
         dataStore.edit { prefs ->
             prefs[keys.EINK_REFRESH_DURATION_MILLIS] = value
+        }
+    }
+
+    suspend fun setEinkRefreshDelayMillis(value: Int) {
+        dataStore.edit { prefs ->
+            prefs[keys.EINK_REFRESH_DELAY_MILLIS] = value
         }
     }
 
@@ -596,7 +616,9 @@ class NovelReaderSettings(private val context: Context, private val namespace: S
         val SCAN_LENGTH = intKey("scan_length")
         val KEEP_SCREEN_ON = booleanKey("keep_screen_on")
         val EINK_REFRESH_ON_PAGE_TURN = booleanKey("eink_refresh_on_page_turn")
+        val EINK_REFRESH_ON_SCROLL = booleanKey("eink_refresh_on_scroll")
         val EINK_REFRESH_DURATION_MILLIS = intKey("eink_refresh_duration_millis")
+        val EINK_REFRESH_DELAY_MILLIS = intKey("eink_refresh_delay_millis")
         val EINK_REFRESH_PAGE_INTERVAL = intKey("eink_refresh_page_interval")
         val EINK_REFRESH_COLOR = stringKey("eink_refresh_color")
     }

@@ -316,7 +316,13 @@ class AnimeDownloader(
 
     private suspend fun downloadEpisode(download: AnimeDownload) {
         if (download.video == null) {
-            resolveVideo(download)
+            val hosters = EpisodeLoader.getHosters(download.episode, download.anime, download.source)
+            if (hosters.isEmpty()) {
+                throw IllegalStateException("No hosters found for ${download.episode.name}")
+            }
+            val bestVideo = HosterLoader.getBestVideo(download.source, hosters)
+                ?: throw IllegalStateException("No videos found for ${download.episode.name}")
+            download.video = bestVideo
         }
 
         val video = download.video
@@ -388,35 +394,6 @@ class AnimeDownloader(
             download.status = AnimeDownload.State.ERROR
             notifyQueueChanged()
             notifier.onError(e.message, download.episode.name, download.anime.title, download.anime.id)
-        }
-    }
-
-    private suspend fun resolveVideo(download: AnimeDownload) {
-        withContext(Dispatchers.IO) {
-            val source = download.source
-            if (source.isSourceForTorrents()) {
-                TorrentServerService.start()
-                if (TorrentServerService.wait(10)) {
-                    TorrentServerUtils.setTrackersList()
-                }
-            }
-            val hosters = EpisodeLoader.getHosters(download.episode, download.anime, source)
-            if (hosters.isEmpty()) {
-                logcat(LogPriority.ERROR) {
-                    "No hosters found for ${download.episode.name} from source ${source.name}"
-                }
-                return@withContext
-            }
-
-            val resolved = HosterLoader.getBestVideo(source, hosters)
-            if (resolved?.videoUrl.isNullOrBlank()) {
-                logcat(LogPriority.ERROR) {
-                    "No videos found for ${download.episode.name} from source ${source.name}"
-                }
-                return@withContext
-            }
-
-            download.video = resolved!!.copy(headers = resolved.headers ?: source.headers)
         }
     }
 

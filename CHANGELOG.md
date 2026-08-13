@@ -4,6 +4,113 @@ All notable changes to Chimahon are documented here.
 
 The format follows a Keep a Changelog style and uses Semantic Versioning.
 
+## [v2.3.2]
+
+### Added
+- Dictionary backup and restore via zip export/import
+- Edit mpv.conf and input.conf directly from settings
+- Size and opacity settings for the screen-lookup OCR capture button
+- Configurable delay before the e-ink flash (manga and novel readers)
+- Flash on scroll/movement for continuous readers
+- Per-anime dictionary profile override (matching manga)
+- Per-source dictionary profile override for anime extensions
+- OCR word resolution lookup mode with per-language scan/search settings
+- Clear OCR cache option on the entry three-dot menu
+- Subtitle delay remembered per episode
+- In-player Jimaku API key setup
+- Animated AVIF scene mining for player lookup
+- Strip leading French elisions in dictionary lookup variants
+- Option to disable cross-screen search history
+
+### Changed
+- Anime and manga updates consolidated into one screen
+- OCR re-runs immediately when the OCR source switches
+- Google Lens OCR results now persist
+- Milliseconds shown on controls-hide delay options
+
+### Fixed
+- Preferred audio language codes now validated like subtitles
+- "Add" button showing both '+' icon and label
+- Anime related-section divider displaying only half-width
+- Spanish deinflection
+- English reading order and text-line selection preserved in OCR
+- Stale-subtitle flash
+- Reserve space for dictionary recursive lookup tabs
+- Player lifecycle hardening
+- General YouTube and anime player fixes — sentence audio extraction, YouTube signed media URLs, NewPipe extractor update
+
+## [v2.3.1]
+
+### Added
+- OCR source selection in the reader
+- Cross-screen search history
+- Long-press mode switcher on Browse navbar icon
+- Animated AVIF scene mining for Anki
+
+### Changed
+- Enabled history tab swiping
+- Reduced long-press duration for library/browse mode dropdown menus
+- YouTube sentence audio mining now uses AAC transcode
+
+### Fixed
+- Audio path update failing on some devices
+- Novel reader incorrectly triggering image taps on unrelated space
+- Fix oversized images in novel reader
+- Anime downloads not respecting extension quality preferences
+- OCR lookup popup crash on narrow screens
+- YouTube crash on some older Android versions
+- Crash when adding anime repositories
+- Anime cover images not loading for some sources
+- MPV certificate storage on some devices
+
+## [v2.3.0]
+
+Rebased on latest Komikku upstream, bringing TachiyomiX 1.6 extension support and other upstream fixes.
+
+### Added
+- YouTube integration with option to auto-add watched channels to library (disabled by default)
+- Novel image viewer with OCR lookup
+- Kanji dictionary support
+- Consolidated library quick navigation
+- Configurable parallel OCR processing for chapters
+- .mokuro files readable from inside archives
+- Pre-OCR option for local manga via three-dot menu
+- Aspect ratio crop presets for overlay and reader screenshot mode
+- Configurable paginated scroll step size for dictionary popup
+- Scroll behavior and volume key navigation settings for dictionary popup
+- Option to disable two-finger OCR toggle gesture in reader
+- Option to disable long-press screenshot in player
+
+### Changed
+- Anime continue watching button style unified with manga
+- Further improvements to the Korean analyzer
+- MangaBaka OAuth login
+
+### Fixed
+- Subtitle swipe reliability, history duplication, and single-tap to pause
+- Playback hardening and automatic PiP closing
+- Anime downloads ignoring extension quality preferences
+- OCR data loss from interrupted saves with atomic writes and corrupt-file guard
+- External audio track persistence and reload after player restart
+- Dynamic volume button scaling by 5 percent
+- Duplicate DictionaryTab cache timestamp
+- Anki export pipeline hardening
+- Anime download queue row isolation
+- Anime browse and history label alignment
+- Settings profile deletion cleaning up manga/source/novel overrides
+- Dictionary type preservation when reordering filtered list
+- Missing cache check in getDictionaryPaths
+- Active search results refresh on profile changes
+- Reader profile cache invalidation on profile content changes
+- Browse tab position reset when switching modes
+- External file name resolution crash safety
+- Audio channels enum mapping values
+- Stale local database handle recovery
+- Duplicate subtitle rendering
+- LinkageError crash from outdated extensions
+- Downloads and OCR queue section layout overlap
+- OCR coordinate remapping for rotation, center-margin, and split-wide transforms
+
 ## [v2.2.0]
 
 Chimahon is open to contributors; issues and pull requests are welcome.

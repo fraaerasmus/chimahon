@@ -17,6 +17,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.runtime.rememberCoroutineScope
+import eu.kanade.presentation.components.SearchHistoryRow
+import kotlinx.coroutines.launch
+import tachiyomi.domain.history.interactor.DeleteSearchHistory
+import tachiyomi.domain.history.interactor.GetSearchHistory
+import tachiyomi.domain.history.interactor.UpsertSearchHistory
+import tachiyomi.domain.history.model.SearchHistory
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.HorizontalDivider
@@ -47,7 +57,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.UpIcon
+import tachiyomi.presentation.core.util.collectAsState
 import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsAdvancedScreen
 import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsAudioScreen
 import eu.kanade.presentation.more.settings.screen.player.PlayerSettingsDecoderScreen
@@ -92,6 +104,27 @@ class SettingsSearchScreen : Screen() {
             focusRequester.requestFocus()
         }
 
+        val scope = rememberCoroutineScope()
+        val uiPreferences = remember { Injekt.get<UiPreferences>() }
+        val searchHistoryEnabled by uiPreferences.searchHistoryEnabled().collectAsState()
+        val getSearchHistory: GetSearchHistory = remember { Injekt.get() }
+        val upsertSearchHistory: UpsertSearchHistory = remember { Injekt.get() }
+        val deleteSearchHistory: DeleteSearchHistory = remember { Injekt.get() }
+        val historyState by produceState<List<SearchHistory>>(initialValue = emptyList()) {
+            if (searchHistoryEnabled) {
+                getSearchHistory.subscribe(SearchHistory.SCOPE_SETTINGS).collect { value = it }
+            }
+        }
+
+        val handleSearch: (String) -> Unit = { query ->
+            val trimmed = query.trim()
+            if (trimmed.isNotBlank() && searchHistoryEnabled) {
+                scope.launch {
+                    upsertSearchHistory.await(SearchHistory.SCOPE_SETTINGS, trimmed)
+                }
+            }
+        }
+
         val textFieldState = rememberTextFieldState()
         Scaffold(
             topBar = {
@@ -111,12 +144,18 @@ class SettingsSearchScreen : Screen() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .focusRequester(focusRequester)
-                                    .runOnEnterKeyPressed(action = focusManager::clearFocus),
+                                    .runOnEnterKeyPressed(action = {
+                                        handleSearch(textFieldState.text.toString())
+                                        focusManager.clearFocus()
+                                    }),
                                 textStyle = MaterialTheme.typography.bodyLarge
                                     .copy(color = MaterialTheme.colorScheme.onSurface),
                                 lineLimits = TextFieldLineLimits.SingleLine,
                                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                onKeyboardAction = { focusManager.clearFocus() },
+                                onKeyboardAction = {
+                                    handleSearch(textFieldState.text.toString())
+                                    focusManager.clearFocus()
+                                },
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                                 decorator = {
                                     if (textFieldState.text.isEmpty()) {
@@ -142,6 +181,26 @@ class SettingsSearchScreen : Screen() {
                             }
                         },
                     )
+                    if (searchHistoryEnabled && historyState.isNotEmpty()) {
+                        SearchHistoryRow(
+                            historyList = historyState,
+                            onSelectQuery = { query ->
+                                textFieldState.setTextAndPlaceCursorAtEnd(query)
+                                handleSearch(query)
+                                focusManager.clearFocus()
+                            },
+                            onDeleteQuery = { query ->
+                                if (searchHistoryEnabled) {
+                                    scope.launch { deleteSearchHistory.await(SearchHistory.SCOPE_SETTINGS, query) }
+                                }
+                            },
+                            onClearAll = {
+                                if (searchHistoryEnabled) {
+                                    scope.launch { deleteSearchHistory.clearScope(SearchHistory.SCOPE_SETTINGS) }
+                                }
+                            },
+                        )
+                    }
                     HorizontalDivider()
                 }
             },

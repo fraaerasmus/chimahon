@@ -32,6 +32,7 @@ import kotlinx.collections.immutable.persistentListOf
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.model.FeedSavedSearch
 import tachiyomi.domain.source.model.SavedSearch
+import tachiyomi.domain.history.model.SearchHistory
 import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.i18n.sy.SYMR
@@ -333,50 +334,50 @@ fun SourceFeedToolbar(
         // KMK <--
         scrollBehavior = scrollBehavior,
         placeholderText = stringResource(MR.strings.action_search_hint),
+        searchHistoryScope = SearchHistory.SCOPE_ANIME_MANGA,
         // KMK -->
         actions = {
             AppBarActions(
-                actions = persistentListOf<AppBar.AppBarAction>().builder()
-                    .apply {
-                        add(bulkSelectionButton(isRunning, toggleSelectionMode))
+                actions = persistentListOf<AppBar.AppBarAction>().builder().apply {
+                    add(bulkSelectionButton(isRunning, toggleSelectionMode))
 
-                        onWebViewClick?.let {
-                            add(
-                                AppBar.Action(
-                                    title = stringResource(MR.strings.action_web_view),
-                                    onClick = { onWebViewClick() },
-                                    icon = Icons.Outlined.Public,
-                                ),
-                            )
-                        }
-
-                        // KMK -->
+                    onWebViewClick?.let { func ->
                         add(
-                            AppBar.OverflowAction(
-                                title = stringResource(MR.strings.pref_incognito_mode),
-                                onClick = onToggleIncognito,
+                            AppBar.Action(
+                                title = stringResource(MR.strings.action_web_view),
+                                onClick = { func() },
+                                icon = Icons.Outlined.Public,
                             ),
                         )
-                        // KMK <--
-
-                        onSortFeedClick?.let {
-                            add(
-                                AppBar.OverflowAction(
-                                    title = stringResource(KMR.strings.action_sort_feed),
-                                    onClick = { onSortFeedClick() },
-                                ),
-                            )
-                        }
-
-                        onSourceSettingClick?.let {
-                            add(
-                                AppBar.OverflowAction(
-                                    title = stringResource(MR.strings.label_settings),
-                                    onClick = { onSourceSettingClick() },
-                                ),
-                            )
-                        }
                     }
+
+                    // KMK -->
+                    add(
+                        AppBar.OverflowAction(
+                            title = stringResource(MR.strings.pref_incognito_mode),
+                            onClick = onToggleIncognito,
+                        ),
+                    )
+                    // KMK <--
+
+                    onSortFeedClick?.let { func ->
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(KMR.strings.action_sort_feed),
+                                onClick = { func() },
+                            ),
+                        )
+                    }
+
+                    onSourceSettingClick?.let { func ->
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(MR.strings.label_settings),
+                                onClick = { func() },
+                            ),
+                        )
+                    }
+                }
                     .build(),
             )
         },

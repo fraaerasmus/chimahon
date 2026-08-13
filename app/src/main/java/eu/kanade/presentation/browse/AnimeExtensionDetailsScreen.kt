@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Launch
+import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Public
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
@@ -79,6 +80,7 @@ fun AnimeExtensionDetailsScreen(
     onClickUninstall: () -> Unit,
     onClickSource: (sourceId: Long) -> Unit,
     onClickIncognito: (Boolean) -> Unit,
+    onSourceDictProfileClick: (sourceId: Long) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
     val url = remember(state.extension) {
@@ -161,6 +163,7 @@ fun AnimeExtensionDetailsScreen(
             onClickUninstall = onClickUninstall,
             onClickSource = onClickSource,
             onClickIncognito = onClickIncognito,
+            onSourceDictProfileClick = onSourceDictProfileClick,
         )
     }
 }
@@ -175,6 +178,7 @@ private fun AnimeExtensionDetails(
     onClickUninstall: () -> Unit,
     onClickSource: (sourceId: Long) -> Unit,
     onClickIncognito: (Boolean) -> Unit,
+    onSourceDictProfileClick: (sourceId: Long) -> Unit,
 ) {
     val context = LocalContext.current
     var showNsfwWarning by remember { mutableStateOf(false) }
@@ -216,6 +220,7 @@ private fun AnimeExtensionDetails(
                 source = source,
                 onClickSourcePreferences = onClickSourcePreferences,
                 onClickSource = onClickSource,
+                onDictProfileClick = { onSourceDictProfileClick(source.source.id) },
             )
         }
     }
@@ -432,6 +437,7 @@ private fun AnimeSourceSwitchPreference(
     source: AnimeExtensionSourceItem,
     onClickSourcePreferences: (sourceId: Long) -> Unit,
     onClickSource: (sourceId: Long) -> Unit,
+    onDictProfileClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -455,6 +461,15 @@ private fun AnimeSourceSwitchPreference(
                             tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
+                }
+
+                // Dictionary profile override — shown for every source
+                IconButton(onClick = onDictProfileClick) {
+                    Icon(
+                        imageVector = Icons.Outlined.MenuBook,
+                        contentDescription = stringResource(MR.strings.pref_dict_profile_override_source),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
 
                 Switch(

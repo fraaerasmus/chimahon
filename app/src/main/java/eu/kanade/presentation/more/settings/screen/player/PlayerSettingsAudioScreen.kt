@@ -14,6 +14,8 @@ import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.util.Locale
+import java.util.MissingResourceException
 
 object PlayerSettingsAudioScreen : SearchableSettings {
 
@@ -32,9 +34,46 @@ object PlayerSettingsAudioScreen : SearchableSettings {
         val boostCap by boostCappreference.collectAsState()
 
         return listOf(
-            Preference.PreferenceItem.EditTextPreference(
+            Preference.PreferenceItem.EditTextInfoPreference(
                 preference = prefLangs,
+                dialogSubtitle = stringResource(MR.strings.pref_player_audio_lang_info),
                 title = stringResource(MR.strings.pref_player_audio_lang),
+                validate = { pref ->
+                    val langs = pref.split(",").filter(String::isNotEmpty).map(String::trim)
+                    langs.forEach {
+                        try {
+                            val locale = Locale(it)
+                            if (locale.isO3Language == locale.language &&
+                                locale.language == locale.getDisplayName(Locale.ENGLISH)
+                            ) {
+                                throw MissingResourceException("", "", "")
+                            }
+                        } catch (_: MissingResourceException) {
+                            return@EditTextInfoPreference false
+                        }
+                    }
+
+                    true
+                },
+                errorMessage = { pref ->
+                    val langs = pref.split(",").filter(String::isNotEmpty).map(String::trim)
+                    langs.forEach {
+                        try {
+                            val locale = Locale(it)
+                            if (locale.isO3Language == locale.language &&
+                                locale.language == locale.getDisplayName(Locale.ENGLISH)
+                            ) {
+                                throw MissingResourceException("", "", "")
+                            }
+                        } catch (_: MissingResourceException) {
+                            return@EditTextInfoPreference stringResource(
+                                MR.strings.pref_player_subtitle_invalid_lang,
+                                it,
+                            )
+                        }
+                    }
+                    ""
+                },
             ),
             Preference.PreferenceItem.SwitchPreference(
                 preference = pitchCorrection,

@@ -24,6 +24,7 @@
 
 # Rhino (NewPipe Extractor dependency)
 -keep class org.mozilla.javascript.** { *; }
+-keep class org.mozilla.classfile.ClassFileWriter
 -dontwarn org.mozilla.javascript.tools.**
 
 # Injekt type resolution - FullTypeReference needs generic type info
@@ -54,6 +55,7 @@
 -keep,allowoptimization class rx.** { public protected *; }
 -keep,allowoptimization class app.cash.quickjs.** { public protected *; }
 -keep,allowoptimization class uy.kohesive.injekt.** { public protected *; }
+-keep,allowoptimization class com.squareup.zstd.** { public protected *; }
 
 # From extensions-lib
 -keep,allowoptimization class eu.kanade.tachiyomi.network.interceptor.RateLimitInterceptorKt { public protected *; }
@@ -65,6 +67,11 @@
 
 # Debug functions
 -keep,allowoptimization class exh.debug.DebugFunctions { public *; }
+
+-keepclassmembers class * implements java.io.Serializable {
+    java.lang.Object writeReplace();
+    java.lang.Object readResolve();
+}
 
 ##---------------Begin: proguard configuration for RxJava 1.x  ----------
 -dontwarn sun.misc.**
@@ -175,14 +182,6 @@
 # Google OAuth
 -keep class com.google.api.client.** { *; }
 
-# SY -->
-# SqlCipher
--keepclassmembers class net.zetetic.database.sqlcipher.SQLiteCustomFunction { *; }
--keepclassmembers class net.zetetic.database.sqlcipher.SQLiteConnection { *; }
--keepclassmembers class net.zetetic.database.sqlcipher.SQLiteGlobal { *; }
--keepclassmembers class net.zetetic.database.sqlcipher.SQLiteDebug { *; }
--keepclassmembers class net.zetetic.database.sqlcipher.SQLiteDebug$* { *; }
-# SY <--
 
 # KMK -->
 # Coil3
@@ -345,3 +344,5 @@
 -dontwarn org.ietf.jgss.GSSManager
 -dontwarn org.ietf.jgss.GSSName
 -dontwarn org.ietf.jgss.Oid
+-dontwarn com.google.re2j.Matcher
+-dontwarn com.google.re2j.Pattern

@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import eu.kanade.tachiyomi.ui.player.controls.components.panels.SubtitlesBorderStyle
+import tachiyomi.core.common.preference.Preference
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
@@ -18,7 +19,7 @@ class SubtitlePreferences(
     fun preferredSubLanguages() = preferenceStore.getString("pref_subtitle_lang", "")
     fun subtitleWhitelist() = preferenceStore.getString("pref_subtitle_whitelist", "")
     fun subtitleBlacklist() = preferenceStore.getString("pref_subtitle_blacklist", "")
-    fun jimakuApiKey() = preferenceStore.getString("pref_jimaku_api_key", "")
+    fun jimakuApiKey() = preferenceStore.getString(Preference.privateKey(JIMAKU_API_KEY), "")
     fun jimakuTitle() = preferenceStore.getString("pref_jimaku_title", "")
     fun subtitleRegexRemoveSpeakerNames() = preferenceStore.getBoolean(
         "pref_subtitle_regex_remove_speaker_names",
@@ -75,15 +76,26 @@ class SubtitlePreferences(
     fun subtitleJustification() = preferenceStore.getEnum("pref_sub_justify", SubtitleJustification.Auto)
     fun subtitlePos() = preferenceStore.getInt("pref_sub_pos", 100)
 
-    fun overrideSubsASS() = preferenceStore.getBoolean("pref_override_subtitles_ass", false)
-
     fun subtitlesDelay() = preferenceStore.getInt("pref_subtitles_delay", 0)
     fun subtitlesDelayForAnime(animeId: Long?) = animeId
         ?.takeIf { it > 0 }
         ?.let { preferenceStore.getInt("pref_subtitles_delay_anime_$it", subtitlesDelay().get()) }
         ?: subtitlesDelay()
+    fun subtitlesDelayForEpisode(episodeId: Long?, animeId: Long?) = episodeId
+        ?.takeIf { it > 0 }
+        ?.let {
+            preferenceStore.getInt(
+                "pref_subtitles_delay_episode_$it",
+                subtitlesDelayForAnime(animeId).get(),
+            )
+        }
+        ?: subtitlesDelayForAnime(animeId)
 
     fun subtitlesSpeed() = preferenceStore.getFloat("pref_subtitles_speed", 1f)
+    fun subtitlesSpeedForEpisode(episodeId: Long?) = episodeId
+        ?.takeIf { it > 0 }
+        ?.let { preferenceStore.getFloat("pref_subtitles_speed_episode_$it", subtitlesSpeed().get()) }
+        ?: subtitlesSpeed()
     fun subtitlesSecondaryDelay() = preferenceStore.getInt("pref_subtitles_secondary_delay", 0)
     fun subtitlesSecondaryDelayForAnime(animeId: Long?) = animeId
         ?.takeIf { it > 0 }
@@ -94,6 +106,19 @@ class SubtitlePreferences(
             )
         }
         ?: subtitlesSecondaryDelay()
+    fun subtitlesSecondaryDelayForEpisode(episodeId: Long?, animeId: Long?) = episodeId
+        ?.takeIf { it > 0 }
+        ?.let {
+            preferenceStore.getInt(
+                "pref_subtitles_secondary_delay_episode_$it",
+                subtitlesSecondaryDelayForAnime(animeId).get(),
+            )
+        }
+        ?: subtitlesSecondaryDelayForAnime(animeId)
+
+    private companion object {
+        const val JIMAKU_API_KEY = "pref_jimaku_api_key"
+    }
 }
 
 enum class SubtitleJustification(

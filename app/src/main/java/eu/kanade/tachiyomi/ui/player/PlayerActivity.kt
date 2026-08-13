@@ -43,6 +43,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Looper
 import android.util.Rational
 import android.view.KeyEvent
 import android.view.View
@@ -86,7 +87,8 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.ui.player.utils.safeResumePositionMillis
-import eu.kanade.tachiyomi.ui.youtube.YoutubeResolver
+import eu.kanade.tachiyomi.ui.youtube.YouTubeResolver
+import eu.kanade.tachiyomi.util.system.powerManager
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
@@ -143,10 +145,19 @@ class PlayerActivity : BaseActivity() {
     private var restoreAudioFocus: () -> Unit = {}
 
     private var pipRect: Rect? = null
-    val isPipSupportedAndEnabled by lazy {
-        packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
-            playerPreferences.enablePip().get()
+    private val pipGuard by lazy {
+        PictureInPictureGuard(
+            initiallyAvailable = packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+                playerPreferences.enablePip().get(),
+            onRejected = { error ->
+                logcat(LogPriority.WARN, error) {
+                    "Picture-in-picture disabled after framework rejection"
+                }
+            },
+        )
     }
+    val isPipSupportedAndEnabled: Boolean
+        get() = pipGuard.isAvailable
 
     private var pipReceiver: BroadcastReceiver? = null
 
@@ -172,6 +183,9 @@ class PlayerActivity : BaseActivity() {
         private const val EXTRA_STANDALONE_VIDEO = "standaloneVideo"
         private const val EXTRA_STANDALONE_VIDEO_URL = "standaloneVideoUrl"
         private const val EXTRA_STANDALONE_VIDEO_TITLE = "standaloneVideoTitle"
+
+        private const val EXTRA_YOUTUBE_VIDEO = "youtubeVideo"
+        private const val EXTRA_YOUTUBE_VIDEO_URL = "youtubeVideoUrl"
 
         fun newIntent(
             context: Context,
@@ -212,12 +226,47 @@ class PlayerActivity : BaseActivity() {
                 }
             }
         }
+
+        fun newYoutubeIntent(
+            context: Context,
+            videoUrl: String,
+        ): Intent
+        {
+            return Intent(context, PlayerActivity::class.java).apply {
+                putExtra(EXTRA_YOUTUBE_VIDEO, true)
+                putExtra(EXTRA_YOUTUBE_VIDEO_URL, videoUrl)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+        }
     }
 
 
     @SuppressLint("MissingSuperCall")
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+
+        if (intent.isYoutubeVideoIntent())
+        {
+            player.isExiting = false
+            val videoUrl = intent.getStringExtra(EXTRA_YOUTUBE_VIDEO_URL)
+                // Chimahon -->
+                ?: intent.dataString
+            // Chimahon <--
+            if (videoUrl != null)
+            {
+                // Create anime and episodes
+                viewModel.loadYoutubeVideo(videoUrl)
+                setIntent(intent)
+                return
+            }
+            else
+            {
+                toast("Failed to get youtube url")
+                logcat(LogPriority.ERROR) { "Failed to get youtube url" }
+                finish()
+                return
+            }
+        }
 
         if (intent.isStandaloneVideoIntent()) {
             player.isExiting = false
@@ -283,6 +332,17 @@ class PlayerActivity : BaseActivity() {
         setIntent(intent)
     }
 
+    private fun Intent.isYoutubeVideoIntent(): Boolean {
+        if (getBooleanExtra(EXTRA_YOUTUBE_VIDEO, false)) return true
+        if (hasExtra(EXTRA_YOUTUBE_VIDEO_URL)) return true
+        // Chimahon -->
+        // YouTube links shared from outside the in-app browser arrive as plain VIEW
+        // intents; route them through the resolver too, since mpv can't open watch pages
+        if (data?.toString()?.let { YouTubeResolver.isYouTubeUrl(it) } == true) return true
+        // Chimahon <--
+        return false
+    }
+
     private fun Intent.isStandaloneVideoIntent(): Boolean {
         if (getBooleanExtra(EXTRA_STANDALONE_VIDEO, false)) return true
         if (hasExtra(EXTRA_STANDALONE_VIDEO_URL)) return true
@@ -303,11 +363,7 @@ class PlayerActivity : BaseActivity() {
         return Video(
             videoUrl = uriString,
             videoTitle = title,
-            initialized = true,
-            // YouTube links shared from outside the in-app browser lack the extra; route them
-            // through the resolver too, since mpv can't open watch pages itself
-            videoPageUrl = getStringExtra("youtube_page_url")
-                ?: uriString.takeIf { YoutubeResolver.isYouTubeUrl(it) }.orEmpty(),
+            initialized = true
         )
     }
 
@@ -360,7 +416,9 @@ class PlayerActivity : BaseActivity() {
                     castManager = castManager, // Pass the castManager instance
                     onBackPress = {
                         if (isPipSupportedAndEnabled && player.paused == false && playerPreferences.pipOnExit().get()) {
-                            enterPictureInPictureMode(createPipParams())
+                            if (!enterPictureInPictureIfAvailable()) {
+                                finish()
+                            }
                         } else {
                             finish()
                         }
@@ -489,7 +547,7 @@ class PlayerActivity : BaseActivity() {
 
         MPVLib.removeLogObserver(playerObserver)
         MPVLib.removeObserver(playerObserver)
-        player.destroy()
+        player.destroyPlayer()
         castManager.cleanup()
 
 
@@ -527,7 +585,9 @@ class PlayerActivity : BaseActivity() {
         }
 
         if (isInPictureInPictureMode) {
-            finishAndRemoveTask()
+            if (powerManager?.isInteractive == true) {
+                viewModel.deletePendingEpisodes()
+            }
         }
 
         super.onStop()
@@ -536,7 +596,7 @@ class PlayerActivity : BaseActivity() {
     @SuppressLint("MissingSuperCall")
     override fun onUserLeaveHint() {
         if (isPipSupportedAndEnabled && player.paused == false && playerPreferences.pipOnExit().get()) {
-            enterPictureInPictureMode()
+            enterPictureInPictureIfAvailable()
         }
         super.onUserLeaveHint()
     }
@@ -548,7 +608,9 @@ class PlayerActivity : BaseActivity() {
                 viewModel.panelShown.value == Panels.None &&
                 viewModel.dialogShown.value == Dialogs.None
             ) {
-                enterPictureInPictureMode()
+                if (!enterPictureInPictureIfAvailable()) {
+                    super.onBackPressed()
+                }
             }
         } else {
             super.onBackPressed()
@@ -557,7 +619,7 @@ class PlayerActivity : BaseActivity() {
 
     override fun onStart() {
         super.onStart()
-        setPictureInPictureParams(createPipParams())
+        updatePictureInPictureParamsIfAvailable()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -604,34 +666,35 @@ class PlayerActivity : BaseActivity() {
     }
 
     private fun loadPlayableUrl(url: String) {
-        if (player.surfaceReady) {
-            MPVLib.command(arrayOf("loadfile", url))
-        } else {
-            player.playFile(url)
-        }
+        player.loadFileWhenSurfaceReady(url)
     }
 
     private fun setupPlayerMPV() {
         val logLevel = if (networkPreferences.verboseLogging().get()) "info" else "warn"
+        val internalConfigDir = applicationContext.filesDir.path
 
-        val configDir = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) {
-            // filePath is null for non-filesystem SAF storage; fall back instead of crashing
-            storageManager.getMPVConfigDirectory()?.filePath ?: applicationContext.filesDir.path
-        } else {
-            applicationContext.filesDir.path
-        }
+        val configDir = resolveMpvConfigDirectory(
+            internalConfigDirectory = internalConfigDir,
+            useExternalConfigDirectory = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
+                Environment.isExternalStorageManager(),
+            externalConfigDirectory = { storageManager.getMPVConfigDirectory()?.filePath },
+            onExternalFailure = { error ->
+                logcat(LogPriority.WARN, error) {
+                    "Failed to resolve external MPV config directory; using internal storage"
+                }
+            },
+        )
 
         val mpvConfFile = File("$configDir/mpv.conf")
-        getUserPlayerConfig("mpv.conf", advancedPlayerPreferences.mpvConf().get()).let { mpvConfFile.writeText(it) }
+        advancedPlayerPreferences.mpvConf().get().let { mpvConfFile.writeText(it) }
         val mpvInputFile = File("$configDir/input.conf")
-        getUserPlayerConfig("input.conf", advancedPlayerPreferences.mpvInput().get()).let { mpvInputFile.writeText(it) }
+        advancedPlayerPreferences.mpvInput().get().let { mpvInputFile.writeText(it) }
 
         copyScripts()
-        copyAssets(configDir)
-        if (configDir != applicationContext.filesDir.path) {
-            // tls-ca-file always points at filesDir (see AniyomiMPVView.initOptions),
-            // which differs from configDir when All Files Access is granted
-            copyAssets(applicationContext.filesDir.path, arrayOf("cacert.pem"))
+        copyAssets(configDir, "subfont.ttf")
+        copyAssets(internalConfigDir, "cacert.pem")
+        if (configDir != internalConfigDir) {
+            removeUnmodifiedAssetCopy(configDir, "cacert.pem")
         }
         setupFontsDirectory()
 
@@ -645,21 +708,6 @@ class PlayerActivity : BaseActivity() {
         )
         MPVLib.addLogObserver(playerObserver)
         MPVLib.addObserver(playerObserver)
-    }
-
-    /**
-     * The player settings editor edits files in [StorageManager.getMPVConfigDirectory], which mpv
-     * only reads directly when it is used as the config dir (requires All Files Access). Prefer
-     * those files so edits apply either way, falling back to the legacy preference content.
-     */
-    private fun getUserPlayerConfig(filename: String, fallback: String): String {
-        return runCatching {
-            storageManager.getMPVConfigDirectory()
-                ?.findFile(filename)
-                ?.openInputStream()
-                ?.bufferedReader()
-                ?.use { it.readText() }
-        }.getOrNull() ?: fallback
     }
 
     private fun copyScripts() {
@@ -703,7 +751,7 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    private fun copyAssets(configDir: String, files: Array<String> = arrayOf("subfont.ttf", "cacert.pem")) {
+    private fun copyAssets(configDir: String, vararg files: String) {
         val assetManager = this.assets
         for (filename in files) {
             var ins: InputStream? = null
@@ -713,6 +761,7 @@ class PlayerActivity : BaseActivity() {
                 val outFile = File("$configDir/$filename")
                 // Note that .available() officially returns an *estimated* number of bytes available
                 // this is only true for generic streams, asset streams return the full file size
+                // Chimahon -->
                 // A restored or damaged file can match in size while being unreadable (e.g. after a
                 // device migration strips permissions), so also verify a byte can actually be read
                 val isIntact = outFile.length() == ins.available().toLong() &&
@@ -723,6 +772,7 @@ class PlayerActivity : BaseActivity() {
                 }
                 // Delete first: an unreadable file may not be writable either
                 outFile.delete()
+                // Chimahon <--
                 out = FileOutputStream(outFile)
                 ins.copyTo(out)
                 logcat(LogPriority.WARN) { "Copied asset file: $filename" }
@@ -732,6 +782,24 @@ class PlayerActivity : BaseActivity() {
                 ins?.close()
                 out?.close()
             }
+        }
+    }
+
+    private fun removeUnmodifiedAssetCopy(configDir: String, filename: String) {
+        val file = File(configDir, filename)
+        if (!file.isFile) return
+
+        try {
+            val isBundledAsset = assets.open(filename).use { asset ->
+                file.inputStream().use { copiedAsset ->
+                    copiedAsset.readBytes().contentEquals(asset.readBytes())
+                }
+            }
+            if (isBundledAsset && !file.delete()) {
+                logcat(LogPriority.WARN) { "Failed to remove unused asset file: $filename" }
+            }
+        } catch (e: IOException) {
+            logcat(LogPriority.ERROR, e) { "Failed to remove unused asset file: $filename" }
         }
     }
 
@@ -860,6 +928,7 @@ class PlayerActivity : BaseActivity() {
         }
 
         player.isExiting = false
+        player.retryPendingLoad()
         super.onResume()
 
         viewModel.currentVolume.update {
@@ -932,9 +1001,9 @@ class PlayerActivity : BaseActivity() {
                 }
 
                 runCatching {
-                    setPictureInPictureParams(createPipParams())
+                    updatePictureInPictureParamsIfAvailable()
                 }
-        
+
             }
 
             "paused-for-cache" -> {
@@ -968,6 +1037,7 @@ class PlayerActivity : BaseActivity() {
                 viewModel.updateSubtitle(viewModel.selectedSubtitles.value.first, it)
             }
             "sub-text" -> viewModel.updateSubtitleText(value)
+            "secondary-sub-text" -> viewModel.updateSecondarySubtitleText(value)
             "hwdec", "hwdec-current" -> viewModel.getDecoder()
             "user-data/aniyomi" -> viewModel.handleLuaInvocation(property, value)
         }
@@ -990,6 +1060,19 @@ class PlayerActivity : BaseActivity() {
             }
             MPVLib.mpvEventId.MPV_EVENT_SEEK -> viewModel.isLoading.update { true }
             MPVLib.mpvEventId.MPV_EVENT_PLAYBACK_RESTART -> player.isExiting = false
+        }
+    }
+
+    internal fun updatePictureInPictureParamsIfAvailable(): Boolean {
+        return pipGuard.runIfAvailable {
+            setPictureInPictureParams(createPipParams())
+            true
+        }
+    }
+
+    internal fun enterPictureInPictureIfAvailable(): Boolean {
+        return pipGuard.runIfAvailable {
+            enterPictureInPictureMode(createPipParams())
         }
     }
 
@@ -1035,7 +1118,7 @@ class PlayerActivity : BaseActivity() {
                 pipReceiver = null
             }
         } else {
-            setPictureInPictureParams(createPipParams())
+            updatePictureInPictureParamsIfAvailable()
             viewModel.hideControls()
             viewModel.hideSeekBar()
             viewModel.isBrightnessSliderShown.update { false }
@@ -1051,7 +1134,7 @@ class PlayerActivity : BaseActivity() {
                         PIP_PREVIOUS -> viewModel.changeEpisode(true)
                         PIP_SKIP -> viewModel.seekBy(10)
                     }
-                    setPictureInPictureParams(createPipParams())
+                    updatePictureInPictureParamsIfAvailable()
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1311,6 +1394,10 @@ class PlayerActivity : BaseActivity() {
     }
 
     fun setVideo(video: Video?, position: Long? = null) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnUiThread { setVideo(video, position) }
+            return
+        }
         if (player.isExiting) return
         if (video == null) return
 
@@ -1536,10 +1623,11 @@ class PlayerActivity : BaseActivity() {
         val audioTracks = viewModel.currentVideo.value?.audioTracks?.takeIf { it.isNotEmpty() }
         val subtitleTracks = viewModel.currentVideo.value?.subtitleTracks?.takeIf { it.isNotEmpty() }
         val restoredSubtitleCount = viewModel.restoreAddedSubtitlesForCurrentEpisode()
+        val restoredAudioCount = viewModel.restoreAddedAudioForCurrentEpisode()
 
         // If no external audio or subtitle tracks are present, loadTracks() won't be
         // called and we need to call onFinishLoadingTracks() manually
-        if (audioTracks == null && subtitleTracks == null && restoredSubtitleCount == 0) {
+        if (audioTracks == null && subtitleTracks == null && restoredSubtitleCount == 0 && restoredAudioCount == 0) {
             viewModel.onFinishLoadingTracks()
             return
         }

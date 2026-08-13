@@ -116,6 +116,7 @@ import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.base.activity.BaseActivity
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupWebViewWarmup
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.dictionary.cropAroundAnchor
 import eu.kanade.tachiyomi.ui.main.MainActivity
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.AddToLibraryFirst
 import eu.kanade.tachiyomi.ui.reader.ReaderViewModel.SetAsCoverResult.Error
@@ -126,14 +127,13 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import chimahon.dictionary.FrenchLookupPolicy
+import chimahon.ocr.CropPresets
 import chimahon.ocr.OcrBitmapDecoder
 import chimahon.util.ImageEncoder
-import uy.kohesive.injekt.Injekt
-import uy.kohesive.injekt.api.get
-import tachiyomi.core.common.util.lang.withUIContext
 import logcat.logcat
 import logcat.LogPriority
 import eu.kanade.presentation.reader.stats.MangaStatsSheet
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderOcrSource
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsScreenModel
@@ -368,6 +368,16 @@ class ReaderActivity : BaseActivity() {
                 lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     prefs.rawActiveProfileId().changes().collect {
                         // Global profile changed — invalidate cache so next access re-resolves
+                        cachedActiveProfile = null
+                        cachedTermPaths = null
+                    }
+                }
+            }
+
+            lifecycleScope.launch {
+                lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    prefs.rawProfiles().changes().collect {
+                        // Profile content changed — invalidate cache so next access re-resolves
                         cachedActiveProfile = null
                         cachedTermPaths = null
                     }
@@ -746,7 +756,26 @@ class ReaderActivity : BaseActivity() {
                 isVertical = popupState?.isVertical ?: false,
                 mediaInfo = popupState?.mediaInfo,
                 onRequestScreenshot = {
-                    captureCurrentVisibleBitmap()
+                    val bitmap = captureCurrentVisibleBitmap()
+                    val profile = popupState?.activeProfile ?: defaultProfile
+                    if (bitmap != null && profile.ankiCropMode == "full") {
+                        val preset = CropPresets.aspectByKey(profile.ankiCropPreset)
+                        if (preset != null) {
+                            cropAroundAnchor(
+                                bitmap = bitmap,
+                                anchorX = popupState?.anchorX ?: 0f,
+                                anchorY = popupState?.anchorY ?: 0f,
+                                anchorWidth = popupState?.anchorWidth ?: 0f,
+                                anchorHeight = popupState?.anchorHeight ?: 0f,
+                                aspectX = preset.x,
+                                aspectY = preset.y,
+                            )
+                        } else {
+                            bitmap
+                        }
+                    } else {
+                        bitmap
+                    }
                 },
                 onCropTriggered = { noteId, glossaryIndex ->
                     pendingNoteId = noteId
@@ -1114,7 +1143,9 @@ class ReaderActivity : BaseActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        observeTwoFingerOcrTap(ev)
+        if (readerPreferences.ocrTwoFingerGestureEnabled().get()) {
+            observeTwoFingerOcrTap(ev)
+        }
         return super.dispatchTouchEvent(ev)
     }
 
@@ -1208,6 +1239,21 @@ class ReaderActivity : BaseActivity() {
         )
     }
 
+    private fun selectOcrSourceFromReader(source: ReaderOcrSource) {
+        if (!viewModel.setOcrSource(source) || !viewModel.isOcrEnabled()) return
+
+        when (val viewer = viewModel.state.value.viewer) {
+            is PagerViewer -> {
+                viewer.setOcrEnabled(false)
+                viewer.setOcrEnabled(true)
+            }
+            is WebtoonViewer -> {
+                viewer.setOcrEnabled(false)
+                viewer.setOcrEnabled(true)
+            }
+        }
+    }
+
     /**
      * Called when the user clicks the back key or the button on the toolbar. The call is
      * delegated to the presenter.
@@ -1249,7 +1295,9 @@ class ReaderActivity : BaseActivity() {
         // Chimahon: Redirect volume keys to the OCR popup if it's active
         if (ocrPopupVisible) {
             ocrPopupState?.let { popup ->
-                if (event.action == KeyEvent.ACTION_DOWN) {
+                if (event.action == KeyEvent.ACTION_DOWN &&
+                    Injekt.get<DictionaryPreferences>().volumeKeyNavigation().get()
+                ) {
                     when (event.keyCode) {
                         KeyEvent.KEYCODE_VOLUME_UP -> {
                             popup.webView.evaluateJavascript("window.DictionaryRenderer?.navigate(-1);", null)
@@ -1284,6 +1332,7 @@ class ReaderActivity : BaseActivity() {
     @Composable
     private fun ContentOverlay(state: ReaderViewModel.State) {
         val flashOnPageChange by readerPreferences.flashOnPageChange().collectAsState()
+        val flashOnScroll by readerPreferences.flashOnScroll().collectAsState()
 
         val colorOverlayEnabled by readerPreferences.colorFilter().collectAsState()
         val colorOverlay by readerPreferences.colorFilterValue().collectAsState()
@@ -1318,7 +1367,7 @@ class ReaderActivity : BaseActivity() {
             colorBlendMode = colorOverlayBlendMode,
         )
 
-        if (flashOnPageChange) {
+        if (flashOnPageChange || flashOnScroll) {
             DisplayRefreshHost(hostState = displayRefreshHost)
         }
     }
@@ -1448,7 +1497,10 @@ class ReaderActivity : BaseActivity() {
             },
             ocrEnabled = ocrEnabled,
             ocrLoading = state.ocrScanProgress != null,
+            ocrSource = state.ocrSource,
+            mokuroAvailable = viewModel.isMokuroAvailable(),
             onToggleOcr = ::toggleOcrFromReader,
+            onSelectOcrSource = ::selectOcrSourceFromReader,
             onClickSettings = viewModel::openSettingsDialog,
             onClickMangaStats = viewModel::openMangaStatsSheet,
             // SY -->
@@ -1908,6 +1960,16 @@ class ReaderActivity : BaseActivity() {
         }
         // SY <--
         viewModel.onPageSelected(page, /* SY --> */ currentPageText, hasExtraPage /* SY <-- */)
+    }
+
+    /**
+     * Called from the continuous viewers (webtoon/novel) when the user scrolls or flings, so the
+     * e-ink display can refresh on movement rather than only on page change.
+     */
+    fun onReaderScroll() {
+        if (readerPreferences.flashOnScroll().get()) {
+            displayRefreshHost.flashOnScroll()
+        }
     }
 
     /**

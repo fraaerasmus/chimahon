@@ -52,20 +52,37 @@ class WordAudioDatabase(private val context: Context) {
         }
         val fd = pfd.detachFd()
         val h = nativeOpen(fd, size)
-        if (h == 0L) {
-            lastError = "File is not a valid audio database"
-            return false
+        if (h != 0L) {
+            handle = h
+            currentUri = file.toURI().toString()
+            Log.i(TAG, "Opened audio database: $path")
+            return true
         }
-        handle = h
-        currentUri = file.toURI().toString()
-        Log.i(TAG, "Opened audio database: $path")
-        return true
+
+        // Native mmap rejected the file; try legacy SQLiteDatabase.
+        try {
+            legacyDb = SQLiteDatabase.openDatabase(
+                file.absolutePath,
+                null,
+                SQLiteDatabase.OPEN_READONLY,
+            )
+            if (legacyDb != null) {
+                currentUri = file.toURI().toString()
+                fallbackUsed = true
+                lastError = null
+                Log.i(TAG, "Opened audio database (legacy fallback): $path")
+                return true
+            }
+        } catch (_: Exception) { }
+
+        lastError = "File is not a valid audio database"
+        return false
     }
 
     /** Opens any SAF Uri using a direct file descriptor, then a streamed private-file fallback. */
     fun updateUri(uri: Uri): Boolean {
         val key = uri.toString()
-        if (key == currentUri && (handle != 0L || legacyDb != null)) return true
+        if (key == currentUri && (handle != 0L || legacyDb != null) && testConnection()) return true
         close()
         lastError = null
         fallbackUsed = false
@@ -85,10 +102,18 @@ class WordAudioDatabase(private val context: Context) {
                     val fd = pfd.detachFd()
                     val h = nativeOpen(fd, size)
                     if (h != 0L) {
-                        handle = h
-                        currentUri = key
-                        Log.i(TAG, "Opened audio database: $uri")
-                        return true
+                        // A cloud/document provider may expose a partial
+                        // SQLite image that still produces a native handle.
+                        // Probe the schema before accepting that handle so a
+                        // stable private copy can be used instead.
+                        if (nativeTestConnection(h)) {
+                            handle = h
+                            currentUri = key
+                            Log.i(TAG, "Opened audio database: $uri")
+                            return true
+                        }
+                        Log.w(TAG, "SAF descriptor opened but failed the entries probe; trying private copy")
+                        nativeClose(h)
                     }
                     // nativeOpen failed — fd already handled by JNI (close/fd leak fix)
                 } else {
@@ -97,6 +122,35 @@ class WordAudioDatabase(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Attempt 1/2 failed", e)
+        }
+
+        // The provider may have handed us a stale descriptor. Reopen it once
+        // before resorting to the private-copy fallback.
+        try {
+            val retryPfd = context.contentResolver.openFileDescriptor(uri, "r")
+            if (retryPfd != null) {
+                var retrySize = retryPfd.statSize
+                if (retrySize <= 0) {
+                    retrySize = UniFile.fromUri(context, uri)?.length() ?: 0L
+                }
+                if (retrySize > 0) {
+                    val retryFd = retryPfd.detachFd()
+                    val retryHandle = nativeOpen(retryFd, retrySize)
+                    if (retryHandle != 0L) {
+                        if (nativeTestConnection(retryHandle)) {
+                            handle = retryHandle
+                            currentUri = key
+                            Log.i(TAG, "Reopened audio database with a fresh SAF descriptor: $uri")
+                            return true
+                        }
+                        nativeClose(retryHandle)
+                    }
+                } else {
+                    retryPfd.close()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Fresh native audio database reopen failed", e)
         }
 
         // ── Attempt 3 (LAST RESORT): copy to private + old SQLiteDatabase ──

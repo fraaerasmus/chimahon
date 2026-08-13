@@ -157,6 +157,7 @@ fun PlayerControls(
     val chapters by viewModel.chapters.collectAsState()
     val currentBrightness by viewModel.currentBrightness.collectAsState()
     val currentSubtitleText by viewModel.currentSubtitleText.collectAsState()
+    val secondaryCurrentSubtitleText by viewModel.secondaryCurrentSubtitleText.collectAsState()
     val subtitlesVisible by viewModel.subtitlesVisible.collectAsState()
     val subtitleCues by viewModel.subtitleHistory.collectAsState()
     val activeSubtitleCueIndex by viewModel.activeSubtitleCueIndex.collectAsState()
@@ -166,12 +167,16 @@ fun PlayerControls(
     val activeSubtitleCue = remember(subtitleCues, activeSubtitleCueIndex) {
         subtitleCues.firstOrNull { it.index == activeSubtitleCueIndex }
     }
-    val lookupProfile = remember(currentSource?.id, currentSource?.lang) {
+    // Chimahon -->
+    val lookupAnime by viewModel.currentAnime.collectAsState()
+    val lookupProfile = remember(lookupAnime?.id, currentSource?.id, currentSource?.lang) {
         dictionaryPreferences.profileResolver.resolve(
+            animeId = lookupAnime?.id ?: 0L,
             sourceId = currentSource?.id ?: 0L,
             sourceLang = currentSource?.lang.orEmpty(),
         )
     }
+    // Chimahon <--
 
     val playerTimeToDisappear by playerPreferences.playerTimeToDisappear().collectAsState()
     var isSeeking by remember { mutableStateOf(false) }
@@ -268,6 +273,10 @@ fun PlayerControls(
             languageCode = lookupProfile.languageCode,
             request = subtitleLookupRequest,
             onLookup = openSubtitleLookup,
+        )
+        PlayerSubtitleTextLayer(
+            text = if (subtitlesVisible) secondaryCurrentSubtitleText else "",
+            topAligned = true,
         )
     }
     DoubleTapToSeekOvals(doubleTapSeekAmount, seekText, interactionSource)
@@ -653,7 +662,7 @@ fun PlayerControls(
                         isPipAvailable = activity.isPipSupportedAndEnabled,
                         onPipClick = {
                             if (!viewModel.isLoadingEpisode.value) {
-                                activity.enterPictureInPictureMode(activity.createPipParams())
+                                activity.enterPictureInPictureIfAvailable()
                             }
                         },
                         onAspectClick = {
@@ -710,6 +719,7 @@ fun PlayerControls(
         val selectedSubtitles by viewModel.selectedSubtitles.collectAsState()
         val jimakuState by viewModel.jimakuState.collectAsState()
         val anime by viewModel.currentAnime.collectAsState()
+        val currentEpisode by viewModel.currentEpisode.collectAsState()
         val jimakuTitle by subtitlePreferences.jimakuTitleForAnime(anime?.id).collectAsState()
         val audioTracks by viewModel.audioTracks.collectAsState()
         val selectedAudio by viewModel.selectedAudio.collectAsState()
@@ -734,6 +744,7 @@ fun PlayerControls(
             onAddSubtitle = viewModel::addSubtitle,
             onSelectSubtitle = viewModel::selectSub,
             onSearchJimaku = viewModel::searchJimakuSubtitles,
+            onSaveJimakuApiKeyAndSearch = viewModel::saveJimakuApiKeyAndSearch,
             onSelectJimakuEntry = viewModel::loadJimakuFiles,
             onSelectJimakuFile = viewModel::downloadJimakuSubtitle,
             onDismissJimaku = viewModel::dismissJimakuDialog,
@@ -787,6 +798,7 @@ fun PlayerControls(
             subtitleCues = subtitleCues.toImmutableList(),
             activeSubtitleCueIndex = activeSubtitleCueIndex,
             animeId = anime?.id,
+            episodeId = currentEpisode?.id,
             onSelectSubtitleCue = viewModel::selectSubtitleCue,
             onPrimarySubtitleDelayMillisChange = viewModel::updatePrimarySubtitleDelayMillis,
             onSubtitleSpeedChange = viewModel::updateSubtitleSpeed,
@@ -815,7 +827,6 @@ fun PlayerControls(
 
         PlayerSubtitleLookupPopup(
             viewModel = viewModel,
-            activeProfile = lookupProfile,
             request = subtitleLookupRequest,
             onDismiss = {
                 subtitleLookupRequest = null
@@ -853,12 +864,15 @@ fun PlayerControls(
 @Composable
 private fun PlayerSubtitleTextLayer(
     text: String,
-    cue: PlayerViewModel.SubtitleCue?,
-    subtitleDelaySeconds: Double,
-    languageCode: String,
-    request: SubtitleLookupRequest?,
-    onLookup: (SubtitleLookupSelection) -> Unit,
+    cue: PlayerViewModel.SubtitleCue? = null,
+    subtitleDelaySeconds: Double = 0.0,
+    // Chimahon -->
+    languageCode: String = "",
+    // Chimahon <--
+    request: SubtitleLookupRequest? = null,
+    onLookup: (SubtitleLookupSelection) -> Unit = {},
     modifier: Modifier = Modifier,
+    topAligned: Boolean = false,
     bottomPadding: Dp? = null,
     widthFraction: Float = 0.92f,
     maxWidth: Dp = 980.dp,
@@ -869,10 +883,8 @@ private fun PlayerSubtitleTextLayer(
     val subtitleText = remember(text) {
         text.lines()
             .map { it.trim().collapseHorizontalWhitespace() }
-            .filter { it.hasLookupCharacters() }
             .joinToString("\n")
     }
-    if (subtitleText.isBlank()) return
 
     val subtitlePreferences = remember { Injekt.get<SubtitlePreferences>() }
     val subtitleFontSize by subtitlePreferences.subtitleFontSize().collectAsState()
@@ -885,6 +897,8 @@ private fun PlayerSubtitleTextLayer(
     val borderSize by subtitlePreferences.subtitleBorderSize().collectAsState()
     val bold by subtitlePreferences.boldSubtitles().collectAsState()
     val italic by subtitlePreferences.italicSubtitles().collectAsState()
+
+    if (subtitleText.isBlank()) return
 
     var textLayout by remember(subtitleText) { mutableStateOf<TextLayoutResult?>(null) }
     var textLayerOrigin by remember(subtitleText) { mutableStateOf(Offset.Zero) }
@@ -907,13 +921,22 @@ private fun PlayerSubtitleTextLayer(
         fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
         textAlign = TextAlign.Center,
     )
+    val outlineColor = Color(borderColor).copy(
+        alpha = minOf(Color(borderColor).alpha, Color(textColor).alpha),
+    )
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .padding(horizontal = 24.dp)
-            .padding(bottom = resolvedBottomPadding),
-        contentAlignment = Alignment.BottomCenter,
+            .then(
+                if (topAligned) {
+                    Modifier.padding(top = 24.dp)
+                } else {
+                    Modifier.padding(bottom = resolvedBottomPadding)
+                },
+            ),
+        contentAlignment = if (topAligned) Alignment.TopCenter else Alignment.BottomCenter,
     ) {
         Box(
             modifier = Modifier
@@ -984,9 +1007,9 @@ private fun PlayerSubtitleTextLayer(
                 Text(
                     text = subtitleText,
                     modifier = Modifier.fillMaxWidth(),
-                    color = Color(borderColor),
+                    color = outlineColor,
                     style = baseStyle.copy(
-                        color = Color(borderColor),
+                        color = outlineColor,
                         drawStyle = Stroke(width = outlineWidth),
                     ),
                 )
@@ -1021,8 +1044,6 @@ private data class SubtitleLookupSelection(
     val cueStartSeconds: Double? = null,
     val cueEndSeconds: Double? = null,
 )
-
-private fun String.hasLookupCharacters(): Boolean = any { it.isSubtitleLookupChar() }
 
 private fun TextLayoutResult.subtitleLookupSelectionForTap(
     text: String,

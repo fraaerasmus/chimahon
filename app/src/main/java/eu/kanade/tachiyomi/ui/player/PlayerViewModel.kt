@@ -26,16 +26,12 @@ import android.app.Application
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.AudioManager
 import android.net.Uri
 import android.provider.Settings
 import android.util.DisplayMetrics
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.runtime.Immutable
-import com.arthenica.ffmpegkit.FFmpegKitConfig
-import com.arthenica.ffmpegkit.FFmpegSession
-import com.arthenica.ffmpegkit.ReturnCode
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -56,6 +52,7 @@ import eu.kanade.presentation.more.settings.screen.player.custombutton.getButton
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.ChapterType
 import eu.kanade.tachiyomi.animesource.model.Hoster
+import eu.kanade.tachiyomi.animesource.model.SerializableHoster.Companion.serialize
 import eu.kanade.tachiyomi.animesource.model.SerializableHoster.Companion.toHosterList
 import eu.kanade.tachiyomi.animesource.model.TimeStamp
 import eu.kanade.tachiyomi.animesource.model.Video
@@ -80,8 +77,10 @@ import eu.kanade.tachiyomi.ui.player.loader.HosterLoader
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
+import eu.kanade.tachiyomi.ui.player.sentenceaudio.SentenceAudioMpvPropertyReader
+import eu.kanade.tachiyomi.ui.player.sentenceaudio.SentenceAudioMpvSnapshotReader
 import eu.kanade.tachiyomi.ui.youtube.YouTubePreferences
-import eu.kanade.tachiyomi.ui.youtube.YoutubeResolver
+import eu.kanade.tachiyomi.ui.youtube.YouTubeResolver
 import eu.kanade.tachiyomi.ui.youtube.allowsExternalSubtitleLookup
 import eu.kanade.tachiyomi.ui.player.utils.AniSkipApi
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
@@ -97,13 +96,14 @@ import eu.kanade.tachiyomi.ui.player.utils.guessJimakuMedia
 import eu.kanade.tachiyomi.ui.player.utils.matchedSrtFiles
 import eu.kanade.tachiyomi.ui.player.utils.selectBestJimakuEntry
 import eu.kanade.tachiyomi.ui.reader.SaveImageNotifier
+import eu.kanade.tachiyomi.ui.youtube.YouTubeSource
+import eu.kanade.tachiyomi.ui.youtube.YouTubeVideoMetadata
 import eu.kanade.tachiyomi.util.editCover
 import eu.kanade.tachiyomi.util.episode.filterDownloadedEpisodes
 import eu.kanade.tachiyomi.util.lang.byteSize
 import eu.kanade.tachiyomi.util.lang.takeBytes
 import eu.kanade.tachiyomi.util.storage.DiskUtil
 import eu.kanade.tachiyomi.util.storage.cacheImageDir
-import eu.kanade.tachiyomi.util.storage.toFFmpegString
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
 import `is`.xyz.mpv.Utils
@@ -121,7 +121,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -129,7 +128,6 @@ import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.lang.launchIO
 import tachiyomi.core.common.util.lang.launchNonCancellable
-import tachiyomi.core.common.util.lang.toLong
 import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.logcat
@@ -139,9 +137,11 @@ import tachiyomi.domain.category.interactor.GetCategories
 import tachiyomi.domain.custombuttons.interactor.GetCustomButtons
 import tachiyomi.domain.custombuttons.model.CustomButton
 import tachiyomi.domain.download.service.DownloadPreferences
+import tachiyomi.domain.entries.anime.repository.AnimeRepository
 import tachiyomi.domain.episode.interactor.GetEpisodesByAnimeId
 import tachiyomi.domain.episode.interactor.UpdateEpisode
 import tachiyomi.domain.episode.model.EpisodeUpdate
+import tachiyomi.domain.episode.repository.EpisodeRepository
 import tachiyomi.domain.episode.service.getEpisodeSort
 import tachiyomi.domain.history.interactor.GetNextEpisodes
 import tachiyomi.domain.history.interactor.UpsertAnimeHistory
@@ -154,12 +154,14 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
 import java.io.InputStream
-import java.util.Locale
 import java.util.Date
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.collections.first
 import kotlin.coroutines.cancellation.CancellationException
 
 private const val MAX_SUBTITLE_HISTORY = 120
+private const val MAX_SCENE_DIMENSION = 640
+private const val SCENE_DIMENSION_ALIGNMENT = 16
 private const val VIDEO_SELECTION_DELIMITER = "\u001e"
 class PlayerViewModelProviderFactory(
     private val activity: PlayerActivity,
@@ -173,6 +175,8 @@ class PlayerViewModel @JvmOverloads constructor(
     private val activity: PlayerActivity,
     private val savedState: SavedStateHandle,
     private val sourceManager: AnimeSourceManager = Injekt.get(),
+    private val animeRepository: AnimeRepository = Injekt.get(),
+    private val episodeRepository: EpisodeRepository = Injekt.get(),
     private val downloadManager: DownloadManager = Injekt.get(),
     private val imageSaver: ImageSaver = Injekt.get(),
     private val downloadPreferences: DownloadPreferences = Injekt.get(),
@@ -239,6 +243,8 @@ class PlayerViewModel @JvmOverloads constructor(
     val jimakuState = _jimakuState.asStateFlow()
     private val _currentSubtitleText = MutableStateFlow("")
     val currentSubtitleText = _currentSubtitleText.asStateFlow()
+    private val _secondaryCurrentSubtitleText = MutableStateFlow("")
+    val secondaryCurrentSubtitleText = _secondaryCurrentSubtitleText.asStateFlow()
     private val _subtitlesVisible = MutableStateFlow(true)
     val subtitlesVisible = _subtitlesVisible.asStateFlow()
     private val _subtitleHistory = MutableStateFlow<List<SubtitleCue>>(emptyList())
@@ -292,7 +298,7 @@ class PlayerViewModel @JvmOverloads constructor(
     val pos = _pos.asStateFlow()
 
     private var castProgressJob: Job? = null
-    private var standaloneYoutubeLoadJob: Job? = null
+    private var youtubeLoadJob: Job? = null
 
     val duration = MutableStateFlow(0f)
 
@@ -348,6 +354,22 @@ class PlayerViewModel @JvmOverloads constructor(
     val remainingTime = _remainingTime.asStateFlow()
 
     val cachePath: String = activity.cacheDir.path
+
+    internal val mediaCapture = PlayerMediaCaptureService(
+        context = activity,
+        cachePath = cachePath,
+        getVideo = { currentVideo.value },
+        getSource = { currentSource.value },
+        getTimeSeconds = { activity.player.timePos?.toDouble() ?: pos.value.toDouble() },
+        getOcrPaddingSeconds = { dictionaryPreferences.videoOcrSentenceAudioPaddingSeconds().get().toDouble() },
+        readMpvSnapshot = {
+            SentenceAudioMpvSnapshotReader(object : SentenceAudioMpvPropertyReader {
+                override fun string(name: String): String? = MPVLib.getPropertyString(name)
+                override fun int(name: String): Int? = MPVLib.getPropertyInt(name)
+                override fun boolean(name: String): Boolean? = MPVLib.getPropertyBoolean(name)
+            }).read()
+        },
+    )
 
     private val _customButtons = MutableStateFlow<CustomButtonFetchState>(CustomButtonFetchState.Loading)
 
@@ -560,6 +582,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
     sealed interface JimakuState {
         data object Idle : JimakuState
+        data object ApiKeyRequired : JimakuState
         data class Searching(val title: String) : JimakuState
         data class EntryResults(val title: String, val entries: List<JimakuEntry>) : JimakuState
         data class LoadingFiles(val entry: JimakuEntry) : JimakuState
@@ -605,11 +628,21 @@ class PlayerViewModel @JvmOverloads constructor(
         val path = (if (isContentUri) uri.openContentFd(activity) else url)
             ?: return
         val name = if (isContentUri) uri.getFileName(activity) else null
+        val title = name ?: url.substringAfterLast('/')
+        rememberAddedAudioForCurrentEpisode(
+            AddedAudioTrack(
+                uriString = url,
+                path = path,
+                title = title,
+                isContentUri = isContentUri,
+            ),
+        )
         if (name == null) {
             MPVLib.command(arrayOf("audio-add", path, "cached"))
         } else {
             MPVLib.command(arrayOf("audio-add", path, "cached", name))
         }
+        loadTracks()
     }
 
     fun selectAudio(id: Int) {
@@ -653,6 +686,15 @@ class PlayerViewModel @JvmOverloads constructor(
         subtitlePreferences.jimakuTitleForAnime(currentAnime.value?.id).set(title.trim())
     }
 
+    fun saveJimakuApiKeyAndSearch(apiKey: String) {
+        val trimmedApiKey = apiKey.trim()
+        if (trimmedApiKey.isBlank()) return
+
+        subtitlePreferences.jimakuApiKey().set(trimmedApiKey)
+        _jimakuState.update { JimakuState.Idle }
+        searchJimakuSubtitles()
+    }
+
     fun getCurrentJimakuTitle(): String {
         return guessCurrentJimakuMedia().title
     }
@@ -662,7 +704,7 @@ class PlayerViewModel @JvmOverloads constructor(
 
         val apiKey = subtitlePreferences.jimakuApiKey().get().trim()
         if (apiKey.isBlank()) {
-            activity.toast("Add your Jimaku API key in player subtitle settings first")
+            _jimakuState.update { JimakuState.ApiKeyRequired }
             return
         }
 
@@ -1022,6 +1064,7 @@ class PlayerViewModel @JvmOverloads constructor(
             lastSubtitleHistoryText = ""
             currentRawSubtitleText = ""
             _currentSubtitleText.update { "" }
+            _secondaryCurrentSubtitleText.update { "" }
             _subtitleHistory.update { emptyList() }
             _activeSubtitleCueIndex.update { null }
             return
@@ -1315,6 +1358,11 @@ class PlayerViewModel @JvmOverloads constructor(
         updateSubtitleHistory(cleaned, effectiveText)
     }
 
+    fun updateSecondarySubtitleText(text: String?) {
+        val cleaned = text.orEmpty().cleanMpvSubtitleText()
+        _secondaryCurrentSubtitleText.update { cleaned.toEffectiveSubtitleText() }
+    }
+
     private fun updateSubtitleHistory(rawText: String, text: String) {
         if (text.isBlank()) {
             lastSubtitleHistoryText = ""
@@ -1325,6 +1373,13 @@ class PlayerViewModel @JvmOverloads constructor(
         val existing = subtitleHistory.value.lastOrNull { it.text == text }
         if (existing != null && text == lastSubtitleHistoryText) {
             _activeSubtitleCueIndex.update { existing.index }
+            return
+        }
+
+        // Reuse existing cue if same text appears again (e.g. after rewind)
+        if (existing != null) {
+            _activeSubtitleCueIndex.update { existing.index }
+            lastSubtitleHistoryText = text
             return
         }
 
@@ -1346,6 +1401,13 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     fun seekToAdjacentSubtitle(forward: Boolean) {
+        // When no parsed subtitle cues are available, use mpv's native sub-seek
+        // which is reliable regardless of playback position
+        if (showingParsedSubtitleTrackId == null) {
+            MPVLib.command(arrayOf("sub-seek", if (forward) "1" else "-1", "primary"))
+            return
+        }
+
         val delaySeconds = currentPrimarySubtitleDelaySeconds()
         val speed = currentSubtitleSpeed()
         val positionSeconds = pos.value.toDouble()
@@ -1422,7 +1484,7 @@ class PlayerViewModel @JvmOverloads constructor(
         activity.player.paused = true
         _paused.update { true }
         runCatching {
-            activity.setPictureInPictureParams(activity.createPipParams())
+            activity.updatePictureInPictureParamsIfAvailable()
         }
     }
 
@@ -1583,15 +1645,20 @@ class PlayerViewModel @JvmOverloads constructor(
     val maxVolume = activity.audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
     fun changeVolumeBy(change: Int) {
         val mpvVolume = MPVLib.getPropertyInt("volume")
+        val step = Math.round(maxVolume * 0.05f).coerceAtLeast(1)
+        val signedStep = if (change > 0) step else -step
+
         if (volumeBoostCap > 0 && currentVolume.value == maxVolume) {
-            if (mpvVolume == 100 && change < 0) changeVolumeTo(currentVolume.value + change)
-            val finalMPVVolume = (mpvVolume + change).coerceAtLeast(100)
-            if (finalMPVVolume in 100..volumeBoostCap + 100) {
+            val boostStep = if (change > 0) 5 else -5
+            val finalMPVVolume = (mpvVolume + boostStep).coerceAtLeast(100)
+            if (change < 0 && mpvVolume == 100) {
+                changeVolumeTo(currentVolume.value + signedStep)
+            } else if (finalMPVVolume in 100..volumeBoostCap + 100) {
                 changeMPVVolumeTo(finalMPVVolume)
-                return
             }
+        } else {
+            changeVolumeTo(currentVolume.value + signedStep)
         }
-        changeVolumeTo(currentVolume.value + change)
     }
 
     fun changeVolumeTo(volume: Int) {
@@ -1978,12 +2045,20 @@ class PlayerViewModel @JvmOverloads constructor(
         val isContentUri: Boolean,
     )
 
+    private data class AddedAudioTrack(
+        val uriString: String,
+        val path: String,
+        val title: String?,
+        val isContentUri: Boolean,
+    )
+
     private data class SubtitleTrackSelection(
         val primaryKey: String?,
         val secondaryKey: String?,
     )
 
     private val addedSubtitleTracksByEpisodeId = mutableMapOf<Long, MutableList<AddedSubtitleTrack>>()
+    private val addedAudioTracksByEpisodeId = mutableMapOf<Long, MutableList<AddedAudioTrack>>()
     private val subtitleTrackSelectionsByEpisodeId = mutableMapOf<Long, SubtitleTrackSelection>()
     private var pendingSubtitleSelectionKey: String? = null
 
@@ -2254,6 +2329,40 @@ class PlayerViewModel @JvmOverloads constructor(
         return restored
     }
 
+    private fun rememberAddedAudioForCurrentEpisode(track: AddedAudioTrack) {
+        val episodeId = currentEpisode.value?.id ?: return
+        val tracks = addedAudioTracksByEpisodeId.getOrPut(episodeId) { mutableListOf() }
+        val sourceKey = if (track.isContentUri) track.uriString else track.path
+        if (tracks.none { existing ->
+                existing.isContentUri == track.isContentUri &&
+                    (if (existing.isContentUri) existing.uriString else existing.path) == sourceKey
+            }
+        ) {
+            tracks += track
+        }
+    }
+
+    fun restoreAddedAudioForCurrentEpisode(): Int {
+        val episodeId = currentEpisode.value?.id ?: return 0
+        val tracks = addedAudioTracksByEpisodeId[episodeId].orEmpty()
+        var restored = 0
+        tracks.forEach { track ->
+            val path = if (track.isContentUri) {
+                Uri.parse(track.uriString).openContentFd(activity)
+            } else {
+                track.path
+            } ?: return@forEach
+
+            if (track.title == null) {
+                MPVLib.command(arrayOf("audio-add", path, "cached"))
+            } else {
+                MPVLib.command(arrayOf("audio-add", path, "cached", track.title))
+            }
+            restored += 1
+        }
+        return restored
+    }
+
     private fun restoreSubtitleSelectionForCurrentEpisode(): Boolean {
         val episodeId = currentSubtitleEpisodeId() ?: return false
         val tracks = subtitleTracks.value
@@ -2307,20 +2416,6 @@ class PlayerViewModel @JvmOverloads constructor(
         updateIsLoadingHosters(false)
         isLoading.update { false }
 
-        when {
-            video.videoPageUrl.isNotEmpty() -> {
-                _jimakuState.update { JimakuState.Idle }
-                loadYoutubeStandalone(video)
-            }
-            else -> {
-                videoClickHandler = ::onSourceVideoClicked
-                loadNormalStandalone(video)
-            }
-        }
-    }
-
-    private fun loadNormalStandalone(video: Video) {
-        standaloneYoutubeLoadJob?.cancel()
         val title = video.videoTitle.ifBlank { video.videoUrl.substringAfterLast('/').substringBefore('?') }
         animeTitle.update { title }
         mediaTitle.update { title }
@@ -2329,52 +2424,47 @@ class PlayerViewModel @JvmOverloads constructor(
         activity.setVideo(video, position = 0L)
     }
 
-    private fun loadYoutubeStandalone(video: Video) {
-        videoClickHandler = ::onStandaloneYoutubeVideoClicked
-        updateIsLoadingHosters(true)
-        standaloneYoutubeLoadJob?.cancel()
-        standaloneYoutubeLoadJob = viewModelScope.launchIO {
+    fun loadYoutubeVideo(videoUrl: String)
+    {
+        youtubeLoadJob?.cancel()
+        youtubeLoadJob = viewModelScope.launchIO {
             try {
+                // Get all stream metadata, then get channel info
                 val prefs = YouTubePreferences(Injekt.get<Application>())
-                val streams = YoutubeResolver.resolveAllStreams(video.videoPageUrl, prefs.preferredQuality)
-                if (!isActive) return@launchIO
-                if (streams.isEmpty()) {
-                    withContext(Dispatchers.Main) {
-                        updateIsLoadingHosters(false)
-                        activity.toast("No playable video streams found")
-                    }
-                    return@launchIO
-                }
+                val videoMetadata = YouTubeResolver.resolveVideo(YouTubeResolver.getVideoId(videoUrl), prefs.preferredQuality)
 
-                val hoster = Hoster(hosterName = "YouTube", videoList = streams)
-                _hosterList.update { listOf(hoster) }
-                _hosterState.update {
-                    listOf(
-                        HosterState.Ready(
-                            "YouTube",
-                            streams,
-                            List(streams.size) { Video.State.READY },
-                        ),
+                val episode = createYoutubeEpisode(videoMetadata, prefs)
+                    ?: throw IllegalStateException("Failed to create youtube episode")
+
+                val streams = videoMetadata.videoStreams
+                if (streams.isEmpty())
+                    throw IllegalStateException("No playable video streams found")
+
+                saveCurrentEpisodeWatchingProgress()
+                updateIsLoadingEpisode(true)
+                updateIsLoadingHosters(true)
+
+                val hoster = Hoster(hosterName = "YouTube", videoList = videoMetadata.videoStreams)
+                val selected = streams.firstOrNull { it.preferred }
+                    ?: selectYouTubeStream(streams, prefs.preferredQuality)
+                val vidIndex = streams.indexOf(selected)
+
+                val initResult = init(episode.animeId, episode.id, listOf(hoster).serialize(), 0, vidIndex)
+                if (!initResult.second.getOrDefault(false)) {
+                    val exception = initResult.second.exceptionOrNull() ?: IllegalStateException(
+                        "Unknown error",
                     )
-                }
-                _hosterExpandedList.update { listOf(true) }
-                _isEpisodeOnline.update { true }
 
-                val title = video.videoTitle.ifBlank { "YouTube" }
-                animeTitle.update { title }
-                mediaTitle.update { title }
-                MPVLib.setPropertyString("user-data/current-anime/anime-title", title)
-
-                withContext(Dispatchers.Main) {
-                    updateIsLoadingHosters(false)
-                    val selected = streams.firstOrNull { it.preferred }
-                        ?: selectYouTubeStream(streams, prefs.preferredQuality)
-                    val index = streams.indexOf(selected)
-                    _selectedHosterVideoIndex.update { Pair(0, index) }
-                    qualityIndex = Pair(0, index)
-                    _currentVideo.update { selected }
-                    activity.setVideo(selected, position = 0L)
+                    throw exception
                 }
+
+                updateIsLoadingHosters(false)
+                loadHosters(
+                    source = currentSource.value!!,
+                    hosterList = initResult.first.hosterList ?: emptyList(),
+                    hosterIndex = initResult.first.videoIndex.first,
+                    videoIndex = initResult.first.videoIndex.second,
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -2386,11 +2476,71 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    private suspend fun createYoutubeEpisode(videoMetadata: YouTubeVideoMetadata, prefs: YouTubePreferences) : tachiyomi.domain.episode.model.Episode?
+    {
+        suspend fun createAndAddEpisode(episodeId: Long, animeId: Long) : tachiyomi.domain.episode.model.Episode {
+            val episode = tachiyomi.domain.episode.model.Episode.create().copy(
+                id = episodeId, // Once inserted it will change so it doesnt matter
+                animeId = animeId,
+                url = videoMetadata.videoUrl,
+                name = videoMetadata.videoName,
+                totalSeconds = videoMetadata.videoLength,
+                dateFetch = System.currentTimeMillis(),
+                dateUpload = videoMetadata.videoUploadDate,
+                scanlator = videoMetadata.videoType,
+                previewUrl = videoMetadata.videoThumbnailUrl,
+                //summary = videoMetadata.videoDescription, removed because it looks ugly
+                episodeNumber = 0.0
+            )
+            val episodes = episodeRepository.addAll(listOf(episode))
+            return episodes.first()
+        }
+
+        val episodeId = videoMetadata.videoId.hashCode().toLong()
+
+        // Try to find existing anime entry, and add the current episode
+        val animeEntry = animeRepository.getAnimeByUrlAndSourceId(videoMetadata.channelUrl, YouTubeSource.id)
+        if (animeEntry != null)
+        {
+            val episode = episodeRepository.getEpisodeByUrlAndAnimeId(videoMetadata.videoUrl, animeEntry.id)
+            if (episode == null)
+                return createAndAddEpisode(episodeId, animeEntry.id)
+
+            return episode
+        }
+
+        val channelMetadata = YouTubeResolver.resolveChannel(videoMetadata.channelId)
+
+        // We create a new channel entry
+        val newChannelEntry = Anime.create().copy(
+            id = videoMetadata.channelId.hashCode().toLong(),
+            url = videoMetadata.channelUrl,
+            source = YouTubeSource.id,
+
+            ogTitle = videoMetadata.channelName,
+            ogDescription = channelMetadata?.description,
+            ogThumbnailUrl = channelMetadata?.avatarUrl,
+            backgroundUrl = channelMetadata?.bannerUrl,
+
+            dateAdded = System.currentTimeMillis(),
+            lastModifiedAt = System.currentTimeMillis(),
+            coverLastModified = System.currentTimeMillis(),
+            backgroundLastModified = System.currentTimeMillis(),
+
+            favorite = prefs.addNewChannelsToLibrary
+            )
+
+        val newAnimeId = animeRepository.insertAnime(newChannelEntry)
+            ?: return null
+
+        return createAndAddEpisode(episodeId, newAnimeId)
+    }
+
     private fun selectYouTubeStream(streams: List<Video>, targetQuality: String): Video {
-        val targetPixels = YoutubeResolver.parseResolution(targetQuality)
-        return streams.filter { YoutubeResolver.parseResolution(it.videoTitle) <= targetPixels }
-            .maxByOrNull { YoutubeResolver.parseResolution(it.videoTitle) }
-            ?: streams.minByOrNull { YoutubeResolver.parseResolution(it.videoTitle) }
+        val targetPixels = YouTubeResolver.parseResolution(targetQuality)
+        return streams.filter { YouTubeResolver.parseResolution(it.videoTitle) <= targetPixels }
+            .maxByOrNull { YouTubeResolver.parseResolution(it.videoTitle) }
+            ?: streams.minByOrNull { YouTubeResolver.parseResolution(it.videoTitle) }
             ?: streams.first()
     }
 
@@ -2724,31 +2874,6 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    private fun onStandaloneYoutubeVideoClicked(hosterIndex: Int, videoIndex: Int) {
-        val hosterState = _hosterState.value[hosterIndex] as? HosterState.Ready
-        val video = hosterState?.videoList
-            ?.getOrNull(videoIndex)
-            ?: return
-
-        val videoState = hosterState.videoState
-            .getOrNull(videoIndex)
-            ?: return
-
-        if (videoState == Video.State.ERROR) {
-            return
-        }
-
-        updatePausedState()
-        pause()
-        _selectedHosterVideoIndex.update { Pair(hosterIndex, videoIndex) }
-        _currentVideo.update { video }
-        qualityIndex = Pair(hosterIndex, videoIndex)
-        activity.setVideo(video)
-        if (sheetShown.value == Sheets.QualityTracks) {
-            dismissSheet()
-        }
-    }
-
     fun onHosterClicked(index: Int) {
         when (hosterState.value[index]) {
             is HosterState.Ready -> {
@@ -2821,14 +2946,15 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     private fun applySubtitleDelayForAnime(animeId: Long) {
-        val primaryDelayMillis = subtitlePreferences.subtitlesDelayForAnime(animeId).get()
+        val episodeId = currentEpisode.value?.id
+        val primaryDelayMillis = subtitlePreferences.subtitlesDelayForEpisode(episodeId, animeId).get()
         MPVLib.setOptionString("sub-delay", (primaryDelayMillis / 1000.0).toString())
         MPVLib.setOptionString(
             "secondary-sub-delay",
-            (subtitlePreferences.subtitlesSecondaryDelayForAnime(animeId).get() / 1000.0).toString(),
+            (subtitlePreferences.subtitlesSecondaryDelayForEpisode(episodeId, animeId).get() / 1000.0).toString(),
         )
         updatePrimarySubtitleDelayMillis(primaryDelayMillis)
-        updateSubtitleSpeed(subtitlePreferences.subtitlesSpeed().get().toDouble())
+        updateSubtitleSpeed(subtitlePreferences.subtitlesSpeedForEpisode(episodeId).get().toDouble())
     }
 
     /**
@@ -3001,106 +3127,17 @@ class PlayerViewModel @JvmOverloads constructor(
         return newFile.takeIf { it.exists() }?.inputStream()
     }
 
-    suspend fun captureVideoFrameForOcr(): Bitmap? {
-        val file = File(cachePath, "${System.currentTimeMillis()}_mpv_ocr_frame.png")
-        return runCatching {
-            withUIContext {
-                file.delete()
-                MPVLib.command(arrayOf("screenshot-to-file", file.absolutePath, "video"))
-            }
-            withIOContext {
-                repeat(20) {
-                    if (file.exists() && file.length() > 0L) {
-                        return@withIOContext BitmapFactory.decodeFile(file.absolutePath)
-                    }
-                    Thread.sleep(25L)
-                }
-                file.takeIf { it.exists() && it.length() > 0L }
-                    ?.let { BitmapFactory.decodeFile(it.absolutePath) }
-            }
-        }.onFailure {
-            logcat(LogPriority.ERROR, it)
-        }.getOrNull().also {
-            file.delete()
-        }
-    }
+    suspend fun captureVideoFrameForOcr(): Bitmap? = mediaCapture.captureVideoFrameForOcr()
 
-    suspend fun captureSubtitleAudioForAnki(startSeconds: Double?, endSeconds: Double?): ByteArray? {
-        val start = startSeconds ?: return null
-        val end = endSeconds ?: return null
-        if (end <= start) return null
+    internal fun createSubtitleAudioMediaRequest(startSeconds: Double?, endSeconds: Double?) =
+        mediaCapture.createSubtitleAudioMediaRequest(startSeconds, endSeconds)
 
-        val video = currentVideo.value ?: return null
-        val output = File(activity.cacheDir, "chimahon_sentence_audio_${System.currentTimeMillis()}.m4a")
-        return runCatching {
-            withIOContext {
-                output.delete()
-                // Chimahon -->
-                val rawInput = resolveSentenceAudioInput(
-                    videoUrl = video.videoUrl,
-                    playbackPath = MPVLib.getPropertyString("path"),
-                    selectedAudioId = activity.player.aid,
-                    audioTracks = audioTracks.value,
-                )
-                // Chimahon <--
-                val input = when {
-                    rawInput.startsWith("content://") -> Uri.parse(rawInput).toFFmpegString(activity)
-                    rawInput.startsWith("file://") -> Uri.parse(rawInput).path ?: rawInput
-                    else -> rawInput
-                }.replace("\"", "\\\"")
+    internal fun createVideoOcrAudioMediaRequest() = mediaCapture.createVideoOcrAudioMediaRequest()
 
-                val source = currentSource.value as? AnimeHttpSource
-                val headers = video.headers ?: source?.headers
-                val headerOptions = if (rawInput.startsWith("http") && headers != null) {
-                    headers.joinToString("", "-headers '", "'") {
-                        "${it.first}: ${it.second.replace("'", "'\\''")}\r\n"
-                    }
-                } else {
-                    ""
-                }
-                val duration = (end - start).coerceIn(0.25, 30.0)
-                val command = listOf(
-                    headerOptions,
-                    "-ss ${start.coerceAtLeast(0.0).formatSeconds()}",
-                    "-t ${duration.formatSeconds()}",
-                    "-i \"$input\"",
-                    "-vn",
-                    "-map 0:a:0",
-                    // Chimahon -->
-                    "-ac 2",
-                    "-ar 44100",
-                    "-c:a aac",
-                    "-b:a 128k",
-                    // Chimahon <--
-                    "\"${output.absolutePath.replace("\"", "\\\"")}\"",
-                    "-y",
-                )
-                    .filter { it.isNotBlank() }
-                    .joinToString(" ")
-                val session = FFmpegSession.create(FFmpegKitConfig.parseArguments(command))
-                FFmpegKitConfig.ffmpegExecute(session)
-                if (ReturnCode.isSuccess(session.returnCode) && output.exists() && output.length() > 0L) {
-                    output.readBytes()
-                } else {
-                    session.failStackTrace?.let { logcat(LogPriority.WARN) { it } }
-                    null
-                }
-            }
-        }.onFailure {
-            logcat(LogPriority.WARN, it) { "Failed to capture subtitle sentence audio" }
-        }.getOrNull().also {
-            output.delete()
-        }
-    }
+    suspend fun captureAnimatedVideoForAnki(startSeconds: Double?, endSeconds: Double?): ByteArray? =
+        mediaCapture.captureAnimatedVideoForAnki(startSeconds, endSeconds)
 
-    suspend fun captureVideoOcrAudioForAnki(): ByteArray? {
-        val centerSeconds = activity.player.timePos?.toDouble() ?: pos.value.toDouble()
-        val paddingSeconds = dictionaryPreferences.videoOcrSentenceAudioPaddingSeconds().get().toDouble()
-        return captureSubtitleAudioForAnki(
-            startSeconds = centerSeconds - paddingSeconds,
-            endSeconds = centerSeconds + paddingSeconds,
-        )
-    }
+    suspend fun captureVideoOcrAnimatedForAnki(): ByteArray? = mediaCapture.captureVideoOcrAnimatedForAnki()
 
     /**
      * Saves the screenshot on the pictures directory and notifies the UI of the result.
@@ -3430,21 +3467,6 @@ class PlayerViewModel @JvmOverloads constructor(
 
 }
 
-// Chimahon -->
-internal fun resolveSentenceAudioInput(
-    videoUrl: String,
-    playbackPath: String?,
-    selectedAudioId: Int,
-    audioTracks: List<PlayerViewModel.VideoTrack>,
-): String {
-    val externalAudio = audioTracks
-        .firstOrNull { it.id == selectedAudioId }
-        ?.externalFilename
-        ?.takeIf { it.isNotBlank() }
-    return externalAudio ?: playbackPath?.takeIf { it.isNotBlank() } ?: videoUrl
-}
-// Chimahon <--
-
 fun isTorrentUrl(videoUrl: String): Boolean = videoUrl.endsWith(".torrent") || videoUrl.startsWith("magnet:")
 
 fun CustomButton.execute() {
@@ -3457,8 +3479,4 @@ fun CustomButton.executeLongPress() {
 
 fun Float.normalize(inMin: Float, inMax: Float, outMin: Float, outMax: Float): Float {
     return (this - inMin) * (outMax - outMin) / (inMax - inMin) + outMin
-}
-
-private fun Double.formatSeconds(): String {
-    return String.format(Locale.US, "%.3f", this)
 }

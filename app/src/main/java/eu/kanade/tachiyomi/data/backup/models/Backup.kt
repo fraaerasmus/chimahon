@@ -25,7 +25,6 @@ data class LegacyBackup(
             backupSources = backupSources,
             backupPreferences = backupPreferences,
             backupSourcePreferences = backupSourcePreferences,
-            backupExtensionRepo = backupExtensionRepo,
             backupAnime = backupAnime,
             backupAnimeCategories = backupAnimeCategories,
             backupAnimeSources = backupAnimeSources,
@@ -42,7 +41,7 @@ data class Backup(
     @ProtoNumber(101) var backupSources: List<BackupSource> = emptyList(),
     @ProtoNumber(104) var backupPreferences: List<BackupPreference> = emptyList(),
     @ProtoNumber(105) var backupSourcePreferences: List<BackupSourcePreferences> = emptyList(),
-    @ProtoNumber(106) var backupExtensionRepo: List<BackupExtensionRepos> = emptyList(),
+    @ProtoNumber(106) var backupExtensionStores: List<BackupExtensionStore> = emptyList(),
     // Aniyomi/Anikku anime values
     @ProtoNumber(501) val backupAnime: List<BackupAnime> = emptyList(),
     @ProtoNumber(502) var backupAnimeCategories: List<BackupCategory> = emptyList(),
@@ -54,7 +53,8 @@ data class Backup(
     // Global Popular/Latest feeds
     @ProtoNumber(610) var backupFeeds: List<BackupFeed> = emptyList(),
     // KMK <--
-    
+    @ProtoNumber(650) var backupSearchHistory: List<BackupSearchHistory> = emptyList(),
+
     // Chimahon -->
     @ProtoNumber(700) var backupNovels: List<BackupNovel> = emptyList(),
     @ProtoNumber(701) var backupNovelCategories: List<BackupNovelCategory> = emptyList(),

@@ -32,6 +32,14 @@ class EinkRefreshHost {
         timesCalled += 1
     }
 
+    /**
+     * Triggers a refresh immediately, without the every-[interval]-call gating used by [trigger].
+     * Used for movement/scroll so each gesture repaints the display.
+     */
+    fun triggerScroll() {
+        refreshing = true
+    }
+
     fun setInterval(value: Int) {
         interval = value.coerceAtLeast(1)
         timesCalled = 0
@@ -42,6 +50,7 @@ class EinkRefreshHost {
 fun EinkRefreshOverlay(
     hostState: EinkRefreshHost,
     durationMillis: Int,
+    delayMillis: Int,
     color: EinkRefreshColor,
     interval: Int,
     modifier: Modifier = Modifier,
@@ -58,6 +67,8 @@ fun EinkRefreshOverlay(
             currentColor = null
             return@LaunchedEffect
         }
+
+        delay(delayMillis.milliseconds)
 
         val half = durationMillis.milliseconds / 2
         currentColor = when (color) {

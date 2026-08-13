@@ -7,6 +7,7 @@ plugins {
 
 android {
     namespace = "mihon.chimahon"
+    ndkVersion = "29.0.14206865"
 
     defaultConfig {
         consumerProguardFiles("consumer-rules.pro")
@@ -19,6 +20,12 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
         }
     }
 }
@@ -49,6 +56,11 @@ dependencies {
     implementation(libs.datastore.preferences)
     implementation(libs.bundles.media3)
 
+    // Zoomable image viewer for novel illustrations
+    implementation(libs.subsamplingscaleimageview) {
+        exclude(module = "image-decoder")
+    }
+
     // Dependency injection
     implementation(libs.injekt)
     
@@ -57,5 +69,6 @@ dependencies {
     implementation(libs.unifile)
 
     testImplementation(libs.bundles.test)
+    testImplementation(kotlinx.coroutines.test)
     testRuntimeOnly(libs.junit.platform.launcher)
 }

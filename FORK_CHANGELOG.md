@@ -22,6 +22,19 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   handles elisions such as `l'homme`, ranks lemma definitions first, highlights the
   full matched selection, and formats Yomitan deinflection glossaries consistently
   across novel, manga/OCR, subtitle, recursive-popup, Process Text, and Dictionary-tab
-  lookups.
-- Player sentence audio (2026-07-18): mines the active external audio stream for
-  adaptive YouTube playback and encodes subtitle/OCR clips as Anki-compatible M4A.
+  lookups. After the v2.3.2 merge (2026-08-13) this composes with upstream's
+  per-language scan resolution: French keeps the phrase-aware scanner, other
+  space-delimited languages use upstream's whole-word expansion.
+- Player asset self-heal (2026-08-13): re-copies bundled mpv assets (`cacert.pem`,
+  `subfont.ttf`) when the existing copy is unreadable, not just when sizes differ;
+  an unreadable `cacert.pem` makes every TLS stream fail.
+- Shared YouTube links (2026-08-13): plain VIEW/share intents carrying a YouTube URL
+  route through the in-app YouTube pipeline instead of handing watch pages to mpv.
+
+## Dropped (superseded by upstream)
+
+- Player sentence audio mining (2026-07-18, dropped 2026-08-13): upstream v2.3.1/v2.3.2
+  ship a full sentence-audio pipeline with external-track selection and AAC transcode.
+- mpv config edit handling (2026-07-12, dropped 2026-08-13): upstream now persists
+  mpv.conf and input.conf edits via preferences and resolves the config directory with
+  a safe fallback, covering our earlier fix.

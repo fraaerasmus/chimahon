@@ -14,6 +14,7 @@ import eu.kanade.tachiyomi.animeextension.model.AnimeExtension
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import tachiyomi.domain.source.anime.service.AnimeSourceManager
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
@@ -136,6 +137,32 @@ class AnimeExtensionDetailsScreenModel(
         state.value.extension?.pkgName?.let { packageName ->
             toggleIncognito.await(packageName, enable)
         }
+    }
+
+    fun getDictionaryProfiles(): List<chimahon.anki.AnkiProfile> {
+        return Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>().profileStore.getProfiles()
+    }
+
+    fun getSourceProfileOverride(sourceId: Long): String {
+        val key = chimahon.dictionary.DictionaryProfileResolver.sourceOverrideKey(sourceId)
+        return Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>().rawProfileOverride(key).get()
+    }
+
+    fun setSourceProfileOverride(sourceId: Long, profileId: String?) {
+        val key = chimahon.dictionary.DictionaryProfileResolver.sourceOverrideKey(sourceId)
+        if (profileId == null) {
+            Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>().rawProfileOverride(key).delete()
+        } else {
+            Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>().rawProfileOverride(key).set(profileId)
+        }
+    }
+
+    fun resolveAutoProfile(sourceId: Long): chimahon.anki.AnkiProfile {
+        val source = Injekt.get<AnimeSourceManager>().getOrStub(sourceId)
+        return Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>().profileResolver.resolve(
+            sourceId = 0L, // 0 to avoid hitting the source override itself
+            sourceLang = source.lang,
+        )
     }
 
     @Immutable

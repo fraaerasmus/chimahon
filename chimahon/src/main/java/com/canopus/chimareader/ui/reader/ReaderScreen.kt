@@ -1,5 +1,6 @@
 package com.canopus.chimareader.ui.reader
 
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
@@ -23,6 +24,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.canopus.chimareader.data.BookMetadata
 import com.canopus.chimareader.data.Statistics
+import chimahon.ocr.OcrLanguage
+import chimahon.ocr.OcrResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -55,11 +58,14 @@ fun ReaderScreen(
     additionalSettings: @Composable ColumnScope.() -> Unit = {},
     settingsNamespace: String? = null,
     onSelectionRectsReceived: ((String) -> Unit)? = null,
+    recognizeImage: suspend (Bitmap, OcrLanguage) -> List<OcrResult> = { _, _ -> emptyList() },
+    onImageOcrLookupRequested: (String, String, Int, Float, Float, Float, Float, Boolean, Bitmap) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
 ) {
     val context = LocalContext.current
 
     var focusMode by remember { mutableStateOf(false) }
     var activeSheet by remember { mutableStateOf<ActiveSheet?>(null) }
+    var tappedImageUri by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val settings = remember(settingsNamespace) { com.canopus.chimareader.data.NovelReaderSettings(context, settingsNamespace) }
 
@@ -248,12 +254,15 @@ fun ReaderScreen(
                         onInternalLinkClicked = { viewModel.jumpToUrl(it) },
                         onSelectionRectsReceived = onSelectionRectsReceived,
                         onPageTurned = { if (viewModel.einkRefreshOnPageTurn) einkRefreshHost.trigger() },
+                        onScrollMoved = { if (viewModel.einkRefreshOnScroll) einkRefreshHost.triggerScroll() },
+                        onImageTapped = { uri -> tappedImageUri = uri },
                     )
 
-                    if (viewModel.einkRefreshOnPageTurn) {
+                    if (viewModel.einkRefreshOnPageTurn || viewModel.einkRefreshOnScroll) {
                         EinkRefreshOverlay(
                             hostState = einkRefreshHost,
                             durationMillis = viewModel.einkRefreshDurationMillis,
+                            delayMillis = viewModel.einkRefreshDelayMillis,
                             color = runCatching { EinkRefreshColor.valueOf(viewModel.einkRefreshColor) }
                                 .getOrDefault(EinkRefreshColor.BLACK),
                             interval = viewModel.einkRefreshPageInterval,
@@ -360,6 +369,23 @@ fun ReaderScreen(
                 }
             }
             else -> {}
+        }
+
+        // Full-screen zoomable image viewer for novel illustrations
+        tappedImageUri?.let { uri ->
+            NovelImageViewer(
+                imageUri = uri,
+                readerBackgroundColor = currentSettings.backgroundColor,
+                ocrLanguage = OcrLanguage.entries.firstOrNull {
+                    it.bcp47.equals(book.lang, ignoreCase = true) ||
+                        book.lang?.startsWith("${it.bcp47}-", ignoreCase = true) == true
+                } ?: OcrLanguage.JAPANESE,
+                recognizeImage = recognizeImage,
+                onOcrLookupRequested = onImageOcrLookupRequested,
+                isPopupActive = isPopupActive,
+                onDismissPopupRequested = onDismissPopupRequested,
+                onDismiss = { tappedImageUri = null },
+            )
         }
     }
 }

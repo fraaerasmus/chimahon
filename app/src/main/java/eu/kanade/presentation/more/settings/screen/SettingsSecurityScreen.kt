@@ -51,7 +51,6 @@ import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
 import eu.kanade.tachiyomi.ui.category.biometric.BiometricTimesScreen
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.authenticate
 import eu.kanade.tachiyomi.util.system.AuthenticatorUtil.isAuthenticationSupported
-import eu.kanade.tachiyomi.util.system.telemetryIncluded
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableMap
 import mihon.core.archive.CbzCrypto
@@ -75,10 +74,8 @@ object SettingsSecurityScreen : SearchableSettings {
     override fun getPreferences(): List<Preference> {
         val securityPreferences = remember { Injekt.get<SecurityPreferences>() }
         val privacyPreferences = remember { Injekt.get<PrivacyPreferences>() }
-        return buildList(2) {
+        return buildList(1) {
             add(getSecurityGroup(securityPreferences))
-            if (!telemetryIncluded) return@buildList
-            add(getFirebaseGroup(privacyPreferences))
         }
     }
 
@@ -155,7 +152,7 @@ object SettingsSecurityScreen : SearchableSettings {
                     enabled = passwordProtectDownloads,
 
                 ),
-                kotlin.run {
+                run {
                     var dialogOpen by remember { mutableStateOf(false) }
                     if (dialogOpen) {
                         PasswordDialog(
@@ -183,7 +180,7 @@ object SettingsSecurityScreen : SearchableSettings {
                         securityPreferences.cbzPassword().set("")
                     },
                 ),
-                kotlin.run {
+                run {
                     val navigator = LocalNavigator.currentOrThrow
                     val count by securityPreferences.authenticatorTimeRanges().collectAsState()
                     Preference.PreferenceItem.TextPreference(
@@ -199,7 +196,7 @@ object SettingsSecurityScreen : SearchableSettings {
                         },
                     )
                 },
-                kotlin.run {
+                run {
                     val selection by securityPreferences.authenticatorDays().collectAsState()
                     var dialogOpen by remember { mutableStateOf(false) }
                     if (dialogOpen) {
@@ -221,30 +218,6 @@ object SettingsSecurityScreen : SearchableSettings {
                 },
                 // SY <--
                 Preference.PreferenceItem.InfoPreference(stringResource(MR.strings.secure_screen_summary)),
-            ),
-        )
-    }
-
-    @Composable
-    private fun getFirebaseGroup(
-        privacyPreferences: PrivacyPreferences,
-    ): Preference.PreferenceGroup {
-        return Preference.PreferenceGroup(
-            title = stringResource(MR.strings.pref_firebase),
-            preferenceItems = persistentListOf(
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = privacyPreferences.crashlytics(),
-                    title = stringResource(MR.strings.onboarding_permission_crashlytics),
-                    subtitle = stringResource(MR.strings.onboarding_permission_crashlytics_description),
-                ),
-                /*
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = privacyPreferences.analytics(),
-                    title = stringResource(MR.strings.onboarding_permission_analytics),
-                    subtitle = stringResource(MR.strings.onboarding_permission_analytics_description),
-                ),
-                 */
-                Preference.PreferenceItem.InfoPreference(stringResource(MR.strings.firebase_summary)),
             ),
         )
     }
@@ -332,13 +305,16 @@ object SettingsSecurityScreen : SearchableSettings {
     fun PasswordDialog(
         onDismissRequest: () -> Unit,
         onReturnPassword: (String) -> Unit,
+        // KMK -->
+        title: StringResource = SYMR.strings.cbz_archive_password,
+        // KMK <--
     ) {
         var password by rememberSaveable { mutableStateOf("") }
         var passwordVisibility by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = onDismissRequest,
 
-            title = { Text(text = stringResource(SYMR.strings.cbz_archive_password)) },
+            title = { Text(text = stringResource(title)) },
             text = {
                 TextField(
                     value = password,

@@ -104,7 +104,20 @@ import tachiyomi.i18n.MR
 import tachiyomi.i18n.kmk.KMR
 import tachiyomi.presentation.core.components.FastScrollLazyVerticalGrid
 import tachiyomi.presentation.core.components.TwoPanelBox
-import tachiyomi.presentation.core.components.material.ExtendedFloatingActionButton
+import androidx.compose.foundation.layout.offset
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.material3.FabPosition
+import androidx.compose.material3.SmallExtendedFloatingActionButton
+import androidx.compose.material3.animateFloatingActionButton
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionOnScreen
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import kotlin.math.roundToInt
 import tachiyomi.presentation.core.components.material.PullRefresh
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
@@ -156,6 +169,7 @@ fun AnimeScreen(
     onEditFetchIntervalClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
+    onClickDictionaryProfile: (() -> Unit)?,
 
     // For bottom action menu
     onMultiBookmarkClicked: (List<Episode>, bookmarked: Boolean) -> Unit,
@@ -227,6 +241,7 @@ fun AnimeScreen(
             onEditIntervalClicked = onEditFetchIntervalClicked,
             onMigrateClicked = onMigrateClicked,
             changeAnimeSkipIntro = changeAnimeSkipIntro,
+            onClickDictionaryProfile = onClickDictionaryProfile,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiFillermarkClicked = onMultiFillermarkClicked,
             onMultiMarkAsSeenClicked = onMultiMarkAsSeenClicked,
@@ -270,6 +285,7 @@ fun AnimeScreen(
             onEditCategoryClicked = onEditCategoryClicked,
             onEditIntervalClicked = onEditFetchIntervalClicked,
             changeAnimeSkipIntro = changeAnimeSkipIntro,
+            onClickDictionaryProfile = onClickDictionaryProfile,
             onMigrateClicked = onMigrateClicked,
             onMultiBookmarkClicked = onMultiBookmarkClicked,
             onMultiFillermarkClicked = onMultiFillermarkClicked,
@@ -326,6 +342,7 @@ private fun AnimeScreenSmallImpl(
     onEditIntervalClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
+    onClickDictionaryProfile: (() -> Unit)?,
     onSettingsClicked: (() -> Unit)?,
 
     // For bottom action menu
@@ -378,6 +395,16 @@ private fun AnimeScreenSmallImpl(
         }
     }
 
+    // KMK -->
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
+    var layoutSize by remember { mutableStateOf(IntSize.Zero) }
+    var fabSize by remember { mutableStateOf(IntSize.Zero) }
+    var positionOnScreen by remember { mutableStateOf(Offset.Zero) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    val fabPosition by uiPreferences.readButtonPosition().collectAsState()
+    val readButtonPosition = uiPreferences.readButtonPosition()
+    // KMK <--
+
     BackHandler(onBack = {
         if (isAnySelected) {
             onAllEpisodeSelected(false)
@@ -420,6 +447,7 @@ private fun AnimeScreenSmallImpl(
                     onClickMigrate = onMigrateClicked,
                     onClickSettings = onSettingsClicked,
                     changeAnimeSkipIntro = changeAnimeSkipIntro,
+                    onClickDictionaryProfile = onClickDictionaryProfile,
                     onClickRelatedAnime = onRelatedAnimeScreenClick.takeIf {
                         !expandRelatedAnime &&
                             showRelatedAnimeInOverflow &&
@@ -457,32 +485,55 @@ private fun AnimeScreenSmallImpl(
                 val isFABVisible = remember(episodes) {
                     episodes.fastAny { !it.episode.seen } && !isAnySelected
                 }
-                AnimatedVisibility(
-                    visible = isFABVisible,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    ExtendedFloatingActionButton(
-                        text = {
-                            val isWatching = remember(state.episodes) {
-                                state.episodes.fastAny { it.episode.seen }
-                            }
-                            Text(
-                                text = stringResource(
-                                    if (isWatching) MR.strings.action_resume else MR.strings.action_start,
-                                ),
-                            )
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = Icons.Filled.PlayArrow,
-                                contentDescription = null,
-                            )
-                        },
-                        onClick = onContinueWatching,
-                        expanded = itemListState.shouldExpandFAB(),
+                SmallExtendedFloatingActionButton(
+                    text = {
+                        val isWatching = remember(state.episodes) {
+                            state.episodes.fastAny { it.episode.seen }
+                        }
+                        Text(
+                            text = stringResource(if (isWatching) MR.strings.action_resume else MR.strings.action_start),
+                        )
+                    },
+                    icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
+                    onClick = onContinueWatching,
+                    expanded = itemListState.shouldExpandFAB(),
+                    modifier = Modifier.animateFloatingActionButton(
+                        visible = isFABVisible,
+                        alignment = Alignment.BottomEnd,
                     )
-                }
+                        .offset { IntOffset(offsetX.roundToInt(), 0) }
+                        .onGloballyPositioned { coordinates ->
+                            fabSize = coordinates.size
+                            positionOnScreen = coordinates.positionOnScreen()
+                        }
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragEnd = {
+                                    if (positionOnScreen.x + fabSize.width / 2 >= layoutSize.width / 2) {
+                                        readButtonPosition.set(FabPosition.End.toString())
+                                    } else {
+                                        readButtonPosition.set(FabPosition.Start.toString())
+                                    }
+                                    offsetX = 0f
+                                },
+                            ) { change, dragAmount ->
+                                change.consume()
+                                val newOffsetX = offsetX + dragAmount
+                                if (!newOffsetX.isNaN()) {
+                                    offsetX = newOffsetX
+                                }
+                            }
+                        },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                )
+            },
+            floatingActionButtonPosition = if (fabPosition == FabPosition.End.toString()) {
+                FabPosition.End
+            } else {
+                FabPosition.Start
+            },
+            modifier = Modifier.onGloballyPositioned { coordinates ->
+                layoutSize = coordinates.size
             },
         ) { contentPadding ->
             val topPadding = contentPadding.calculateTopPadding()
@@ -564,7 +615,9 @@ private fun AnimeScreenSmallImpl(
                         state.anime.source != MERGED_SOURCE_ID
                     ) {
                         if (expandRelatedAnime && state.relatedAnimeSorted?.isNotEmpty() != false) {
-                            item {
+                            item(
+                                span = { GridItemSpan(maxLineSpan) },
+                            ) {
                                 HorizontalDivider(modifier = Modifier.ignorePadding(offsetGridPaddingPx))
                             }
                             item(
@@ -577,7 +630,9 @@ private fun AnimeScreenSmallImpl(
                                     modifier = Modifier.ignorePadding(offsetGridPaddingPx),
                                 )
                             }
-                            item {
+                            item(
+                                span = { GridItemSpan(maxLineSpan) },
+                            ) {
                                 HorizontalDivider(modifier = Modifier.ignorePadding(offsetGridPaddingPx))
                             }
                         } else if (!expandRelatedAnime && !showRelatedAnimeInOverflow) {
@@ -724,6 +779,7 @@ fun AnimeScreenLargeImpl(
     onEditIntervalClicked: (() -> Unit)?,
     onMigrateClicked: (() -> Unit)?,
     changeAnimeSkipIntro: (() -> Unit)?,
+    onClickDictionaryProfile: (() -> Unit)?,
     onSettingsClicked: (() -> Unit)?,
 
     // For bottom action menu
@@ -760,6 +816,16 @@ fun AnimeScreenLargeImpl(
             episodes.fastAny { it.selected }
         }
     }
+
+    // KMK -->
+    val uiPreferences = remember { Injekt.get<UiPreferences>() }
+    var layoutSize by remember { mutableStateOf(IntSize.Zero) }
+    var fabSize by remember { mutableStateOf(IntSize.Zero) }
+    var positionOnScreen by remember { mutableStateOf(Offset.Zero) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    val fabPosition by uiPreferences.readButtonPosition().collectAsState()
+    val readButtonPosition = uiPreferences.readButtonPosition()
+    // KMK <--
 
     val insetPadding = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal).asPaddingValues()
     val relatedMangasEnabled by remember { Injekt.get<SourcePreferences>().relatedMangas() }.collectAsState()
@@ -808,6 +874,7 @@ fun AnimeScreenLargeImpl(
                     onCancelActionMode = { onAllEpisodeSelected(false) },
                     onClickSettings = onSettingsClicked,
                     changeAnimeSkipIntro = changeAnimeSkipIntro,
+                    onClickDictionaryProfile = onClickDictionaryProfile,
                     onClickRelatedAnime = onRelatedAnimeScreenClick.takeIf {
                         !expandRelatedAnime &&
                             showRelatedAnimeInOverflow &&
@@ -848,27 +915,55 @@ fun AnimeScreenLargeImpl(
                 val isFABVisible = remember(episodes) {
                     episodes.fastAny { !it.episode.seen } && !isAnySelected
                 }
-                AnimatedVisibility(
-                    visible = isFABVisible,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    ExtendedFloatingActionButton(
-                        text = {
-                            val isWatching = remember(state.episodes) {
-                                state.episodes.fastAny { it.episode.seen }
-                            }
-                            Text(
-                                text = stringResource(
-                                    if (isWatching) MR.strings.action_resume else MR.strings.action_start,
-                                ),
-                            )
-                        },
-                        icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
-                        onClick = onContinueWatching,
-                        expanded = itemListState.shouldExpandFAB(),
+                SmallExtendedFloatingActionButton(
+                    text = {
+                        val isWatching = remember(state.episodes) {
+                            state.episodes.fastAny { it.episode.seen }
+                        }
+                        Text(
+                            text = stringResource(if (isWatching) MR.strings.action_resume else MR.strings.action_start),
+                        )
+                    },
+                    icon = { Icon(imageVector = Icons.Filled.PlayArrow, contentDescription = null) },
+                    onClick = onContinueWatching,
+                    expanded = itemListState.shouldExpandFAB(),
+                    modifier = Modifier.animateFloatingActionButton(
+                        visible = isFABVisible,
+                        alignment = Alignment.BottomEnd,
                     )
-                }
+                        .offset { IntOffset(offsetX.roundToInt(), 0) }
+                        .onGloballyPositioned { coordinates ->
+                            fabSize = coordinates.size
+                            positionOnScreen = coordinates.positionOnScreen()
+                        }
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(
+                                onDragEnd = {
+                                    if (positionOnScreen.x + fabSize.width / 2 >= layoutSize.width / 2) {
+                                        readButtonPosition.set(FabPosition.End.toString())
+                                    } else {
+                                        readButtonPosition.set(FabPosition.Start.toString())
+                                    }
+                                    offsetX = 0f
+                                },
+                            ) { change, dragAmount ->
+                                change.consume()
+                                val newOffsetX = offsetX + dragAmount
+                                if (!newOffsetX.isNaN()) {
+                                    offsetX = newOffsetX
+                                }
+                            }
+                        },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                )
+            },
+            floatingActionButtonPosition = if (fabPosition == FabPosition.End.toString()) {
+                FabPosition.End
+            } else {
+                FabPosition.Start
+            },
+            modifier = Modifier.onGloballyPositioned { coordinates ->
+                layoutSize = coordinates.size
             },
         ) { contentPadding ->
             PullRefresh(
@@ -942,7 +1037,9 @@ fun AnimeScreenLargeImpl(
                                 state.anime.source != MERGED_SOURCE_ID
                             ) {
                                 if (expandRelatedAnime && state.relatedAnimeSorted?.isNotEmpty() != false) {
-                                    item {
+                                    item(
+                                        span = { GridItemSpan(maxLineSpan) },
+                                    ) {
                                         HorizontalDivider(modifier = Modifier.ignorePadding(offsetGridPaddingPx))
                                     }
                                     item(
@@ -955,7 +1052,9 @@ fun AnimeScreenLargeImpl(
                                             modifier = Modifier.ignorePadding(offsetGridPaddingPx),
                                         )
                                     }
-                                    item {
+                                    item(
+                                        span = { GridItemSpan(maxLineSpan) },
+                                    ) {
                                         HorizontalDivider(modifier = Modifier.ignorePadding(offsetGridPaddingPx))
                                     }
                                 } else if (!expandRelatedAnime && !showRelatedAnimeInOverflow) {

@@ -94,10 +94,8 @@ import eu.kanade.tachiyomi.source.online.all.EHentai
 import eu.kanade.tachiyomi.source.online.all.Lanraragi
 import eu.kanade.tachiyomi.source.online.all.MangaDex
 import eu.kanade.tachiyomi.source.online.all.NHentai
+import eu.kanade.tachiyomi.source.online.all.Pururin
 import eu.kanade.tachiyomi.source.online.english.EightMuses
-import eu.kanade.tachiyomi.source.online.english.HBrowse
-import eu.kanade.tachiyomi.source.online.english.Pururin
-import eu.kanade.tachiyomi.source.online.english.Tsumino
 import eu.kanade.tachiyomi.ui.manga.ChapterList
 import eu.kanade.tachiyomi.ui.manga.MangaScreenModel
 import eu.kanade.tachiyomi.ui.manga.MergedMangaData
@@ -109,12 +107,10 @@ import exh.source.getMainSource
 import exh.source.isEhBasedManga
 import exh.ui.metadata.adapters.EHentaiDescription
 import exh.ui.metadata.adapters.EightMusesDescription
-import exh.ui.metadata.adapters.HBrowseDescription
 import exh.ui.metadata.adapters.LanraragiDescription
 import exh.ui.metadata.adapters.MangaDexDescription
 import exh.ui.metadata.adapters.NHentaiDescription
 import exh.ui.metadata.adapters.PururinDescription
-import exh.ui.metadata.adapters.TsuminoDescription
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.chapter.service.missingChaptersCount
 import tachiyomi.domain.library.service.LibraryPreferences
@@ -195,7 +191,7 @@ fun MangaScreen(
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
 
     // Chapter selection
-    onChapterSelected: (ChapterList.Item, Boolean, Boolean, Boolean) -> Unit,
+    onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
 
@@ -203,6 +199,7 @@ fun MangaScreen(
     getMangaState: @Composable (Manga) -> State<Manga>,
     onClickSourceSettingsClicked: (() -> Unit)?,
     onClearManga: () -> Unit,
+    onClearOcrCache: (() -> Unit)? = null,
     onOpenMangaFolder: (() -> Unit)?,
     onRelatedMangasScreenClick: () -> Unit,
     onRelatedMangaClick: (Manga) -> Unit,
@@ -214,6 +211,7 @@ fun MangaScreen(
     onPaletteScreenClick: () -> Unit,
     hazeState: HazeState,
     onClickDictionaryProfile: (() -> Unit)?,
+    onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
     // KMK <--
 ) {
@@ -274,6 +272,7 @@ fun MangaScreen(
             getMangaState = getMangaState,
             onClickSourceSettingsClicked = onClickSourceSettingsClicked,
             onClearManga = onClearManga,
+            onClearOcrCache = onClearOcrCache,
             onOpenMangaFolder = onOpenMangaFolder,
             onRelatedMangasScreenClick = onRelatedMangasScreenClick,
             onRelatedMangaClick = onRelatedMangaClick,
@@ -285,6 +284,7 @@ fun MangaScreen(
             onPaletteScreenClick = onPaletteScreenClick,
             hazeState = hazeState,
             onClickDictionaryProfile = onClickDictionaryProfile,
+            onClickPreOcr = onClickPreOcr,
             onClickMangaStats = onClickMangaStats,
             // KMK <--
         )
@@ -338,6 +338,7 @@ fun MangaScreen(
             getMangaState = getMangaState,
             onClickSourceSettingsClicked = onClickSourceSettingsClicked,
             onClearManga = onClearManga,
+            onClearOcrCache = onClearOcrCache,
             onOpenMangaFolder = onOpenMangaFolder,
             onRelatedMangasScreenClick = onRelatedMangasScreenClick,
             onRelatedMangaClick = onRelatedMangaClick,
@@ -349,6 +350,7 @@ fun MangaScreen(
             onPaletteScreenClick = onPaletteScreenClick,
             hazeState = hazeState,
             onClickDictionaryProfile = onClickDictionaryProfile,
+            onClickPreOcr = onClickPreOcr,
             onClickMangaStats = onClickMangaStats,
             // KMK <--
         )
@@ -411,7 +413,7 @@ private fun MangaScreenSmallImpl(
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
 
     // Chapter selection
-    onChapterSelected: (ChapterList.Item, Boolean, Boolean, Boolean) -> Unit,
+    onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
 
@@ -419,6 +421,7 @@ private fun MangaScreenSmallImpl(
     getMangaState: @Composable ((Manga) -> State<Manga>),
     onClickSourceSettingsClicked: (() -> Unit)?,
     onClearManga: () -> Unit,
+    onClearOcrCache: (() -> Unit)? = null,
     onOpenMangaFolder: (() -> Unit)?,
     onRelatedMangasScreenClick: () -> Unit,
     onRelatedMangaClick: (Manga) -> Unit,
@@ -430,6 +433,7 @@ private fun MangaScreenSmallImpl(
     onPaletteScreenClick: () -> Unit,
     hazeState: HazeState,
     onClickDictionaryProfile: (() -> Unit)?,
+    onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
     // KMK <--
 ) {
@@ -505,6 +509,7 @@ private fun MangaScreenSmallImpl(
                 // KMK -->
                 onClickSourceSettings = onClickSourceSettingsClicked,
                 onClearManga = onClearManga,
+                onClearOcrCache = onClearOcrCache,
                 onOpenMangaFolder = onOpenMangaFolder,
                 onClickRelatedMangas = onRelatedMangasScreenClick.takeIf {
                     !expandRelatedMangas &&
@@ -525,6 +530,7 @@ private fun MangaScreenSmallImpl(
                 // KMK -->
                 onPaletteScreenClick = onPaletteScreenClick,
                 onClickDictionaryProfile = onClickDictionaryProfile,
+                onClickPreOcr = onClickPreOcr,
                 onClickMangaStats = onClickMangaStats,
                 // KMK <--
             )
@@ -879,7 +885,7 @@ private fun MangaScreenLargeImpl(
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
 
     // Chapter selection
-    onChapterSelected: (ChapterList.Item, Boolean, Boolean, Boolean) -> Unit,
+    onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onAllChapterSelected: (Boolean) -> Unit,
     onInvertSelection: () -> Unit,
 
@@ -887,6 +893,7 @@ private fun MangaScreenLargeImpl(
     getMangaState: @Composable ((Manga) -> State<Manga>),
     onClickSourceSettingsClicked: (() -> Unit)?,
     onClearManga: () -> Unit,
+    onClearOcrCache: (() -> Unit)? = null,
     onOpenMangaFolder: (() -> Unit)?,
     onRelatedMangasScreenClick: () -> Unit,
     onRelatedMangaClick: (Manga) -> Unit,
@@ -898,6 +905,7 @@ private fun MangaScreenLargeImpl(
     onPaletteScreenClick: () -> Unit,
     hazeState: HazeState,
     onClickDictionaryProfile: (() -> Unit)?,
+    onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
     // KMK <--
 ) {
@@ -965,6 +973,7 @@ private fun MangaScreenLargeImpl(
                 // KMK -->
                 onClickSourceSettings = onClickSourceSettingsClicked,
                 onClearManga = onClearManga,
+                onClearOcrCache = onClearOcrCache,
                 onOpenMangaFolder = onOpenMangaFolder,
                 onClickRelatedMangas = onRelatedMangasScreenClick.takeIf {
                     !expandRelatedMangas &&
@@ -984,6 +993,7 @@ private fun MangaScreenLargeImpl(
                 // KMK -->
                 onPaletteScreenClick = onPaletteScreenClick,
                 onClickDictionaryProfile = onClickDictionaryProfile,
+                onClickPreOcr = onClickPreOcr,
                 onClickMangaStats = onClickMangaStats,
                 // KMK <--
             )
@@ -1322,7 +1332,7 @@ private fun LazyListScope.sharedChapterItems(
     // SY <--
     onChapterClicked: (Chapter) -> Unit,
     onDownloadChapter: ((List<ChapterList.Item>, ChapterDownloadAction) -> Unit)?,
-    onChapterSelected: (ChapterList.Item, Boolean, Boolean, Boolean) -> Unit,
+    onChapterSelected: (ChapterList.Item, Boolean, Boolean) -> Unit,
     onChapterSwipe: (ChapterList.Item, LibraryPreferences.ChapterSwipeAction) -> Unit,
 ) {
     items(
@@ -1393,14 +1403,14 @@ private fun LazyListScope.sharedChapterItems(
                     chapterSwipeStartAction = chapterSwipeStartAction,
                     chapterSwipeEndAction = chapterSwipeEndAction,
                     onLongClick = {
-                        onChapterSelected(item, !item.selected, true, true)
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onChapterSelected(item, !item.selected, true)
                     },
                     onClick = {
                         onChapterItemClick(
                             chapterItem = item,
                             isAnyChapterSelected = isAnyChapterSelected,
-                            onToggleSelection = { onChapterSelected(item, !item.selected, true, false) },
+                            onToggleSelection = { onChapterSelected(item, !item.selected, false) },
                             onChapterClicked = onChapterClicked,
                         )
                     },
@@ -1455,14 +1465,8 @@ fun metadataDescription(source: Source): MetadataDescriptionComposable? {
             is EightMuses -> { state, openMetadataViewer, _ ->
                 EightMusesDescription(state, openMetadataViewer)
             }
-            is HBrowse -> { state, openMetadataViewer, _ ->
-                HBrowseDescription(state, openMetadataViewer)
-            }
             is Pururin -> { state, openMetadataViewer, _ ->
                 PururinDescription(state, openMetadataViewer)
-            }
-            is Tsumino -> { state, openMetadataViewer, _ ->
-                TsuminoDescription(state, openMetadataViewer)
             }
             is Lanraragi -> { state, openMetadataViewer, _ ->
                 LanraragiDescription(state, openMetadataViewer)

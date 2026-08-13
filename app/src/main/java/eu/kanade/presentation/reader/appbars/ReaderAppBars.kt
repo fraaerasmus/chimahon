@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.reader.components.ChapterNavigator
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderOcrSource
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
@@ -104,7 +105,10 @@ fun ReaderAppBars(
     // Chimahon -->
     ocrEnabled: Boolean = false,
     ocrLoading: Boolean = false,
+    ocrSource: ReaderOcrSource = ReaderOcrSource.AUTOMATIC,
+    mokuroAvailable: Boolean = false,
     onToggleOcr: (() -> Unit)? = null,
+    onSelectOcrSource: (ReaderOcrSource) -> Unit = {},
     // Chimahon <--
 ) {
     val isRtl = viewer is R2LPagerViewer
@@ -140,7 +144,10 @@ fun ReaderAppBars(
                     // Chimahon -->
                     ocrEnabled = ocrEnabled,
                     ocrLoading = ocrLoading,
+                    ocrSource = ocrSource,
+                    mokuroAvailable = mokuroAvailable,
                     onToggleOcr = onToggleOcr,
+                    onSelectOcrSource = onSelectOcrSource,
                     // Chimahon <--
                 )
                 // SY -->

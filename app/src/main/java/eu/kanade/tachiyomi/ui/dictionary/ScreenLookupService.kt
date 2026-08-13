@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ServiceInfo
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.hardware.display.DisplayManager
@@ -50,6 +52,8 @@ import logcat.LogPriority
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 import kotlin.math.roundToInt
 
 object ScreenLookupServiceState {
@@ -342,19 +346,20 @@ class ScreenLookupService : Service() {
     private fun showFloatingButton() {
         if (floatingButton != null || !Settings.canDrawOverlays(this)) return
 
-        val size = BUTTON_SIZE_DP.dp
+        val size = buttonSizeDp().dp
+        val buttonColor = buttonBackgroundColor()
         val button = FrameLayout(this).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(ContextCompat.getColor(this@ScreenLookupService, R.color.tachiyomi_primary))
+                setColor(buttonColor)
             }
             elevation = 8.dp.toFloat()
-            alpha = BUTTON_ALPHA
+            alpha = buttonAlpha()
             contentDescription = this@ScreenLookupService.stringResource(MR.strings.screen_lookup_capture_button)
             addView(
                 ImageView(this@ScreenLookupService).apply {
                     setImageResource(R.drawable.ic_chimahon)
-                    imageTintList = ContextCompat.getColorStateList(this@ScreenLookupService, R.color.tachiyomi_onPrimary)
+                    imageTintList = ColorStateList.valueOf(buttonIconColor(buttonColor))
                     scaleType = ImageView.ScaleType.CENTER_INSIDE
                     setPadding(14.dp, 14.dp, 14.dp, 14.dp)
                 },
@@ -422,7 +427,7 @@ class ScreenLookupService : Service() {
 
     private fun setFloatingButtonVisible(visible: Boolean) {
         floatingButton?.apply {
-            alpha = if (visible) BUTTON_ALPHA else 0f
+            alpha = if (visible) buttonAlpha() else 0f
             isEnabled = visible
         }
     }
@@ -502,6 +507,38 @@ class ScreenLookupService : Service() {
         val width: Int,
         val height: Int,
     )
+
+    private fun buttonSizeDp(): Int {
+        return try {
+            Injekt.get<DictionaryPreferences>().ocrButtonSize().get()
+        } catch (_: Exception) {
+            BUTTON_SIZE_DP
+        }
+    }
+
+    private fun buttonAlpha(): Float {
+        return try {
+            Injekt.get<DictionaryPreferences>().ocrButtonAlpha().get()
+        } catch (_: Exception) {
+            BUTTON_ALPHA
+        }
+    }
+
+    private fun buttonBackgroundColor(): Int {
+        val stored = try {
+            Injekt.get<DictionaryPreferences>().ocrButtonColor().get()
+        } catch (_: Exception) {
+            0
+        }
+        if (stored != 0) return stored
+        return ContextCompat.getColor(this, R.color.tachiyomi_primary)
+    }
+
+    private fun buttonIconColor(background: Int): Int {
+        // White icon on dark backgrounds, black icon on light backgrounds.
+        val luminance = 0.299 * Color.red(background) + 0.587 * Color.green(background) + 0.114 * Color.blue(background)
+        return if (luminance < 128) Color.WHITE else Color.BLACK
+    }
 
     companion object {
         private const val ACTION_START = "eu.kanade.tachiyomi.dictionary.SCREEN_LOOKUP_START"

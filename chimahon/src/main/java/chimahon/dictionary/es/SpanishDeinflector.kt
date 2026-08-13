@@ -77,33 +77,33 @@ object SpanishDeinflector : Deinflector {
             Regex("i[a-z]*(o|es|e|en)$"), "i", "e", suffixPattern, verbEnding, conditionsIn, conditionsIn
         )
 
-        // Present indicative regular endings
-        val arPres = suffixInflection("o", "ar", setOf("v_ar"), setOf("v_ar"))
-        val asPres = suffixInflection("as", "ar", setOf("v_ar"), setOf("v_ar"))
-        val aPres = suffixInflection("a", "ar", setOf("v_ar"), setOf("v_ar"))
-        val amosPres = suffixInflection("amos", "ar", setOf("v_ar"), setOf("v_ar"))
-        val aisPres = suffixInflection("áis", "ar", setOf("v_ar"), setOf("v_ar"))
-        val anPres = suffixInflection("an", "ar", setOf("v_ar"), setOf("v_ar"))
+        // Present regular indicative endings
+        add(suffixInflection("o", "ar", setOf("v_ar"), setOf("v_ar")))
+        add(suffixInflection("as", "ar", setOf("v_ar"), setOf("v_ar")))
+        add(suffixInflection("a", "ar", setOf("v_ar"), setOf("v_ar")))
+        add(suffixInflection("amos", "ar", setOf("v_ar"), setOf("v_ar")))
+        add(suffixInflection("áis", "ar", setOf("v_ar"), setOf("v_ar")))
+        add(suffixInflection("an", "ar", setOf("v_ar"), setOf("v_ar")))
         // e->ie for -ar
         add(stemChangingRule(Regex("ie[a-z]*(o|as|a|an)$"), "ie", "e", Regex("(o|as|a|an)$"), "ar", setOf("v_ar"), setOf("v_ar")))
         // o->ue for -ar
         add(stemChangingRule(Regex("ue[a-z]*(o|as|a|an)$"), "ue", "o", Regex("(o|as|a|an)$"), "ar", setOf("v_ar"), setOf("v_ar"), mapOf("jue" to "u")))
 
-        val erPres = suffixInflection("o", "er", setOf("v_er"), setOf("v_er"))
-        val esPres = suffixInflection("es", "er", setOf("v_er"), setOf("v_er"))
-        val ePres = suffixInflection("e", "er", setOf("v_er"), setOf("v_er"))
-        val emosPres = suffixInflection("emos", "er", setOf("v_er"), setOf("v_er"))
-        val eisPres = suffixInflection("éis", "er", setOf("v_er"), setOf("v_er"))
-        val enPres = suffixInflection("en", "er", setOf("v_er"), setOf("v_er"))
+        add(suffixInflection("o", "er", setOf("v_er"), setOf("v_er")))
+        add(suffixInflection("es", "er", setOf("v_er"), setOf("v_er")))
+        add(suffixInflection("e", "er", setOf("v_er"), setOf("v_er")))
+        add(suffixInflection("emos", "er", setOf("v_er"), setOf("v_er")))
+        add(suffixInflection("éis", "er", setOf("v_er"), setOf("v_er")))
+        add(suffixInflection("en", "er", setOf("v_er"), setOf("v_er")))
         add(stemChangingRule(Regex("ie[a-z]*(o|es|e|en)$"), "ie", "e", Regex("(o|es|e|en)$"), "er", setOf("v_er"), setOf("v_er")))
         add(stemChangingRule(Regex("ue[a-z]*(o|es|e|en)$"), "ue", "o", Regex("(o|es|e|en)$"), "er", setOf("v_er"), setOf("v_er"), mapOf("hue" to "o")))
 
-        val irPres = suffixInflection("o", "ir", setOf("v_ir"), setOf("v_ir"))
-        val iesPres = suffixInflection("es", "ir", setOf("v_ir"), setOf("v_ir"))
-        val iePres = suffixInflection("e", "ir", setOf("v_ir"), setOf("v_ir"))
-        val imosPres = suffixInflection("imos", "ir", setOf("v_ir"), setOf("v_ir"))
-        val isPres = suffixInflection("ís", "ir", setOf("v_ir"), setOf("v_ir"))
-        val enIrrPres = suffixInflection("en", "ir", setOf("v_ir"), setOf("v_ir"))
+        add(suffixInflection("o", "ir", setOf("v_ir"), setOf("v_ir")))
+        add(suffixInflection("es", "ir", setOf("v_ir"), setOf("v_ir")))
+        add(suffixInflection("e", "ir", setOf("v_ir"), setOf("v_ir")))
+        add(suffixInflection("imos", "ir", setOf("v_ir"), setOf("v_ir")))
+        add(suffixInflection("ís", "ir", setOf("v_ir"), setOf("v_ir")))
+        add(suffixInflection("en", "ir", setOf("v_ir"), setOf("v_ir")))
         add(stemChangingRule(Regex("ie[a-z]*(o|es|e|en)$"), "ie", "e", Regex("(o|es|e|en)$"), "ir", setOf("v_ir"), setOf("v_ir")))
         add(stemChangingRule(Regex("ue[a-z]*(o|es|e|en)$"), "ue", "o", Regex("(o|es|e|en)$"), "ir", setOf("v_ir"), setOf("v_ir")))
         add(stemChangingRule(Regex("i[a-z]*(o|es|e|en)$"), "i", "e", Regex("(o|es|e|en)$"), "ir", setOf("v_ir"), setOf("v_ir")))
@@ -471,18 +471,12 @@ object SpanishDeinflector : Deinflector {
         add(wholeWordInflection("sepan", "saber", setOf("v"), setOf("v")))
 
         // Imperfect subjunctive
-        for (conj in listOf("ar", "er", "ir")) {
-            val cond = setOf("v_$conj")
-            add(suffixInflection("ara", conj, cond, cond))
-            add(suffixInflection("ase", conj, cond, cond))
-            add(suffixInflection("aras", conj, cond, cond))
-            add(suffixInflection("ases", conj, cond, cond))
-            add(suffixInflection("áramos", conj, cond, cond))
-            add(suffixInflection("ásemos", conj, cond, cond))
-            add(suffixInflection("arais", conj, cond, cond))
-            add(suffixInflection("aseis", conj, cond, cond))
-            add(suffixInflection("aran", conj, cond, cond))
-            add(suffixInflection("asen", conj, cond, cond))
+        for (suffix in listOf("ara", "ase", "aras", "ases", "áramos", "ásemos", "arais", "aseis", "aran", "asen")) {
+            add(suffixInflection(suffix, "ar", setOf("v_ar"), setOf("v_ar")))
+        }
+        for (suffix in listOf("iera", "iese", "ieras", "ieses", "iéramos", "iésemos", "ierais", "ieseis", "ieran", "iesen")) {
+            add(suffixInflection(suffix, "er", setOf("v_er"), setOf("v_er")))
+            add(suffixInflection(suffix, "ir", setOf("v_ir"), setOf("v_ir")))
         }
 
         // Irregular imperfect subjunctive (ser/ir share)

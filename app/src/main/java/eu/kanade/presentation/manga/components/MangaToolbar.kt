@@ -54,6 +54,7 @@ fun MangaToolbar(
     onClickRelatedMangas: (() -> Unit)?,
     onClickSourceSettings: (() -> Unit)?,
     onClearManga: () -> Unit,
+    onClearOcrCache: (() -> Unit)? = null,
     onOpenMangaFolder: (() -> Unit)?,
     // KMK <--
     onClickRecommend: (() -> Unit)?,
@@ -61,6 +62,7 @@ fun MangaToolbar(
     onClickMergedSettings: (() -> Unit)?,
     // SY <--
     onClickDictionaryProfile: (() -> Unit)?,
+    onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
 
     // For action mode
@@ -251,6 +253,14 @@ fun MangaToolbar(
                             onClick = onClearManga,
                         ),
                     )
+                    if (onClearOcrCache != null) {
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(KMR.strings.action_clear_ocr_cache),
+                                onClick = onClearOcrCache,
+                            ),
+                        )
+                    }
                     if (onClickSourceSettings != null) {
                         add(
                             AppBar.OverflowAction(
@@ -264,6 +274,14 @@ fun MangaToolbar(
                             AppBar.OverflowAction(
                                 title = stringResource(MR.strings.pref_dict_profile_override_manga),
                                 onClick = onClickDictionaryProfile,
+                            ),
+                        )
+                    }
+                    if (onClickPreOcr != null) {
+                        add(
+                            AppBar.OverflowAction(
+                                title = stringResource(MR.strings.action_pre_ocr),
+                                onClick = onClickPreOcr,
                             ),
                         )
                     }

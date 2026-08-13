@@ -15,8 +15,11 @@ import eu.kanade.tachiyomi.network.NetworkHelper
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 
 // =============================================================================
 // Legacy FieldType enum for UI backwards compatibility
@@ -194,7 +197,10 @@ object Marker {
 // =============================================================================
 
 sealed class AnkiResult {
-    data class Success(val noteId: Long) : AnkiResult()
+    data class Success(
+        val noteId: Long,
+        val mediaWarnings: List<AnkiMediaWarning> = emptyList(),
+    ) : AnkiResult()
     data class CardExists(val noteId: Long) : AnkiResult()
     data class OpenCard(val noteId: Long) : AnkiResult()
     data class Error(val message: String) : AnkiResult()
@@ -209,8 +215,22 @@ sealed class AnkiResult {
 object AnkiCardCreator {
 
     private const val TAG = "AnkiCardCreator"
-    private const val TRANSPARENT_IMAGE_DATA_URI =
-        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+    private const val SCREENSHOT_MEDIA_PLACEHOLDER = "chimahon_screenshot_pending.webp"
+    private const val WORD_AUDIO_MEDIA_PLACEHOLDER = "chimahon_word_audio_pending.mp3"
+    private const val SENTENCE_AUDIO_MEDIA_PLACEHOLDER = "chimahon_sentence_audio_pending.m4a"
+    private val duplicateGate = AnkiDuplicateGate()
+    @Volatile
+    internal var bridgeFactory: (Context) -> AnkiCardBridge = ::AnkiDroidBridge
+    @Volatile
+    internal var fieldMapParser: (String) -> Map<String, String> = ::parseFieldMap
+
+    internal fun resetBridgeFactoryForTests() {
+        bridgeFactory = ::AnkiDroidBridge
+    }
+
+    internal fun resetFieldMapParserForTests() {
+        fieldMapParser = ::parseFieldMap
+    }
 
     private data class DictionaryMediaReference(
         val dictionary: String,
@@ -267,10 +287,11 @@ object AnkiCardCreator {
         syncOnCreate: Boolean = false,
         profileId: String = "",
         titleId: String? = null,
+        mediaRequest: AnkiMediaRequest? = null,
     ): AnkiResult {
         android.util.Log.d(TAG, "addToAnki: deck=$deck, model=$model, forceOpen=$forceOpen, glossaryIndex=$glossaryIndex")
 
-        val bridge = AnkiDroidBridge(context)
+        val bridge = bridgeFactory(context)
         if (!bridge.hasPermission()) {
             return AnkiResult.PermissionDenied
         }
@@ -295,7 +316,7 @@ object AnkiCardCreator {
                 return AnkiResult.NotConfigured
             }
 
-            val fieldMap = parseFieldMap(effectiveFieldMapJson)
+            val fieldMap = fieldMapParser(effectiveFieldMapJson)
             android.util.Log.d(TAG, "addToAnki: parsed fieldMap=$fieldMap")
             val cloze = if (sentence.isNotEmpty() && offset >= 0) {
                 // Use result.matched (the exact surface form the dictionary engine consumed)
@@ -307,122 +328,136 @@ object AnkiCardCreator {
                 null
             }
 
-            var screenshotFilename: String? = null
-            if (screenshotBytes != null) {
-                try {
-                    screenshotFilename = bridge.storeMedia(
-                        filename = generateScreenshotFilename(screenshotBytes),
-                        data = screenshotBytes,
-                    )
-                    android.util.Log.d(TAG, "addToAnki: stored screenshot media as $screenshotFilename")
-                } catch (e: Exception) {
-                    android.util.Log.w(TAG, "addToAnki: failed to store screenshot media", e)
-                }
-            }
-
-            var wordAudioFilename: String? = null
             val hasWordAudioMarker = fieldMap.values.any {
                 it.contains("{${Marker.WORD_AUDIO}}") || it.contains("{${Marker.AUDIO}}")
             }
-            if (hasWordAudioMarker) {
-                try {
-                    val wordAudioService = Injekt.get<WordAudioService>()
-                    val audioResults = wordAudioService.findWordAudio(result.term.expression, result.term.reading)
-                    if (audioResults.isNotEmpty()) {
-                        // Use the first result (priority order)
-                        val bestAudio = audioResults.first()
-                        val audioData = if (bestAudio.url.startsWith("chimahon-local://")) {
-                            val uri = android.net.Uri.parse(bestAudio.url)
-                            val sourceId = uri.host ?: ""
-                            val filePath = uri.path?.substring(1) ?: ""
-                            wordAudioService.getAudioData(filePath, sourceId)
-                        } else {
-                            wordAudioService.fetchRemoteAudioData(bestAudio.url)
-                        }
-
-                        if (audioData != null) {
-                            val ext = android.net.Uri.parse(bestAudio.url).lastPathSegment
-                                ?.substringAfterLast('.', "mp3")
-                                ?.lowercase() ?: "mp3"
-                            val filename = "chimahon_audio_${result.term.expression}_${result.term.reading}_${System.currentTimeMillis()}.$ext"
-                            wordAudioFilename = bridge.storeMedia(filename, audioData)
-                            android.util.Log.d(TAG, "addToAnki: stored word audio media as $wordAudioFilename")
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w(TAG, "addToAnki: failed to store word audio media", e)
-                }
-            }
-
-            var sentenceAudioFilename: String? = null
             val hasSentenceAudioMarker = fieldMap.values.any { it.contains("{${Marker.SENTENCE_AUDIO}}") }
-            if (hasSentenceAudioMarker && sentenceAudioBytes != null) {
-                try {
-                    sentenceAudioFilename = bridge.storeMedia(
-                        filename = generateSentenceAudioFilename(sentenceAudioBytes, sentenceAudioExtension),
-                        data = sentenceAudioBytes,
-                    )
-                    android.util.Log.d(TAG, "addToAnki: stored sentence audio media as $sentenceAudioFilename")
-                } catch (e: Exception) {
-                    android.util.Log.w(TAG, "addToAnki: failed to store sentence audio media", e)
-                }
-            }
-
-            val exportMedia = ExportMediaContext()
-            val fieldsWithPlaceholders = buildFields(
-                result,
-                fieldMap,
-                cloze,
-                media,
-                screenshotFilename,
-                wordAudioFilename,
-                sentenceAudioFilename,
-                selectedDict,
-                popupSelection,
-                glossaryIndex,
-                styles,
-                exportMedia,
-            )
-            val fields = resolveDictionaryMediaPlaceholders(fieldsWithPlaceholders, exportMedia, bridge)
-            android.util.Log.d(TAG, "addToAnki: built fields=$fields")
-            val resolvedTags = formatField(
-                tags, result, cloze, media, screenshotFilename, wordAudioFilename,
-                sentenceAudioFilename, selectedDict, popupSelection, glossaryIndex,
-                styles, exportMedia,
-            )
-            val tagList = resolvedTags.split(",").map { it.trim() }.filter { it.isNotBlank() }
-
-            if (dupCheck || forceOpen) {
+            val hasScreenshotMarker = fieldMap.values.any { it.contains("{${Marker.SCREENSHOT}}") }
+            val lockKey = "${dupScope.lowercase()}|${if (dupScope == "deck") effectiveDeck else ""}|${result.term.expression}"
+            suspend fun duplicateDecision(): AnkiDuplicateDecision {
+                if (!dupCheck && !forceOpen) return AnkiDuplicateDecision.Insert
                 val targetDeckId = if (dupScope == "deck" && effectiveDeck.isNotBlank()) {
                     try {
                         bridge.getDeckId(effectiveDeck)
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         null
                     }
                 } else {
                     null
                 }
-
                 val existing = bridge.findNotes(result.term.expression, null, targetDeckId)
-                if (existing.isNotEmpty()) {
-                    if (forceOpen) return AnkiResult.OpenCard(existing.first())
-                    when (dupAction) {
-                        "prevent" -> return AnkiResult.CardExists(existing.first())
-                        "open" -> return AnkiResult.OpenCard(existing.first())
-                        "overwrite" -> {
-                            bridge.updateNoteFields(existing.first(), fields)
-                            com.canopus.chimareader.data.AnkiStatsStorage.addCard(context, type, profileId = profileId, titleId = titleId)
-                            if (syncOnCreate) bridge.triggerSync()
-                            return AnkiResult.Success(existing.first())
-                        }
-                    }
+                if (existing.isEmpty()) return AnkiDuplicateDecision.Insert
+                val noteId = existing.first()
+                return when {
+                    forceOpen -> AnkiDuplicateDecision.Return(AnkiResult.OpenCard(noteId))
+                    dupAction == "prevent" -> AnkiDuplicateDecision.Return(AnkiResult.CardExists(noteId))
+                    dupAction == "open" -> AnkiDuplicateDecision.Return(AnkiResult.OpenCard(noteId))
+                    dupAction == "overwrite" -> AnkiDuplicateDecision.Overwrite(noteId)
+                    else -> AnkiDuplicateDecision.Insert
                 }
             }
 
-            val noteId = bridge.addNote(deckName = effectiveDeck, modelName = effectiveModel, fields = fields, tags = tagList)
-            com.canopus.chimareader.data.AnkiStatsStorage.addCard(context, type, profileId = profileId, titleId = titleId)
-            if (syncOnCreate) bridge.triggerSync()
-            AnkiResult.Success(noteId)
+            val firstDecision = duplicateGate.preflight(lockKey, ::duplicateDecision)
+            if (firstDecision is AnkiDuplicateDecision.Return) return firstDecision.result
+
+            val sentenceAudioPreparation = prepareSentenceAudioForMarker(
+                hasSentenceAudioMarker,
+                mediaRequest?.sentenceAudioProvider,
+            ) ?: when {
+                hasSentenceAudioMarker && sentenceAudioBytes != null -> {
+                    AnkiSentenceAudioPreparation.Ready(
+                        AnkiSentenceAudioSource.fromBytes(sentenceAudioBytes, sentenceAudioExtension),
+                    )
+                }
+                else -> null
+            }
+            val exportMedia = ExportMediaContext()
+            val fieldsWithPlaceholders = withContext(Dispatchers.Default) {
+                buildFields(
+                    result,
+                    fieldMap,
+                    cloze,
+                    media,
+                    SCREENSHOT_MEDIA_PLACEHOLDER.takeIf { hasScreenshotMarker },
+                    WORD_AUDIO_MEDIA_PLACEHOLDER.takeIf { hasWordAudioMarker },
+                    SENTENCE_AUDIO_MEDIA_PLACEHOLDER.takeIf { hasSentenceAudioMarker },
+                    selectedDict,
+                    popupSelection,
+                    glossaryIndex,
+                    styles,
+                    exportMedia,
+                )
+            }
+            val tagsWithPlaceholders = withContext(Dispatchers.Default) {
+                // Split configured tags before rendering markers so commas from a
+                // resolved value (for example a title) stay inside one tag.
+                tags.split(",")
+                    .map { template ->
+                        formatField(
+                            template,
+                            result,
+                            cloze,
+                            media,
+                            SCREENSHOT_MEDIA_PLACEHOLDER.takeIf { hasScreenshotMarker },
+                            WORD_AUDIO_MEDIA_PLACEHOLDER.takeIf { hasWordAudioMarker },
+                            SENTENCE_AUDIO_MEDIA_PLACEHOLDER.takeIf { hasSentenceAudioMarker },
+                            selectedDict,
+                            popupSelection,
+                            glossaryIndex,
+                            styles, exportMedia,
+                        )
+                    }
+            }
+            val preparedMedia = PreparedAnkiCardMedia(
+                screenshot = screenshotBytes
+                    ?.let { PreparedAnkiMediaPayload(generateScreenshotFilename(it), it) },
+                wordAudio = if (hasWordAudioMarker) prepareWordAudioPayload(result) else null,
+                dictionaryMedia = prepareDictionaryMedia(exportMedia),
+                sentenceAudio = sentenceAudioPreparation,
+            )
+
+            duplicateGate.commit(lockKey, ::duplicateDecision) { finalDecision ->
+                if (finalDecision is AnkiDuplicateDecision.Return) {
+                    return@commit finalDecision.result
+                }
+                val committedMedia = commitPreparedAnkiCardMedia(
+                    prepared = preparedMedia,
+                    storeBytes = bridge::storeMedia,
+                    storeSentenceAudio = bridge::storeMedia,
+                )
+                val fields = resolveMediaPlaceholders(
+                    resolveDictionaryMediaPlaceholders(fieldsWithPlaceholders, committedMedia.dictionaryReplacementByPlaceholder),
+                    committedMedia,
+                )
+                val tagList = tagsWithPlaceholders
+                    .map { value -> resolveMediaPlaceholders(value, committedMedia) }
+                    .mapNotNull(::normalizeAnkiTag)
+                android.util.Log.d(TAG, "addToAnki: built fields=$fields")
+
+                val noteId = when (finalDecision) {
+                    is AnkiDuplicateDecision.Overwrite -> {
+                        bridge.updateNoteFields(finalDecision.noteId, fields)
+                        finalDecision.noteId
+                    }
+                    AnkiDuplicateDecision.Insert -> bridge.addNote(
+                        deckName = effectiveDeck,
+                        modelName = effectiveModel,
+                        fields = fields,
+                        tags = tagList,
+                    )
+                    is AnkiDuplicateDecision.Return -> error("handled above")
+                }
+                com.canopus.chimareader.data.AnkiStatsStorage.addCard(
+                    context,
+                    type,
+                    profileId = profileId,
+                    titleId = titleId,
+                )
+                if (syncOnCreate) bridge.triggerSync()
+                AnkiResult.Success(noteId, committedMedia.sentenceAudio.warnings)
+            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: SecurityException) {
             AnkiResult.PermissionDenied
         } catch (e: Exception) {
@@ -569,47 +604,84 @@ object AnkiCardCreator {
         }
     }
 
-    private suspend fun resolveDictionaryMediaPlaceholders(
-        fields: Map<String, String>,
+    private suspend fun prepareDictionaryMedia(
         exportMedia: ExportMediaContext,
-        bridge: AnkiDroidBridge,
-    ): Map<String, String> {
+    ): List<PreparedDictionaryMedia> = withContext(Dispatchers.IO) {
         val references = exportMedia.references
-        if (references.isEmpty()) return fields
-
+        if (references.isEmpty()) return@withContext emptyList()
         val session = Injekt.get<DictionaryRepository>().lookupSession
-        val replacements = linkedMapOf<String, String>()
-        for (reference in references) {
-            val replacement = if (session != null) {
-                storeDictionaryMedia(reference, session, bridge)
-            } else {
+        references.map { reference ->
+            val payload = try {
+                session?.let {
+                    HoshiDicts.getMediaFile(it, reference.dictionary, reference.path)
+                }?.let { bytes ->
+                    PreparedAnkiMediaPayload(dictionaryMediaFilename(reference.path, bytes), bytes)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w(TAG, "Failed to prepare dictionary media ${reference.path}", e)
                 null
             }
-            replacements[reference.placeholder] = replacement ?: TRANSPARENT_IMAGE_DATA_URI
-        }
-
-        return fields.mapValues { (_, value) ->
-            replacements.entries.fold(value) { current, (placeholder, replacement) ->
-                current.replace(placeholder, replacement)
-            }
+            PreparedDictionaryMedia(reference.placeholder, payload)
         }
     }
 
-    private suspend fun storeDictionaryMedia(
-        reference: DictionaryMediaReference,
-        session: Long,
-        bridge: AnkiDroidBridge,
-    ): String? = try {
-        val bytes = HoshiDicts.getMediaFile(session, reference.dictionary, reference.path)
-        if (bytes != null) {
-            bridge.storeMedia(dictionaryMediaFilename(reference.path, bytes), bytes)
+    private suspend fun prepareWordAudioPayload(result: LookupResult): PreparedAnkiMediaPayload? = try {
+        val service = Injekt.get<WordAudioService>()
+        val bestAudio = service.findWordAudio(result.term.expression, result.term.reading).firstOrNull()
+            ?: return null
+        val data = if (bestAudio.url.startsWith("chimahon-local://")) {
+            val uri = android.net.Uri.parse(bestAudio.url)
+            service.getAudioData(uri.path?.substring(1).orEmpty(), uri.host.orEmpty())
         } else {
-            null
-        }
+            service.fetchRemoteAudioData(bestAudio.url)
+        } ?: return null
+        val extension = android.net.Uri.parse(bestAudio.url).lastPathSegment
+            ?.substringAfterLast('.', "mp3")
+            ?.let { AnkiSentenceAudioSource.safeExtension(it, "mp3") }
+            ?: "mp3"
+        PreparedAnkiMediaPayload(
+            "chimahon_audio_${result.term.expression}_${result.term.reading}_${System.currentTimeMillis()}.$extension",
+            data,
+        )
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
-        android.util.Log.w(TAG, "Failed to store dictionary media ${reference.path}", e)
+        android.util.Log.w(TAG, "addToAnki: failed to prepare word audio media", e)
         null
     }
+
+    private fun resolveDictionaryMediaPlaceholders(
+        fields: Map<String, String>,
+        replacements: Map<String, String>,
+    ): Map<String, String> = fields.mapValues { (_, value) ->
+        replacements.entries.fold(value) { current, (placeholder, replacement) ->
+            current.replace(placeholder, replacement)
+        }
+    }
+
+    private fun resolveMediaPlaceholders(
+        value: String,
+        media: CommittedAnkiCardMedia,
+    ): String =
+        value
+            .resolveImagePlaceholder(SCREENSHOT_MEDIA_PLACEHOLDER, media.screenshotFilename)
+            .resolveSoundPlaceholder(WORD_AUDIO_MEDIA_PLACEHOLDER, media.wordAudioFilename)
+            .resolveSoundPlaceholder(SENTENCE_AUDIO_MEDIA_PLACEHOLDER, media.sentenceAudio.filename)
+
+    private fun resolveMediaPlaceholders(
+        fields: Map<String, String>,
+        media: CommittedAnkiCardMedia,
+    ): Map<String, String> = fields.mapValues { (_, value) ->
+        resolveMediaPlaceholders(value, media)
+    }
+
+    private fun String.resolveImagePlaceholder(placeholder: String, filename: String?): String =
+        if (filename == null) replace("<img src=\"$placeholder\">", "").replace(placeholder, "") else replace(placeholder, filename)
+
+    private fun String.resolveSoundPlaceholder(placeholder: String, filename: String?): String =
+        if (filename == null) replace("[sound:$placeholder]", "").replace(placeholder, "") else replace(placeholder, filename)
 
     private fun dictionaryMediaFilename(path: String, bytes: ByteArray): String {
         val extension = path.substringBefore('?')
@@ -955,68 +1027,97 @@ object AnkiCardCreator {
         if (expression.isBlank()) return ""
         if (reading.isBlank() || expression == reading) return expression
         val segments = distributeFurigana(expression, reading)
-        return segments.joinToString("") { (text, furigana) ->
-            if (furigana.isNotEmpty()) "$text[$furigana]" else "$text "
-        }.trimEnd()
+        return buildString {
+            for ((text, furigana) in segments) {
+                if (furigana.isNotEmpty()) append(text).append('[').append(furigana).append(']')
+                else append(text).append(' ')
+            }
+        }
     }
 
-    private fun distributeFurigana(expression: String, reading: String): List<Pair<String, String>> {
-        val exprChars = expression.toList()
-        val result = mutableListOf<Pair<String, String>>()
-        var i = 0
-        var readingPos = 0
+    private data class FuriganaGroup(val isKanji: Boolean, val text: String, val normalized: String?)
 
-        while (i < exprChars.size) {
-            val ch = exprChars[i]
-            when {
-                isKana(ch) -> {
-                    val kana = toHiragana(ch.toString())
-                    if (readingPos < reading.length && reading.startsWith(kana, readingPos)) {
-                        readingPos += kana.length
-                    }
-                    result.add(ch.toString() to "")
-                    i++
-                }
-                isKanji(ch) -> {
-                    val kanjiEnd = findNextKana(exprChars, i + 1)
-                    val kanjiStr = exprChars.subList(i, kanjiEnd).joinToString("")
-                    val readingEnd = if (kanjiEnd < exprChars.size) {
-                        val nextKanaHiragana = toHiragana(exprChars[kanjiEnd].toString())
-                        findReadingEndBefore(reading, readingPos, nextKanaHiragana)
-                    } else {
-                        reading.length
-                    }
-                    result.add(kanjiStr to reading.substring(readingPos, readingEnd))
-                    readingPos = readingEnd
-                    i = kanjiEnd
-                }
-                else -> {
-                    result.add(ch.toString() to "")
-                    i++
-                }
+    private fun distributeFurigana(expression: String, reading: String): List<Pair<String, String>> {
+        if (reading == expression) return listOf(expression to "")
+        val groups = mutableListOf<FuriganaGroup>()
+        for (char in expression) {
+            val kanji = isKanji(char)
+            if (groups.lastOrNull()?.isKanji == kanji) {
+                val previous = groups.removeAt(groups.lastIndex)
+                val text = previous.text + char
+                groups += FuriganaGroup(kanji, text, if (!kanji) toHiragana(text) else null)
+            } else {
+                groups += FuriganaGroup(kanji, char.toString(), if (!kanji) toHiragana(char.toString()) else null)
             }
+        }
+        return segmentizeFurigana(reading, toHiragana(reading), groups, 0)
+            ?: listOf(expression to reading)
+    }
+
+    private fun segmentizeFurigana(
+        reading: String,
+        readingNormalized: String,
+        groups: List<FuriganaGroup>,
+        start: Int,
+    ): List<Pair<String, String>>? {
+        if (start >= groups.size) return if (reading.isEmpty()) emptyList() else null
+        val group = groups[start]
+        if (!group.isKanji) {
+            if (group.normalized == null || !readingNormalized.startsWith(group.normalized)) return null
+            val tail = segmentizeFurigana(
+                reading.substring(group.text.length),
+                readingNormalized.substring(group.text.length),
+                groups,
+                start + 1,
+            )?.toMutableList() ?: return null
+            if (reading.startsWith(group.text)) {
+                tail.add(0, group.text to "")
+            } else {
+                tail.addAll(0, getFuriganaKanaSegments(group.text, reading))
+            }
+            return tail
+        }
+
+        var result: List<Pair<String, String>>? = null
+        for (i in reading.length downTo group.text.length) {
+            val tail = segmentizeFurigana(reading.substring(i), readingNormalized.substring(i), groups, start + 1)
+                ?: continue
+            if (result != null) return null
+            result = tail.toMutableList().also { it.add(0, group.text to reading.substring(0, i)) }
+            if (groups.size - start == 1) break
         }
         return result
     }
 
-    private fun isKana(ch: Char) = ch.code in 0x3040..0x309F || ch.code in 0x30A0..0x30FF
-    private fun isKanji(ch: Char) = ch.code in 0x4E00..0x9FAF || ch.code in 0x3400..0x4DBF
+    private fun getFuriganaKanaSegments(text: String, reading: String): List<Pair<String, String>> {
+        val result = mutableListOf<Pair<String, String>>()
+        var start = 0
+        var state = reading.firstOrNull() == text.firstOrNull()
+        for (i in 1 until text.length) {
+            val nextState = reading.getOrNull(i) == text[i]
+            if (nextState != state) {
+                result += text.substring(start, i) to if (state) "" else reading.substring(start, i.coerceAtMost(reading.length))
+                start = i
+                state = nextState
+            }
+        }
+        result += text.substring(start) to if (state) "" else reading.substring(start.coerceAtMost(reading.length))
+        return result
+    }
+
+    private fun isKanji(ch: Char) =
+        ch.code in 0x4E00..0x9FFF ||
+            ch.code in 0x3400..0x4DBF ||
+            ch.code in 0xF900..0xFAFF ||
+            ch == '\u3005'
 
     private fun toHiragana(str: String) = str.map { ch ->
         if (ch.code in 0x30A1..0x30F6) (ch.code - 0x60).toChar() else ch
     }.joinToString("")
 
-    private fun findNextKana(chars: List<Char>, start: Int): Int {
-        var i = start
-        while (i < chars.size && !isKana(chars[i])) i++
-        return i
-    }
-
-    private fun findReadingEndBefore(reading: String, start: Int, nextKana: String): Int {
-        if (nextKana.isEmpty()) return reading.length
-        val idx = reading.indexOf(nextKana, start)
-        return if (idx >= 0) idx else reading.length
-    }
+    private fun normalizeAnkiTag(value: String): String? = value.trim()
+        .replace(Regex("\\s+"), "_")
+        .takeIf { it.isNotBlank() }
 
     // =============================================================================
     // Sentence Furigana
@@ -2072,7 +2173,21 @@ object AnkiCardCreator {
         } catch (e: Exception) {
             "screenshot_${System.currentTimeMillis()}"
         }
-        return "chimahon_$hash.webp"
+        val extension = if (isAvif(bytes)) "avif" else "webp"
+        return "chimahon_$hash.$extension"
+    }
+
+    private fun isAvif(bytes: ByteArray): Boolean {
+        // ftyp box: 4-byte size + "ftyp" at offset 4
+        return bytes.size >= 12 &&
+            bytes[4] == 'f'.code.toByte() &&
+            bytes[5] == 't'.code.toByte() &&
+            bytes[6] == 'y'.code.toByte() &&
+            bytes[7] == 'p'.code.toByte() &&
+            bytes[8] == 'a'.code.toByte() &&
+            bytes[9] == 'v'.code.toByte() &&
+            bytes[10] == 'i'.code.toByte() &&
+            bytes[11] == 's'.code.toByte()
     }
 
     private fun generateSentenceAudioFilename(bytes: ByteArray, extension: String): String {

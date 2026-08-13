@@ -64,7 +64,6 @@ import eu.kanade.tachiyomi.di.AppModule
 import eu.kanade.tachiyomi.di.PreferenceModule
 import eu.kanade.tachiyomi.di.SYPreferenceModule
 import eu.kanade.tachiyomi.network.NetworkHelper
-import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.ui.base.delegate.SecureActivityDelegate
 import eu.kanade.tachiyomi.util.CrashLogUtil
 import eu.kanade.tachiyomi.util.system.DeviceUtil
@@ -75,8 +74,6 @@ import eu.kanade.tachiyomi.util.system.cancelNotification
 import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.isPreviewBuildType
 import eu.kanade.tachiyomi.util.system.notify
-import eu.kanade.tachiyomi.util.system.telemetryIncluded
-import exh.log.CrashlyticsPrinter
 import exh.log.EHLogLevel
 import exh.log.EnhancedFilePrinter
 import exh.log.XLogLogcatLogger
@@ -89,7 +86,6 @@ import logcat.LogPriority
 import logcat.LogcatLogger
 import mihon.core.migration.Migrator
 import mihon.core.migration.migrations.migrations
-import mihon.telemetry.TelemetryConfig
 import org.conscrypt.Conscrypt
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.core.common.preference.Preference
@@ -112,7 +108,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     private val basePreferences: BasePreferences by injectLazy()
     private val privacyPreferences: PrivacyPreferences by injectLazy()
-    private val networkPreferences: NetworkPreferences by injectLazy()
 
     private val disableIncognitoReceiver = DisableIncognitoReceiver()
 
@@ -120,11 +115,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
     override fun onCreate() {
         super<Application>.onCreate()
         patchInjekt()
-        TelemetryConfig.init(
-            applicationContext,
-            isPreviewBuildType,
-            BuildConfig.COMMIT_COUNT,
-        )
 
         // KMK -->
         if (isDebugBuildType) Timber.plant(Timber.DebugTree())
@@ -158,7 +148,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         setupExhLogging() // EXH logging
         if (!LogcatLogger.isInstalled) {
             val minLogPriority = when {
-                networkPreferences.verboseLogging().get() -> LogPriority.VERBOSE
+                // KMK -->
+                EHLogLevel.isExtraLogging() -> LogPriority.VERBOSE
+                // KMK <--
                 BuildConfig.DEBUG -> LogPriority.DEBUG
                 else -> LogPriority.INFO
             }
@@ -202,16 +194,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                     cancelNotification(Notifications.ID_INCOGNITO_MODE)
                 }
             }
-            .launchIn(scope)
-
-        privacyPreferences.analytics()
-            .changes()
-            .onEach(TelemetryConfig::setAnalyticsEnabled)
-            .launchIn(scope)
-
-        privacyPreferences.crashlytics()
-            .changes()
-            .onEach(TelemetryConfig::setCrashlyticsEnabled)
             .launchIn(scope)
 
         basePreferences.hardwareBitmapThreshold().let { preference ->
@@ -305,7 +287,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
             crossfade((300 * this@App.animatorDurationScale).toInt())
             allowRgb565(DeviceUtil.isLowRamDevice(this@App))
-            if (networkPreferences.verboseLogging().get()) logger(DebugLogger())
+            // KMK -->
+            if (EHLogLevel.isExtraLogging()) logger(DebugLogger())
+            // KMK <--
 
             // Coil spawns a new thread for every image load by default
             fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(8))
@@ -368,11 +352,18 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
     // EXH
     private fun setupExhLogging() {
-        EHLogLevel.init(this)
+        EHLogLevel.init(
+            this,
+            // KMK -->
+            isDebugBuildType = isDebugBuildType,
+            // KMK <--
+        )
 
         val logLevel = when {
-            EHLogLevel.shouldLog(EHLogLevel.EXTREME) -> LogLevel.ALL
-            EHLogLevel.shouldLog(EHLogLevel.EXTRA) || isDebugBuildType -> LogLevel.DEBUG
+            // KMK -->
+            EHLogLevel.isExtremeLogging() -> LogLevel.ALL
+            EHLogLevel.isExtraLogging() -> LogLevel.DEBUG
+            // KMK <--
             else -> LogLevel.WARN
         }
 
@@ -404,11 +395,6 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
                     }
                     backupStrategy = NeverBackupStrategy()
                 }
-        }
-
-        // Install Crashlytics in prod
-        if (telemetryIncluded) {
-            printers += CrashlyticsPrinter(LogLevel.ERROR)
         }
 
         XLog.init(

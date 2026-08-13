@@ -192,6 +192,9 @@ object SettingsReaderScreen : SearchableSettings {
         val flashIntervalPref = readerPreferences.flashPageInterval()
         val flashInterval by flashIntervalPref.collectAsState()
 
+        val flashDelayPref = readerPreferences.flashDelayMillis()
+        val flashDelayMillis by flashDelayPref.collectAsState()
+
         val flashColorPref = readerPreferences.flashColor()
 
         return Preference.PreferenceGroup(
@@ -211,6 +214,14 @@ object SettingsReaderScreen : SearchableSettings {
                     onValueChanged = { flashMillisPref.set(it * ReaderPreferences.MILLI_CONVERSION) },
                 ),
                 Preference.PreferenceItem.SliderPreference(
+                    value = flashDelayMillis / ReaderPreferences.MILLI_CONVERSION,
+                    valueRange = 0..10,
+                    title = stringResource(MR.strings.pref_flash_delay),
+                    valueString = stringResource(MR.strings.pref_flash_delay_summary, flashDelayMillis),
+                    enabled = flashPageState,
+                    onValueChanged = { flashDelayPref.set(it * ReaderPreferences.MILLI_CONVERSION) },
+                ),
+                Preference.PreferenceItem.SliderPreference(
                     value = flashInterval,
                     valueRange = 1..10,
                     title = stringResource(MR.strings.pref_flash_page_interval),
@@ -228,6 +239,10 @@ object SettingsReaderScreen : SearchableSettings {
                     ),
                     title = stringResource(MR.strings.pref_flash_with),
                     enabled = flashPageState,
+                ),
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = readerPreferences.flashOnScroll(),
+                    title = stringResource(MR.strings.pref_flash_on_scroll),
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = readerPreferences.eInkMode(),
@@ -658,6 +673,11 @@ object SettingsReaderScreen : SearchableSettings {
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_ocr),
             preferenceItems = persistentListOf(
+                Preference.PreferenceItem.SwitchPreference(
+                    preference = readerPreferences.ocrTwoFingerGestureEnabled(),
+                    title = stringResource(MR.strings.pref_ocr_two_finger_gesture),
+                    subtitle = stringResource(MR.strings.pref_ocr_two_finger_gesture_summary),
+                ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = readerPreferences.ocrAutoOnDownload(),
                     title = stringResource(MR.strings.pref_ocr_auto_on_download),

@@ -53,6 +53,7 @@ import eu.kanade.presentation.util.isTabletUi
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.animesource.model.FetchType
 import eu.kanade.tachiyomi.animesource.online.AnimeHttpSource
+import eu.kanade.tachiyomi.ui.browse.animesource.AnimeSourceScreenProvider
 import eu.kanade.tachiyomi.ui.browse.animesource.browse.BrowseAnimeSourceScreen
 import eu.kanade.tachiyomi.ui.browse.animesource.globalsearch.GlobalAnimeSearchScreen
 import eu.kanade.tachiyomi.ui.category.CategoryScreen
@@ -78,6 +79,8 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.screens.LoadingScreen
 import tachiyomi.source.local.entries.anime.isLocal
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 class AnimeScreen(
     private val animeId: Long,
@@ -112,6 +115,7 @@ class AnimeScreen(
 
         val successState = state as AnimeScreenModel.State.Success
         val isAnimeHttpSource = remember { successState.source is AnimeHttpSource }
+        val isAnimeSourceScreenProvider = remember { successState.source is AnimeSourceScreenProvider }
         var showScanlatorFilterDialog by rememberSaveable { mutableStateOf(false) }
 
         LaunchedEffect(successState.anime, screenModel.source) {
@@ -158,7 +162,7 @@ class AnimeScreen(
                         screenModel.anime,
                         screenModel.source,
                     )
-                }.takeIf { isAnimeHttpSource },
+                }.takeIf { isAnimeHttpSource || isAnimeSourceScreenProvider },
                 onWebViewLongClicked = {
                     copyAnimeUrl(
                         context,
@@ -206,6 +210,8 @@ class AnimeScreen(
                 }.takeIf { successState.anime.favorite },
                 changeAnimeSkipIntro = screenModel::showAnimeSkipIntroDialog
                     .takeIf { successState.anime.favorite && successState.anime.fetchType == FetchType.Episodes },
+                onClickDictionaryProfile = screenModel::showSetDictionaryProfileDialog
+                    .takeIf { successState.anime.favorite },
                 onMultiBookmarkClicked = screenModel::bookmarkEpisodes,
                 onMultiFillermarkClicked = screenModel::fillermarkEpisodes,
                 onMultiMarkAsSeenClicked = screenModel::markEpisodesSeen,
@@ -375,6 +381,22 @@ class AnimeScreen(
                         .takeIf { screenModel.isUpdateIntervalEnabled },
                 )
             }
+            is AnimeScreenModel.Dialog.SetDictionaryProfile -> {
+                val prefs = remember { Injekt.get<eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences>() }
+                val profiles = remember { prefs.profileStore.getProfiles() }
+                val overrideId = remember {
+                    prefs.rawProfileOverride(
+                        chimahon.dictionary.DictionaryProfileResolver.animeOverrideKey(dialog.anime.id),
+                    ).get()
+                }
+                eu.kanade.presentation.manga.components.DictionaryProfileDialog(
+                    profiles = profiles,
+                    currentOverrideId = overrideId,
+                    resolvedAutoProfile = screenModel.resolveAutoProfile(dialog.anime.source),
+                    onDismissRequest = onDismissRequest,
+                    onConfirm = screenModel::setAnimeDictionaryProfile,
+                )
+            }
             AnimeScreenModel.Dialog.ChangeAnimeSkipIntro -> {
                 fun updateSkipIntroLength(newLength: Long) {
                     scope.launchIO {
@@ -467,12 +489,20 @@ class AnimeScreen(
 
     private fun openAnimeInWebView(navigator: Navigator, anime_: Anime?, source_: AnimeSource?) {
         getAnimeUrl(anime_, source_)?.let { url ->
+            val animeSourceScreenProvider = source_ as? AnimeSourceScreenProvider
             navigator.push(
-                WebViewScreen(
-                    url = url,
-                    initialTitle = anime_?.title,
-                    sourceId = source_?.id,
-                ),
+                if (animeSourceScreenProvider != null)
+                {
+                    animeSourceScreenProvider.createBrowseScreen(null, anime_?.url)
+                }
+                else
+                {
+                    WebViewScreen(
+                        url = url,
+                        initialTitle = anime_?.title,
+                        sourceId = source_?.id,
+                    )
+                }
             )
         }
     }
