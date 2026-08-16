@@ -88,8 +88,23 @@ private data class TabLookupFrame(
     val styles: List<DictionaryStyle>,
     val mediaDataUris: Map<String, String>,
     val existingExpressions: Set<String>,
+    val existingCardIds: Map<String, Long>,
     val entryJsons: List<String>? = null,
 )
+
+internal fun cacheAnkiResultNoteId(
+    existingCardIds: Map<String, Long>,
+    expression: String,
+    ankiResult: AnkiResult,
+): Map<String, Long> {
+    val noteId = when (ankiResult) {
+        is AnkiResult.Success -> ankiResult.noteId
+        is AnkiResult.CardExists -> ankiResult.noteId
+        is AnkiResult.OpenCard -> ankiResult.noteId
+        else -> return existingCardIds
+    }
+    return existingCardIds + (expression to noteId)
+}
 
 
 private var cachedDictionaryPaths: chimahon.DictionaryPaths? = null
@@ -243,6 +258,7 @@ data object DictionaryTab : Tab {
         val showPitchNumber by dictionaryPreferences.showPitchNumber().collectAsState()
         val showPitchText by dictionaryPreferences.showPitchText().collectAsState()
         val groupTerms by dictionaryPreferences.groupTerms().collectAsState()
+        val compactGlossary by dictionaryPreferences.compactGlossary().collectAsState()
         val recursiveNavMode by dictionaryPreferences.recursiveLookupMode().collectAsState()
         val popupFontSizePref by dictionaryPreferences.fontSize().collectAsState()
         val customCss by dictionaryPreferences.customCss().collectAsState()
@@ -294,6 +310,7 @@ data object DictionaryTab : Tab {
                         styles = emptyList(),
                         mediaDataUris = emptyMap(),
                         existingExpressions = emptySet(),
+                        existingCardIds = emptyMap(),
                         entryJsons = jsonStrings,
                     )
                     lookupError = null
@@ -311,6 +328,7 @@ data object DictionaryTab : Tab {
                         styles = lookupResult.styles,
                         mediaDataUris = lookupResult.mediaDataUris,
                         existingExpressions = emptySet(),
+                        existingCardIds = emptyMap(),
                     )
                     lookupError = lookupResult.error
                 }
@@ -345,7 +363,7 @@ data object DictionaryTab : Tab {
                 if (ankiEnabled && type != "kanji" && initialFrame.results.isNotEmpty()) {
                     val unique = initialFrame.results.map { it.term.expression }.distinct()
                     scope.launch(Dispatchers.IO) {
-                        val existing = AnkiCardCreator.checkExistingCards(
+                        val existingCardIds = AnkiCardCreator.checkExistingCardIds(
                             context = context,
                             expressions = unique,
                             deckName = ankiDeck,
@@ -354,7 +372,10 @@ data object DictionaryTab : Tab {
                         withContext(Dispatchers.Main) {
                             // Only update if we are still on the same frame
                             if (activeTabIndex < lookupStack.size && lookupStack[activeTabIndex].query == rawQuery) {
-                                lookupStack[activeTabIndex] = lookupStack[activeTabIndex].copy(existingExpressions = existing)
+                                lookupStack[activeTabIndex] = lookupStack[activeTabIndex].copy(
+                                    existingExpressions = existingCardIds.keys,
+                                    existingCardIds = existingCardIds,
+                                )
                             }
                         }
                     }
@@ -419,6 +440,25 @@ data object DictionaryTab : Tab {
                     val frameIndex = activeTabIndex
                     val expression = result.term.expression
                     scope.launch {
+                        if (forceOpen) {
+                            val cachedNoteId = lookupStack.getOrNull(frameIndex)?.existingCardIds?.get(expression)
+                            val noteId = cachedNoteId ?: AnkiCardCreator.findExistingCardId(
+                                context = context,
+                                expression = expression,
+                                deckName = ankiDeck,
+                                dupScope = ankiDupScope,
+                            ) ?: return@launch
+                            val frame = lookupStack.getOrNull(frameIndex)
+                            if (frame?.results?.getOrNull(resultIndex)?.term?.expression == expression) {
+                                lookupStack[frameIndex] = frame.copy(
+                                    existingExpressions = frame.existingExpressions + expression,
+                                    existingCardIds = frame.existingCardIds + (expression to noteId),
+                                )
+                            }
+                            AnkiDroidBridge(context).guiEditNote(noteId)
+                            return@launch
+                        }
+
                         val ankiResult = AnkiCardCreator.addToAnki(
                             context = context,
                             result = result,
@@ -442,7 +482,14 @@ data object DictionaryTab : Tab {
                             val frame = lookupStack.getOrNull(frameIndex)
                             if (frame?.results?.getOrNull(resultIndex)?.term?.expression == expression) {
                                 val newExisting = frame.existingExpressions + expression
-                                lookupStack[frameIndex] = frame.copy(existingExpressions = newExisting)
+                                lookupStack[frameIndex] = frame.copy(
+                                    existingExpressions = newExisting,
+                                    existingCardIds = cacheAnkiResultNoteId(
+                                        frame.existingCardIds,
+                                        expression,
+                                        ankiResult,
+                                    ),
+                                )
                             }
                         }
                         when (ankiResult) {
@@ -703,7 +750,7 @@ data object DictionaryTab : Tab {
                         if (activeTabIndex > 0) activeTabIndex--
                     },
                     groupPitches = groupPitches,
-                    forceDefaultTheme = true,
+                    forceDefaultTheme = false,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),

@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.player.sentenceaudio
 
 import android.content.Context
 import android.net.Uri
+import com.arthenica.ffmpegkit.FFmpegKitConfig
 import java.io.File
 
 internal class AndroidSentenceAudioInputAcquirer(
@@ -26,14 +27,11 @@ internal class AndroidSentenceAudioInputAcquirer(
     }
 
     private fun acquireContentUri(value: String): SentenceAudioInputLease? {
-        val descriptor = runCatching {
-            applicationContext.contentResolver.openFileDescriptor(Uri.parse(value), "r")
+        val ffmpegValue = runCatching {
+            FFmpegKitConfig.getSafParameterForRead(applicationContext, Uri.parse(value))
         }.getOrNull() ?: return null
-        return object : SentenceAudioInputLease {
-            override val ffmpegValue = "/proc/self/fd/${descriptor.fd}"
-            override val tlsCaFile: String? = null
-            override fun close() = descriptor.close()
-        }
+        if (ffmpegValue.isBlank()) return null
+        return lease(ffmpegValue)
     }
 
     private fun lease(value: String, caFile: String? = null): SentenceAudioInputLease = object : SentenceAudioInputLease {

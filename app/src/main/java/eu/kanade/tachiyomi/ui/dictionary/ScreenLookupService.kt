@@ -58,6 +58,7 @@ import kotlin.math.roundToInt
 
 object ScreenLookupServiceState {
     val isRunning = MutableStateFlow(false)
+    var isEntryInProgress = false
 }
 
 class ScreenLookupService : Service() {

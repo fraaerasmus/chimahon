@@ -153,6 +153,14 @@ android {
                 "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
             )
         }
+        jniLibs {
+            // LiteRT natives are downloaded at runtime, not bundled in the APK
+            excludes += setOf(
+                "**/libLiteRt.so",
+                "**/libLiteRtClGlAccelerator.so",
+                "**/liblitert_jni.so",
+            )
+        }
     }
 
     dependenciesInfo {

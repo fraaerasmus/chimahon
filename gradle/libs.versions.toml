@@ -23,6 +23,7 @@ media = "1.7.1"
 truetypeparser = "2.1.4"
 ffmpeg-kit = "1.17"
 libavif = "1.0.0"
+litert = "2.1.6"
 
 [libraries]
 desugar = "com.android.tools:desugar_jdk_libs_nio:2.1.5"
@@ -109,6 +110,8 @@ logcat = "com.squareup.logcat:logcat:0.4"
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebase-bom" }
 firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
 firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
+
+litert = { module = "com.google.ai.edge.litert:litert", version.ref = "litert" }
 
 aboutLibraries-compose = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutlib_version" }
 

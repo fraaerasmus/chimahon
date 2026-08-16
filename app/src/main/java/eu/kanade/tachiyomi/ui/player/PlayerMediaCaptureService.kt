@@ -20,7 +20,7 @@ import eu.kanade.tachiyomi.ui.player.sentenceaudio.SentenceAudioInputSnapshot
 import eu.kanade.tachiyomi.ui.player.sentenceaudio.SentenceAudioMpvSnapshot
 import eu.kanade.tachiyomi.ui.player.sentenceaudio.createSentenceAudioDiagnosticLogger
 import eu.kanade.tachiyomi.ui.player.sentenceaudio.resolveSeekability
-import eu.kanade.tachiyomi.util.storage.toFFmpegString
+import eu.kanade.tachiyomi.util.storage.toFFmpegReadString
 import `is`.xyz.mpv.MPVLib
 import chimahon.anki.AnkiMediaRequest
 import chimahon.anki.AnkiSentenceAudioPreparation
@@ -138,7 +138,7 @@ internal class PlayerMediaCaptureService(
                     ?.takeIf { it.isNotBlank() }
                     ?: video.videoUrl
                 val input = when {
-                    video.videoUrl.startsWith("content://") -> Uri.parse(video.videoUrl).toFFmpegString(context)
+                    video.videoUrl.startsWith("content://") -> Uri.parse(video.videoUrl).toFFmpegReadString(context)
                     rawInput.startsWith("file://") -> Uri.parse(rawInput).path ?: rawInput
                     else -> rawInput
                 }.replace("\"", "\\\"")

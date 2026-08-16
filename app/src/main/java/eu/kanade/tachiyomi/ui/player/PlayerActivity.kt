@@ -964,10 +964,6 @@ class PlayerActivity : BaseActivity() {
     internal fun onObserverEvent(property: String, value: Long) {
         if (player.isExiting) return
         when (property) {
-            "time-pos" -> {
-                viewModel.updatePlayBackPos(value.toFloat())
-                viewModel.setChapter(value.toFloat())
-            }
             "demuxer-cache-time" -> viewModel.updateReadAhead(value = value)
             "volume" -> viewModel.setMPVVolume(value.toInt())
             "volume-max" -> viewModel.volumeBoostCap = value.toInt() - 100
@@ -1047,6 +1043,10 @@ class PlayerActivity : BaseActivity() {
     internal fun onObserverEvent(property: String, value: Double) {
         if (player.isExiting) return
         when (property) {
+            "time-pos" -> {
+                viewModel.updatePlayBackPos(value.toFloat())
+                viewModel.setChapter(value.toFloat())
+            }
             "speed" -> viewModel.playbackSpeed.update { value.toFloat() }
             "video-params/aspect" -> if (isPipSupportedAndEnabled) createPipParams()
         }

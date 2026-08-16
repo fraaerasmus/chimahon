@@ -100,6 +100,7 @@ object Marker {
     const val MISC_INFO = "misc-info"
     const val POPUP_SELECTION_TEXT = "popup-selection-text"
     const val SELECTED_GLOSSARY = "selected-glossary"
+    const val SELECTED_GLOSSARY_NO_FALLBACK = "selected-glossary-no-fallback"
     const val MEDIA_NAME = "media-name"
     const val WORD_AUDIO = "word-audio"
     const val SENTENCE_AUDIO = "sentence-audio"
@@ -107,7 +108,7 @@ object Marker {
     val ALL: List<String> = listOf(
         // Core/Common
         EXPRESSION, READING, GLOSSARY, SENTENCE, SCREENSHOT, WORD_AUDIO, AUDIO,
-        SELECTED_GLOSSARY, SINGLE_GLOSSARY,
+        SELECTED_GLOSSARY, SELECTED_GLOSSARY_NO_FALLBACK, SINGLE_GLOSSARY,
 
         // Furigana
         FURIGANA, FURIGANA_PLAIN,
@@ -480,10 +481,22 @@ object AnkiCardCreator {
         expressions: List<String>,
         deckName: String = "",
         dupScope: String = "collection",
-    ): Set<String> {
-        val existing = mutableSetOf<String>()
+    ): Set<String> = checkExistingCardIds(
+        context = context,
+        expressions = expressions,
+        deckName = deckName,
+        dupScope = dupScope,
+    ).keys
 
-        val bridge = AnkiDroidBridge(context)
+    suspend fun checkExistingCardIds(
+        context: Context,
+        expressions: List<String>,
+        deckName: String = "",
+        dupScope: String = "collection",
+    ): Map<String, Long> {
+        val existing = linkedMapOf<String, Long>()
+
+        val bridge = bridgeFactory(context)
         if (!bridge.hasPermission()) return existing
 
         val targetDeckId = if (dupScope == "deck" && deckName.isNotBlank()) {
@@ -499,14 +512,39 @@ object AnkiCardCreator {
         for (expr in expressions.distinct()) {
             try {
                 val notes = bridge.findNotes(expr, null, targetDeckId)
-                if (notes.isNotEmpty()) {
-                    existing.add(expr)
-                }
+                notes.firstOrNull()?.let { noteId -> existing[expr] = noteId }
             } catch (e: Exception) {
                 android.util.Log.w(TAG, "checkExistingCards failed for expr=$expr", e)
             }
         }
         return existing
+    }
+
+    suspend fun findExistingCardId(
+        context: Context,
+        expression: String,
+        deckName: String = "",
+        dupScope: String = "collection",
+    ): Long? {
+        val bridge = bridgeFactory(context)
+        if (!bridge.hasPermission()) return null
+
+        val targetDeckId = if (dupScope == "deck" && deckName.isNotBlank()) {
+            try {
+                bridge.getDeckId(deckName)
+            } catch (_: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+
+        return try {
+            bridge.findNotes(expression, null, targetDeckId).firstOrNull()
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "findExistingCardId failed for expr=$expression", e)
+            null
+        }
     }
 
     fun parseFieldMap(json: String): Map<String, String> {
@@ -904,6 +942,22 @@ object AnkiCardCreator {
                 )
             } else {
                 renderMarker(Marker.GLOSSARY_FIRST, result, glossaryIndex = glossaryIndex, styles = styles, exportMedia = exportMedia)
+            }
+        }
+        Marker.SELECTED_GLOSSARY_NO_FALLBACK -> {
+            val selected = selectedDict?.takeIf { it.isNotBlank() }
+            if (selected != null) {
+                buildGlossary(
+                    result.term.glossaries,
+                    brief = false,
+                    noDictTag = false,
+                    firstOnly = false,
+                    dictionaryFilter = selected,
+                    styles = styles,
+                    exportMedia = exportMedia,
+                )
+            } else {
+                ""
             }
         }
         else -> parseDynamicMarker(marker, result, styles, exportMedia)

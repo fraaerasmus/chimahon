@@ -1,5 +1,6 @@
 package eu.kanade.domain
 
+import android.app.Application
 import eu.kanade.domain.entries.anime.interactor.SetAnimeViewerFlags
 import eu.kanade.domain.animeextension.interactor.GetAnimeExtensionLanguages
 import eu.kanade.domain.animeextension.interactor.GetAnimeExtensionSources
@@ -34,7 +35,10 @@ import eu.kanade.domain.track.interactor.SyncChapterProgressWithTrack
 import eu.kanade.domain.track.interactor.TrackChapter
 import mihon.data.extension.repository.ExtensionStoreRepositoryImpl
 import mihon.data.extension.service.ExtensionStoreService
+import mihon.data.panel.PanelDetectionRepositoryImpl
 import eu.kanade.tachiyomi.ui.player.utils.TrackSelect
+import mihon.domain.panel.interactor.DetectPanels
+import mihon.domain.panel.repository.PanelDetectionRepository
 import mihon.data.repository.AnimeExtensionRepoRepositoryImpl
 import mihon.domain.animeextensionrepo.interactor.CreateAnimeExtensionRepo
 import mihon.domain.animeextensionrepo.interactor.DeleteAnimeExtensionRepo
@@ -300,5 +304,12 @@ class DomainModule : InjektModule {
         addFactory { GetAnimeIncognitoState(get(), get(), get()) }
 
         addFactory { UpdateMangaFromRemote(get(), get(), get(), get(), get(), get(), get()) }
+
+        addSingletonFactory<PanelDetectionRepository> {
+            PanelDetectionRepositoryImpl(
+                context = get<Application>(),
+            )
+        }
+        addFactory { DetectPanels(get()) }
     }
 }

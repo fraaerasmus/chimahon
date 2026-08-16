@@ -180,6 +180,7 @@ internal fun buildConfigPayload(
     wordAudioEnabled: Boolean = true,
     showNavigationButtons: Boolean = true,
     groupPitches: Boolean = false,
+    compactGlossary: Boolean = false,
 ): JsonObject = buildJsonObject {
     val orderedTitles = activeProfile.dictionaryOrder.map { getDictionaryTitle(context, it) }
     val displayModesByTitle = activeProfile.dictionaryDisplayModes.mapKeys { (dirName, _) -> getDictionaryTitle(context, dirName) }
@@ -204,6 +205,7 @@ internal fun buildConfigPayload(
     put("recursiveNavMode", recursiveNavMode)
     put("renderRecursiveChrome", renderRecursiveChrome)
     put("showNavigationButtons", showNavigationButtons)
+    put("compactGlossary", compactGlossary)
     putJsonArray("tabs") {
         for (tab in tabs) add(buildJsonObject { put("label", tab.label); put("active", tab.active) })
     }
