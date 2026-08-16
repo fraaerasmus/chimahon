@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
+import eu.kanade.tachiyomi.ui.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
@@ -57,6 +58,7 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val swapVol = gesturePreferences.swapVolumeBrightness()
         val subtitleSwipeControls by gesturePreferences.subtitleSwipeControls().collectAsState()
         val disableLongPressScr = playerPreferences.disableLongPressScreenshot()
+        val longPressGesture = gesturePreferences.longPressGesture()
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_player_sliders),
@@ -71,6 +73,16 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                     title = stringResource(MR.strings.pref_controls_swap_vol_brightness),
                     enabled = !subtitleSwipeControls,
                 ),
+                // Chimahon -->
+                Preference.PreferenceItem.ListPreference(
+                    preference = longPressGesture,
+                    title = stringResource(MR.strings.pref_long_press_gesture),
+                    entries = listOf(
+                        LongPressGesture.Screenshot,
+                        LongPressGesture.DoubleSpeed,
+                    ).associateWith { stringResource(it.stringRes) }.toPersistentMap(),
+                ),
+                // Chimahon <--
                 Preference.PreferenceItem.SwitchPreference(
                     preference = disableLongPressScr,
                     title = stringResource(MR.strings.pref_disable_long_press_screenshot),

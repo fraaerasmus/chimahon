@@ -59,6 +59,16 @@ enum class SingleActionGesture(val stringRes: StringResource) {
     Custom(stringRes = MR.strings.single_action_custom),
 }
 
+// Chimahon -->
+/**
+ * Action performed on long press
+ */
+enum class LongPressGesture(val stringRes: StringResource) {
+    Screenshot(stringRes = MR.strings.long_press_screenshot),
+    DoubleSpeed(stringRes = MR.strings.long_press_double_speed),
+}
+// Chimahon <--
+
 /**
  * Key codes sent through the `Custom` option in gestures
  */

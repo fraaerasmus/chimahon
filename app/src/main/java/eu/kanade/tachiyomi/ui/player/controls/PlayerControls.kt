@@ -115,6 +115,7 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -434,7 +435,9 @@ fun PlayerControls(
                     },
                 ) {
                     when (currentPlayerUpdate) {
-                        // is PlayerUpdates.DoubleSpeed -> DoubleSpeedPlayerUpdate()
+                        // Chimahon -->
+                        is PlayerUpdates.DoubleSpeed -> TextPlayerUpdate(stringResource(MR.strings.player_speed, 2f))
+                        // Chimahon <--
                         is PlayerUpdates.AspectRatio -> TextPlayerUpdate(stringResource(aspectRatio.titleRes))
                         is PlayerUpdates.ShowText -> TextPlayerUpdate(
                             (currentPlayerUpdate as PlayerUpdates.ShowText).value,

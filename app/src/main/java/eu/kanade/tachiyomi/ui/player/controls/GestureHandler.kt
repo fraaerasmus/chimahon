@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.player.components.LeftSideOvalShape
 import eu.kanade.presentation.player.components.RightSideOvalShape
 import eu.kanade.presentation.theme.playerRippleConfiguration
+import eu.kanade.tachiyomi.ui.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
@@ -123,6 +124,9 @@ fun GestureHandler(
     val seekGesture by gesturePreferences.gestureHorizontalSeek().collectAsState()
     val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
     val showSeekbar by gesturePreferences.showSeekBar().collectAsState()
+    // Chimahon -->
+    val longPressGesture by gesturePreferences.longPressGesture().collectAsState()
+    // Chimahon <--
     var isLongPressing by remember { mutableStateOf(false) }
     val currentVolume by viewModel.currentVolume.collectAsState()
     val currentMPVVolume by viewModel.currentMPVVolume.collectAsState()
@@ -137,7 +141,7 @@ fun GestureHandler(
             .windowInsetsPadding(WindowInsets.safeGestures)
             .pointerInput(Unit) {
                 coroutineScope {
-                    val originalSpeed = viewModel.playbackSpeed.value
+                    var originalSpeed = viewModel.playbackSpeed.value
                     var pendingSingleTap: Job? = null
                     var lastTapAt = 0L
                     var lastTapX = 0f
@@ -236,15 +240,32 @@ fun GestureHandler(
                         onLongPress = {
                             pendingSingleTap?.cancel()
                             lastTapAt = 0L
-                            if (areControlsLocked || disableLongPressScr) return@detectTapGestures
+                            if (areControlsLocked) return@detectTapGestures
+                            // Chimahon -->
+                            if (longPressGesture == LongPressGesture.Screenshot && disableLongPressScr) {
+                                return@detectTapGestures
+                            }
+                            // Chimahon <--
                             if (!isLongPressing) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 if (onSubtitleLongPress(it.x, it.y, size.width, size.height)) {
                                     return@detectTapGestures
                                 }
-                                isLongPressing = true
-                                viewModel.pause()
-                                viewModel.sheetShown.update { Sheets.Screenshot }
+                                // Chimahon -->
+                                when (longPressGesture) {
+                                    LongPressGesture.DoubleSpeed -> {
+                                        originalSpeed = viewModel.playbackSpeed.value
+                                        isLongPressing = true
+                                        MPVLib.setPropertyDouble("speed", 2.0)
+                                        viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed }
+                                    }
+                                    LongPressGesture.Screenshot -> {
+                                        isLongPressing = true
+                                        viewModel.pause()
+                                        viewModel.sheetShown.update { Sheets.Screenshot }
+                                    }
+                                }
+                                // Chimahon <--
                             }
                         },
                     )

@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
+import eu.kanade.tachiyomi.ui.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
@@ -15,6 +16,10 @@ class GesturePreferences(
     fun swapVolumeBrightness() = preferenceStore.getBoolean("pref_swap_volume_and_brightness", false)
 
     fun subtitleSwipeControls() = preferenceStore.getBoolean("pref_subtitle_swipe_controls", true)
+
+    // Chimahon -->
+    fun longPressGesture() = preferenceStore.getEnum("pref_long_press_gesture", LongPressGesture.Screenshot)
+    // Chimahon <--
 
     // Seeking
 

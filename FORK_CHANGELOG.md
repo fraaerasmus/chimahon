@@ -30,6 +30,9 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   an unreadable `cacert.pem` makes every TLS stream fail.
 - Shared YouTube links (2026-08-13): plain VIEW/share intents carrying a YouTube URL
   route through the in-app YouTube pipeline instead of handing watch pages to mpv.
+- Player long-press gesture (2026-08-16): new Player > Gestures setting to choose
+  between the screenshot sheet (default) and YouTube-style hold-for-2x playback
+  speed; speed is restored on release.
 
 ## Dropped (superseded by upstream)
 
