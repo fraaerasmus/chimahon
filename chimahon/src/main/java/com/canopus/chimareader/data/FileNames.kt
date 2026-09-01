@@ -1,6 +1,8 @@
 package com.canopus.chimareader.data
 
 object FileNames {
+    /** The importer's verbatim copy of the packed EPUB, used for KOReader document ids. */
+    const val sourceEpub = "source.epub"
     const val metadata = "metadata.json"
     const val bookmark = "bookmark.json"
     const val bookinfo = "bookinfo.json"

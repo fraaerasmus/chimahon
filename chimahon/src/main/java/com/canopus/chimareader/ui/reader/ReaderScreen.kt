@@ -119,6 +119,22 @@ fun ReaderScreen(
                 }
             }
 
+            val kosyncManager = try {
+                Injekt.get<com.canopus.chimareader.kosync.KosyncManager>()
+            } catch (_: Exception) {
+                null
+            }
+            if (kosyncManager?.isEnabled == true && kosyncManager.loadSettings().autoSyncEnabled) {
+                loadingMessage = "Syncing reading progress..."
+                withContext(Dispatchers.IO) {
+                    val metadata = com.canopus.chimareader.data.BookStorage.loadMetadata(rootUrl)
+                    if (metadata != null) {
+                        // A kosync failure must not keep the book from opening.
+                        runCatching { kosyncManager.pull(metadata) }
+                    }
+                }
+            }
+
             ReaderLoadState.Ready(
                 ReaderViewModel(
                     document = document,

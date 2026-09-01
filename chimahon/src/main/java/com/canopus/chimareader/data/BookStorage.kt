@@ -80,6 +80,34 @@ object BookStorage {
         return load(directory, FileNames.bookinfo)
     }
 
+    /**
+     * The book's character index, computing and caching it the first time it is needed.
+     *
+     * Reading-position sync converts between absolute character counts and per-chapter progress
+     * using these totals, so both sync backends have to derive them the same way.
+     */
+    fun loadOrBuildBookInfo(directory: File): BookInfo? {
+        loadBookInfo(directory)?.let { return it }
+        return try {
+            val epub = loadEpub(directory)
+            var runningTotal = 0
+            val chapters = linkedMapOf<String, ChapterInfo>()
+            for (index in epub.linearSpineItems.indices) {
+                val chapterCount = epub.getChapterCharacters(index)
+                chapters[index.toString()] = ChapterInfo(
+                    spineIndex = index,
+                    currentTotal = runningTotal,
+                    chapterCount = chapterCount,
+                )
+                runningTotal += chapterCount
+            }
+            BookInfo(characterCount = runningTotal, chapterInfo = chapters)
+                .also { saveBookInfo(it, directory) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun saveMetadata(metadata: BookMetadata, directory: File) {
         save(metadata, directory, FileNames.metadata)
     }

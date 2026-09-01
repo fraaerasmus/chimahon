@@ -28,18 +28,34 @@ object BookImporter {
         uri: Uri,
         categoryIds: List<String>? = null,
     ): ImportResult = withContext(Dispatchers.IO) {
-        try {
-            Log.d(TAG, "Starting import from URI: $uri")
+        Log.d(TAG, "Starting import from URI: $uri")
 
-            val tempFile = File(context.cacheDir, "import_${System.currentTimeMillis()}.epub")
+        val tempFile = File(context.cacheDir, "import_${System.currentTimeMillis()}.epub")
+        try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 tempFile.outputStream().use { output -> input.copyTo(output) }
             } ?: return@withContext ImportResult(error = "Could not read file")
 
             Log.d(TAG, "Copied to temp: ${tempFile.absolutePath}, size: ${tempFile.length()}")
+            importEpubFile(context, tempFile, categoryIds)
+        } finally {
+            tempFile.delete()
+        }
+    }
 
+    /**
+     * Imports an EPUB that is already on disk (an OPDS download, say). The caller owns [epubFile];
+     * its bytes are stored untouched as [FileNames.sourceEpub] so the KOReader document id derived
+     * from them matches the same book on another device.
+     */
+    suspend fun importEpubFile(
+        context: Context,
+        epubFile: File,
+        categoryIds: List<String>? = null,
+    ): ImportResult = withContext(Dispatchers.IO) {
+        try {
             try {
-                ZipFile(tempFile).use { zip ->
+                ZipFile(epubFile).use { zip ->
                     val entries = zip.entries().asSequence().toList()
                     Log.d(TAG, "ZIP contains ${entries.size} entries")
                     if (entries.isEmpty()) {
@@ -47,7 +63,6 @@ object BookImporter {
                     }
                 }
             } catch (e: Exception) {
-                tempFile.delete()
                 return@withContext ImportResult(error = "Not a valid EPUB file: ${e.message}")
             }
 
@@ -59,7 +74,7 @@ object BookImporter {
             val tempExtractDir = File(context.cacheDir, "temp_extract_${System.currentTimeMillis()}").canonicalFile
             tempExtractDir.mkdirs()
 
-            ZipFile(tempFile).use { zip ->
+            ZipFile(epubFile).use { zip ->
                 zip.entries().asSequence().forEach { entry ->
                     val file = File(tempExtractDir, entry.name).canonicalFile
                     if (!file.path.startsWith(tempExtractDir.path + File.separator)) {
@@ -98,6 +113,11 @@ object BookImporter {
             }
             tempExtractDir.renameTo(bookDir)
 
+            // Store the packed EPUB exactly as received. KOReader identifies a document by a partial
+            // MD5 over these bytes, so repacking here would silently break cross-device progress sync.
+            // The image pass below only rewrites image files, never this copy.
+            epubFile.copyTo(File(bookDir, FileNames.sourceEpub), overwrite = true)
+
             // Normalize large images after moving the EPUB to its final directory.
             // Reader layout is applied at render time; imported markup stays untouched.
             bookDir.walkTopDown().forEach { file ->
@@ -106,8 +126,6 @@ object BookImporter {
                     normaliseImageInPlace(file)
                 }
             }
-
-            tempFile.delete()
 
             Log.d(TAG, "Extracted to: ${bookDir.absolutePath}")
 

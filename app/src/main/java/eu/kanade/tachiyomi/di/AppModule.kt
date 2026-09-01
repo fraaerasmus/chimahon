@@ -17,6 +17,8 @@ import com.canopus.chimareader.ui.reader.NovelReaderActivity
 import com.canopus.chimareader.ttusync.SyncSettingsRepository
 import com.canopus.chimareader.ttusync.TtuOAuthManager
 import com.canopus.chimareader.ttusync.TtuSyncManager
+import com.canopus.chimareader.kosync.KosyncManager
+import com.canopus.chimareader.kosync.KosyncSettingsRepository
 import eu.kanade.domain.track.store.DelayedAnimeTrackingStore
 import eu.kanade.domain.track.store.DelayedTrackingStore
 import eu.kanade.tachiyomi.animeextension.AnimeExtensionManager
@@ -286,6 +288,10 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { TtuOAuthManager(app) }
         addSingletonFactory { SyncSettingsRepository(app) }
         addSingletonFactory { TtuSyncManager(app, get(), get()) }
+        // Chimahon -->
+        addSingletonFactory { KosyncSettingsRepository(app) }
+        addSingletonFactory { KosyncManager(app, get()) }
+        // Chimahon <--
         addSingletonFactory<WordAudioPreferences> { get<DictionaryPreferences>() }
         addSingletonFactory { WordAudioService(app) }
 

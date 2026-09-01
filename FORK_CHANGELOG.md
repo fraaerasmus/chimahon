@@ -33,6 +33,19 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - Player long-press gesture (2026-08-16): new Player > Gestures setting to choose
   between the screenshot sheet (default) and YouTube-style hold-for-2x playback
   speed; speed is restored on release.
+- KOReader progress sync (2026-09-01): new Settings > Data and storage > Novel
+  KOReader Sync page pairs the novel reader with a kosync server, alongside the
+  existing Drive sync. Books are identified by KOReader's partial MD5 over the packed
+  EPUB, so the same file on a Kobo matches without changing any setting there. Pull on
+  open and on resume applies a newer remote position, taking the chapter from the
+  XPointer's DocFragment index and the paragraph from resolving the element path
+  against the chapter XHTML, with percentage as the fallback. Push on close sends a
+  crengine XPointer that always resolves, since KOReader applies a reflowable pull with
+  no percentage fallback and an unresolvable pointer sends the device to page 1.
+- Imported EPUBs keep their source bytes (2026-09-01): the importer now stores the
+  packed EPUB verbatim beside the extracted tree. It previously kept only the extracted
+  files, with images re-encoded to WebP, so there were no original bytes to identify a
+  document by. Books imported before this change do not sync until they are re-imported.
 
 ## Dropped (superseded by upstream)
 
