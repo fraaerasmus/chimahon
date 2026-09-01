@@ -22,6 +22,8 @@ import com.canopus.chimareader.data.epub.EpubBook
 import com.canopus.chimareader.data.epub.SpineItemType
 import com.canopus.chimareader.ttusync.SyncDirection
 import com.canopus.chimareader.ttusync.SyncResult
+import com.canopus.chimareader.kosync.KosyncManager
+import com.canopus.chimareader.kosync.KosyncResult
 import com.canopus.chimareader.ttusync.TtuSyncManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -192,6 +194,9 @@ class ReaderViewModel(
 
     private val ttuSyncManager: TtuSyncManager? by lazy {
         try { Injekt.get<TtuSyncManager>() } catch (_: Exception) { null }
+    }
+    private val kosyncManager: KosyncManager? by lazy {
+        try { Injekt.get<KosyncManager>() } catch (_: Exception) { null }
     }
     private var syncExportJob: kotlinx.coroutines.Job? = null
     var isSyncing: Boolean = false
@@ -632,13 +637,16 @@ class ReaderViewModel(
 
     fun syncAfterForeground() {
         if (isSyncing) return
-        val sync = ttuSyncManager?.takeIf { it.isEnabled && it.autoSyncEnabled } ?: return
+        val sync = ttuSyncManager?.takeIf { it.isEnabled && it.autoSyncEnabled }
+        val kosync = kosyncManager?.takeIf { it.isEnabled && it.loadSettings().autoSyncEnabled }
+        if (sync == null && kosync == null) return
         isSyncing = true
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val metadata = BookStorage.loadMetadata(rootUrl) ?: return@launch
-                val result = sync.syncBook(metadata, importOnly = true)
-                if (result is SyncResult.Imported) {
+                val result = sync?.syncBook(metadata, importOnly = true)
+                val kosyncResult = kosync?.let { runCatching { it.pull(metadata) }.getOrNull() }
+                if (result is SyncResult.Imported || kosyncResult is KosyncResult.Pulled) {
                     reloadAfterImport()
                     getCurrentChapter()?.let { file ->
                         val fileUrl = "file://${file.absolutePath.replace("\\", "/")}"
@@ -658,6 +666,12 @@ class ReaderViewModel(
     }
 
     fun flushSyncExport() {
+        kosyncManager?.takeIf { it.isEnabled && it.loadSettings().pushEnabled }?.let { kosync ->
+            scope.launch(Dispatchers.IO) {
+                val metadata = BookStorage.loadMetadata(rootUrl) ?: return@launch
+                runCatching { kosync.push(metadata) }
+            }
+        }
         val sync = ttuSyncManager ?: return
         if (!sync.isEnabled || !sync.autoSyncOnClose) return
         syncExportJob?.cancel()

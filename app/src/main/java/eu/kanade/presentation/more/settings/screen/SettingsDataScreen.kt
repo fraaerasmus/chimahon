@@ -796,6 +796,13 @@ object SettingsDataScreen : SearchableSettings {
                             navigator.push(TtuSyncScreen())
                         },
                     ),
+                    Preference.PreferenceItem.TextPreference(
+                        title = "Novel KOReader Sync",
+                        subtitle = "Sync progress with KOReader devices via a kosync server",
+                        onClick = {
+                            navigator.push(KosyncScreen())
+                        },
+                    ),
                 ),
             ),
         )

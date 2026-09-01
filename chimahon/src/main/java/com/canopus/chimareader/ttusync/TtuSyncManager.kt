@@ -343,36 +343,12 @@ class TtuSyncManager(
         }
     }
 
-    private fun loadOrBuildBookInfo(bookDir: File): BookInfo? {
-        BookStorage.loadBookInfo(bookDir)?.let { return it }
-        return try {
-            val epub = BookStorage.loadEpub(bookDir)
-            var runningTotal = 0
-            val chapters = linkedMapOf<String, ChapterInfo>()
-            for (index in epub.linearSpineItems.indices) {
-                val chapterCount = epub.getChapterCharacters(index)
-                chapters[index.toString()] = ChapterInfo(
-                    spineIndex = index,
-                    currentTotal = runningTotal,
-                    chapterCount = chapterCount,
-                )
-                runningTotal += chapterCount
+    private fun loadOrBuildBookInfo(bookDir: File): BookInfo? =
+        BookStorage.loadOrBuildBookInfo(bookDir).also { info ->
+            if (info == null) {
+                Log.w("TtuSyncManager", "Failed to build missing bookinfo: dir='${bookDir.name}'")
             }
-            BookInfo(
-                characterCount = runningTotal,
-                chapterInfo = chapters,
-            ).also {
-                BookStorage.saveBookInfo(it, bookDir)
-                Log.d(
-                    "TtuSyncManager",
-                    "Built missing bookinfo: dir='${bookDir.name}', chapters=${chapters.size}, chars=$runningTotal",
-                )
-            }
-        } catch (e: Exception) {
-            Log.w("TtuSyncManager", "Failed to build missing bookinfo: dir='${bookDir.name}'", e)
-            null
         }
-    }
 
     // iOS export: start with remote, overlay with local (newer wins)
     private fun mergeStatisticsForExport(base: List<Statistics>, overlay: List<Statistics>): List<Statistics> {
