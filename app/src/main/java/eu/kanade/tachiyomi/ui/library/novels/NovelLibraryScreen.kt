@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -225,6 +226,11 @@ fun Screen.NovelLibraryScreen(
         }
     }
 
+    // Chimahon -->
+    var showImportMenu by remember { mutableStateOf(false) }
+    var showOpdsBrowser by remember { mutableStateOf(false) }
+    // Chimahon <--
+
     // Mirror manga library: back exits selection or clears search
     BackHandler(enabled = state.selectionMode || state.searchQuery != null) {
         when {
@@ -431,14 +437,37 @@ fun Screen.NovelLibraryScreen(
                 enter = androidx.compose.animation.fadeIn(),
                 exit = androidx.compose.animation.fadeOut(),
             ) {
-                FloatingActionButton(
-                    onClick = { epubPicker.launch("application/epub+zip") },
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(MR.strings.action_add),
-                    )
+                // Chimahon -->
+                Box {
+                    FloatingActionButton(
+                        onClick = { showImportMenu = true },
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = stringResource(MR.strings.action_add),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showImportMenu,
+                        onDismissRequest = { showImportMenu = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Import files") },
+                            onClick = {
+                                showImportMenu = false
+                                epubPicker.launch("application/epub+zip")
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("OPDS catalog") },
+                            onClick = {
+                                showImportMenu = false
+                                showOpdsBrowser = true
+                            },
+                        )
+                    }
                 }
+                // Chimahon <--
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -477,6 +506,19 @@ fun Screen.NovelLibraryScreen(
             )
         }
     }
+
+    // Chimahon -->
+    if (showOpdsBrowser) {
+        val opdsRepository = remember { Injekt.get<com.canopus.chimareader.opds.OpdsCatalogRepository>() }
+        com.canopus.chimareader.opds.OpdsBrowser(
+            repository = opdsRepository,
+            onClose = { showOpdsBrowser = false },
+            onImportFile = { file, _ -> screenModel.importDownloadedBook(file) },
+            importBusy = state.isImporting,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+    // Chimahon <--
 
     // Hide bottom nav while in selection mode — mirrors manga library
     LaunchedEffect(state.selectionMode, state.dialog) {

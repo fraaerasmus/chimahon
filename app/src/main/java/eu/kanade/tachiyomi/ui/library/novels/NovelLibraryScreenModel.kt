@@ -106,6 +106,34 @@ class NovelLibraryScreenModel(
         }
     }
 
+    /**
+     * Imports an EPUB downloaded from an OPDS catalog, then deletes the download. The file is
+     * imported byte-for-byte so its KOReader document id matches the same book elsewhere.
+     */
+    fun importDownloadedBook(file: java.io.File) {
+        screenModelScope.launch {
+            mutableState.update { it.copy(isImporting = true) }
+            val currentCategory = mutableState.value.activeCategory
+            val categoryIds = if (currentCategory != null && !currentCategory.isSystemCategory) {
+                listOf(currentCategory.id)
+            } else {
+                null
+            }
+            val result = try {
+                BookImporter.importEpubFile(app, file, categoryIds)
+            } finally {
+                file.delete()
+            }
+            loadLibrary()
+            mutableState.update {
+                it.copy(
+                    isImporting = false,
+                    importResult = if (result.metadata != null) Pair(1, 0) else Pair(0, 1),
+                )
+            }
+        }
+    }
+
     fun importBooks(uris: List<Uri>) {
         screenModelScope.launch {
             mutableState.update { it.copy(isImporting = true) }

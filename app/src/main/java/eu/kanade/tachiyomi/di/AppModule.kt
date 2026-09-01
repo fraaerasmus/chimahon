@@ -19,6 +19,7 @@ import com.canopus.chimareader.ttusync.TtuOAuthManager
 import com.canopus.chimareader.ttusync.TtuSyncManager
 import com.canopus.chimareader.kosync.KosyncManager
 import com.canopus.chimareader.kosync.KosyncSettingsRepository
+import com.canopus.chimareader.opds.OpdsCatalogRepository
 import eu.kanade.domain.track.store.DelayedAnimeTrackingStore
 import eu.kanade.domain.track.store.DelayedTrackingStore
 import eu.kanade.tachiyomi.animeextension.AnimeExtensionManager
@@ -291,6 +292,7 @@ class AppModule(val app: Application) : InjektModule {
         // Chimahon -->
         addSingletonFactory { KosyncSettingsRepository(app) }
         addSingletonFactory { KosyncManager(app, get()) }
+        addSingletonFactory { OpdsCatalogRepository(app) }
         // Chimahon <--
         addSingletonFactory<WordAudioPreferences> { get<DictionaryPreferences>() }
         addSingletonFactory { WordAudioService(app) }

@@ -42,6 +42,12 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   against the chapter XHTML, with percentage as the fallback. Push on close sends a
   crengine XPointer that always resolves, since KOReader applies a reflowable pull with
   no percentage fallback and an unresolvable pointer sends the device to page 1.
+- OPDS catalog import (2026-09-01): the novel library's add button now offers OPDS
+  catalogs as well as the file picker. Saved catalogs carry optional Basic-auth
+  credentials, and browsing supports navigation and acquisition feeds, OpenSearch
+  templates, and rel=next paging. Every href is resolved against the feed URL, honouring
+  xml:base, because calibre's content server emits root-relative links. Downloads are
+  streamed to a temp file and imported without repacking.
 - Imported EPUBs keep their source bytes (2026-09-01): the importer now stores the
   packed EPUB verbatim beside the extracted tree. It previously kept only the extracted
   files, with images re-encoded to WebP, so there were no original bytes to identify a
