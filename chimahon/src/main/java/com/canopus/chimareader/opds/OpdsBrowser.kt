@@ -1,5 +1,6 @@
 package com.canopus.chimareader.opds
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -128,6 +129,10 @@ fun OpdsBrowser(
             else -> onClose()
         }
     }
+
+    // The browser is drawn over the library rather than pushed as a route, so it has to take the
+    // system back gesture itself; otherwise back leaves the library with the browser still open.
+    BackHandler { back() }
 
     fun loadMore(catalog: OpdsCatalog, feed: OpdsFeed) {
         val next = feed.nextHref ?: return
