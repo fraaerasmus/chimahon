@@ -32,7 +32,10 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   route through the in-app YouTube pipeline instead of handing watch pages to mpv.
 - Player long-press gesture (2026-08-16): new Player > Gestures setting to choose
   between the screenshot sheet (default) and YouTube-style hold-for-2x playback
-  speed; speed is restored on release.
+  speed; speed is restored on release. After the v2.3.4 merge (2026-09-01) it sits
+  alongside upstream's Anikku-aligned Gestures screen: upstream's "Disable long-press
+  screenshot" toggle still applies, but only while the long-press action is set to
+  Screenshot.
 - KOReader progress sync (2026-09-01): new Settings > Data and storage > Novel
   KOReader Sync page pairs the novel reader with a kosync server, alongside the
   existing Drive sync. Books are identified by KOReader's partial MD5 over the packed
