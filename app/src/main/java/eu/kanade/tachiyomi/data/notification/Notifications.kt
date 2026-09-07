@@ -53,6 +53,7 @@ object Notifications {
     const val ID_PANEL_PROGRESS = -205
     // Chimahon -->
     const val ID_SERVER_UPLOAD_PROGRESS = -206
+    const val ID_SERVER_UPLOAD_ERROR = -207
     // Chimahon <--
     const val CHANNEL_PANEL_MODEL_DOWNLOAD = "panel_model_download_channel"
     const val CHANNEL_DOWNLOADER_ERROR = "downloader_error_channel"

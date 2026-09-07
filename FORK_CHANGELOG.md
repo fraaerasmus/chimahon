@@ -82,7 +82,10 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   polls for `<stem>.mokuro` beside the archive, first after two minutes and then doubling,
   giving up after six hours, and stores it as the reader's sibling sidecar so OCR text is
   available without re-downloading. Downloaded ComicInfo.xml now carries `LanguageISO` from
-  the source language so the server's OCR sweep knows which engine to use.
+  the source language so the server's OCR sweep knows which engine to use. Turning the toggle
+  on first creates the upload folder on the server and reports the outcome, the progress
+  notification names the chapter and count, and a job that fails every attempt raises an
+  error notification with the series and the last reason.
 
 ## Dropped (superseded by upstream)
 

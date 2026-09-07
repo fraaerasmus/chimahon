@@ -32,8 +32,12 @@ class ServerUploadManager(
 
     fun enabledChanges(mangaId: Long): Flow<Boolean> = syncPreferences.serverUploadEnabled(mangaId).changes()
 
-    /** Flips the series toggle, starting or cancelling its upload job; returns a message for the UI. */
-    fun toggle(manga: Manga): String {
+    /**
+     * Flips the series toggle and returns a message for the UI. Turning it on first creates the
+     * upload folder on the server, which proves the URL and credentials work before anything is
+     * queued; the toggle stays off when that fails.
+     */
+    suspend fun toggle(manga: Manga): String {
         val preference = syncPreferences.serverUploadEnabled(manga.id)
         if (preference.get()) {
             preference.set(false)
@@ -43,9 +47,22 @@ class ServerUploadManager(
         if (!client.isConfigured()) {
             return "Set the WebDAV URL, username and password under Settings > Data and storage > Sync first"
         }
+        val probe = runCatching { client.ensureFolder() }
+        probe.exceptionOrNull()?.let { error ->
+            logcat(LogPriority.WARN, error) { "ServerUpload: connection check failed" }
+            return "Could not reach the server: ${describe(error)}"
+        }
         preference.set(true)
         ChapterUploadJob.start(context, manga.id)
-        return "Uploading the downloaded chapters of ${manga.title} to the server"
+        return "Server reached. Uploading the downloaded chapters of ${manga.title}"
+    }
+
+    /** A one-line reason for the UI: the WebDAV status for HTTP errors, the host for connection failures. */
+    fun describe(error: Throwable): String = when (error) {
+        is WebDavUploadClient.WebDavUploadException -> error.message.orEmpty()
+        is java.net.UnknownHostException -> "unknown host ${error.message.orEmpty()}"
+        is java.io.IOException -> error.message?.takeIf { it.isNotBlank() } ?: error::class.java.simpleName
+        else -> error.message?.takeIf { it.isNotBlank() } ?: error::class.java.simpleName
     }
 
     /** Called by the downloader once a chapter is on disk. */

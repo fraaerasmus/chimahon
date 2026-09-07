@@ -3,6 +3,7 @@ package eu.kanade.tachiyomi.data.upload
 import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Build
+import androidx.core.app.NotificationCompat
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -15,19 +16,25 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.notificationBuilder
-import eu.kanade.tachiyomi.util.system.setForegroundSafely
+import eu.kanade.tachiyomi.util.system.notify
 import kotlinx.coroutines.CancellationException
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.interactor.GetChaptersByMangaId
+import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.domain.download.service.DownloadPreferences
 import tachiyomi.domain.manga.interactor.GetManga
+import tachiyomi.domain.manga.model.Manga
 import tachiyomi.domain.source.service.SourceManager
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.util.concurrent.TimeUnit
 
-/** Uploads the downloaded CBZ chapters of one series, or one chapter of it, to the server. */
+/**
+ * Uploads the downloaded CBZ chapters of one series, or one chapter of it, to the server. The
+ * foreground notification names the chapter and the count; when every attempt has failed an
+ * error notification says which series and why.
+ */
 class ChapterUploadJob(context: Context, workerParams: WorkerParameters) : CoroutineWorker(context, workerParams) {
 
     private val uploadManager: ServerUploadManager = Injekt.get()
@@ -35,10 +42,16 @@ class ChapterUploadJob(context: Context, workerParams: WorkerParameters) : Corou
     private val getChaptersByMangaId: GetChaptersByMangaId = Injekt.get()
     private val sourceManager: SourceManager = Injekt.get()
 
-    override suspend fun getForegroundInfo(): ForegroundInfo {
+    override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo(null, 0, 0)
+
+    private fun foregroundInfo(text: String?, current: Int, total: Int): ForegroundInfo {
         val notification = applicationContext.notificationBuilder(Notifications.CHANNEL_DOWNLOADER_PROGRESS) {
             setContentTitle("Uploading chapters to the server")
+            setContentText(text)
             setSmallIcon(android.R.drawable.stat_sys_upload)
+            setOngoing(true)
+            setOnlyAlertOnce(true)
+            if (total > 0) setProgress(total, current, false) else setProgress(0, 0, true)
         }.build()
         return ForegroundInfo(
             Notifications.ID_SERVER_UPLOAD_PROGRESS,
@@ -47,31 +60,64 @@ class ChapterUploadJob(context: Context, workerParams: WorkerParameters) : Corou
         )
     }
 
+    private suspend fun showProgress(text: String?, current: Int, total: Int) {
+        try {
+            setForeground(foregroundInfo(text, current, total))
+        } catch (e: IllegalStateException) {
+            logcat(LogPriority.WARN, e) { "ServerUpload: could not update the foreground notification" }
+        }
+    }
+
     override suspend fun doWork(): Result {
         val mangaId = inputData.getLong(KEY_MANGA_ID, -1L)
         val chapterId = inputData.getLong(KEY_CHAPTER_ID, -1L).takeIf { it > 0 }
         val manga = getManga.await(mangaId) ?: return Result.failure()
         if (!uploadManager.isEnabled(mangaId)) return Result.success()
 
-        setForegroundSafely()
+        showProgress(manga.title, 0, 0)
         val source = sourceManager.getOrStub(manga.source)
-        val chapters = getChaptersByMangaId.await(mangaId).filter { chapterId == null || it.id == chapterId }
+        val chapters = getChaptersByMangaId.await(mangaId)
+            .filter { chapterId == null || it.id == chapterId }
+            .filter { uploadManager.chapterFile(manga, it, source) != null }
+        if (chapters.isEmpty()) {
+            logcat { "ServerUpload: nothing to upload for '${manga.title}'" }
+            return Result.success()
+        }
+
         var failed = 0
-        for (chapter in chapters) {
+        var lastError: Throwable? = null
+        chapters.forEachIndexed { index, chapter ->
             if (isStopped) return Result.retry()
+            showProgress("${ServerUploadNaming.stem(manga, chapter)} (${index + 1} of ${chapters.size})", index, chapters.size)
             try {
                 uploadManager.uploadChapter(manga, chapter, source)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 failed++
+                lastError = e
                 logcat(LogPriority.WARN, e) { "ServerUpload: upload failed for '${chapter.name}'" }
             }
         }
         return when {
             failed == 0 -> Result.success()
-            runAttemptCount < MAX_ATTEMPTS -> Result.retry()
-            else -> Result.failure()
+            runAttemptCount < MAX_ATTEMPTS - 1 -> Result.retry()
+            else -> {
+                notifyFailure(manga, failed, chapters, lastError)
+                Result.failure()
+            }
+        }
+    }
+
+    private fun notifyFailure(manga: Manga, failed: Int, chapters: List<Chapter>, error: Throwable?) {
+        val reason = error?.let(uploadManager::describe) ?: "unknown error"
+        val text = "${manga.title}: $failed of ${chapters.size} chapters not uploaded after $MAX_ATTEMPTS attempts. $reason"
+        applicationContext.notify(Notifications.ID_SERVER_UPLOAD_ERROR, Notifications.CHANNEL_DOWNLOADER_ERROR) {
+            setContentTitle("Upload to server failed")
+            setContentText(text)
+            setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            setSmallIcon(android.R.drawable.stat_notify_error)
+            setAutoCancel(true)
         }
     }
 

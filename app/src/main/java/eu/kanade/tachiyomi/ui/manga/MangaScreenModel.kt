@@ -1465,8 +1465,17 @@ class MangaScreenModel(
 
     fun toggleServerUpload() {
         val state = successState ?: return
-        val message = serverUploadManager.toggle(state.manga)
-        screenModelScope.launch { snackbarHostState.showSnackbar(message = message) }
+        screenModelScope.launch {
+            val checking = if (!serverUploadManager.isEnabled(state.manga.id)) {
+                launch { snackbarHostState.showSnackbar(message = "Checking the server…") }
+            } else {
+                null
+            }
+            val message = withIOContext { serverUploadManager.toggle(state.manga) }
+            checking?.cancel()
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message = message)
+        }
     }
     // Chimahon <--
 
