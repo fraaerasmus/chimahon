@@ -27,16 +27,20 @@ class OpdsClient(
 
     data class Download(val file: File, val fileName: String)
 
-    /** Streams [url] to a temp file in [directory] untouched; the import path copies it verbatim. */
+    /**
+     * Streams [url] to a temp file in [directory] untouched; the import path copies it verbatim.
+     * [fallbackName] carries the extension to use when neither the server nor the URL names the file.
+     */
     suspend fun download(
         catalog: OpdsCatalog,
         url: String,
         directory: File,
         fallbackName: String,
+        format: OpdsFormat = OpdsFormat.EPUB,
         onProgress: (downloaded: Long, total: Long?) -> Unit = { _, _ -> },
     ): Download = withContext(ioDispatcher) {
         val connection = get(catalog, url)
-        val target = File(directory, "opds-${System.nanoTime()}.epub")
+        val target = File(directory, "opds-${System.nanoTime()}.${format.extensions.first()}")
         try {
             val total = connection.contentLengthLong.takeIf { it > 0 }
             var downloaded = 0L
@@ -52,13 +56,18 @@ class OpdsClient(
                     }
                 }
             }
+            val fallbackExtension = if (format.hasExtension(fallbackName)) {
+                fallbackName.substringAfterLast('.')
+            } else {
+                format.extensions.first()
+            }
             val name = (
                 fileNameFromDisposition(connection.getHeaderField("Content-Disposition"))
-                    ?: url.substringBefore('?').substringAfterLast('/').takeIf { it.endsWith(".epub", ignoreCase = true) }
+                    ?: url.substringBefore('?').substringAfterLast('/').takeIf { format.hasExtension(it) }
                     ?: fallbackName
                 )
                 .replace('/', '_')
-                .let { if (it.endsWith(".epub", ignoreCase = true)) it else "$it.epub" }
+                .let { if (format.hasExtension(it)) it else "$it.$fallbackExtension" }
             Download(target, name)
         } catch (error: Exception) {
             target.delete()
@@ -74,7 +83,7 @@ class OpdsClient(
         connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
         connection.readTimeout = READ_TIMEOUT_MILLIS
         connection.instanceFollowRedirects = true
-        connection.setRequestProperty("Accept", "application/atom+xml, application/epub+zip, */*")
+        connection.setRequestProperty("Accept", "application/atom+xml, application/epub+zip, application/x-cbz, */*")
         if (catalog.username.isNotBlank()) {
             val token = Base64.getEncoder().encodeToString("${catalog.username}:${catalog.password}".toByteArray(Charsets.UTF_8))
             connection.setRequestProperty("Authorization", "Basic $token")

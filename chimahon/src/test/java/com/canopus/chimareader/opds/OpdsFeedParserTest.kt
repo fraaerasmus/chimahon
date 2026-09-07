@@ -57,6 +57,48 @@ class OpdsFeedParserTest {
     }
 
     @Test
+    fun readsComicLinksAndCalibreSeriesFromTheContent() {
+        val xml = """
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>calibre Library</title>
+              <entry>
+                <title>Berserk, Vol. 3</title>
+                <id>urn:uuid:3</id>
+                <author><name>Kentaro Miura</name></author>
+                <content type="xhtml">
+                  <div xmlns="http://www.w3.org/1999/xhtml">RATING: ★★★★<br />TAGS: Manga, Seinen<br />SERIES: Berserk [3]<br /><p>Guts returns.</p></div>
+                </content>
+                <link type="application/x-cbz" href="/get/cbz/20/calibre" rel="http://opds-spec.org/acquisition" length="90000"/>
+              </entry>
+              <entry>
+                <title>Dune: The Graphic Novel, Book 1</title>
+                <id>urn:uuid:4</id>
+                <summary>No series here.</summary>
+                <link type="application/vnd.comicbook-rar" href="/get/cbr/21/calibre" rel="http://opds-spec.org/acquisition"/>
+                <link type="application/epub+zip" href="/get/epub/21/calibre" rel="http://opds-spec.org/acquisition"/>
+              </entry>
+            </feed>
+        """.trimIndent().toByteArray()
+        val feed = OpdsFeedParser.parseFeed("http://h:8083/opds", xml)
+
+        val berserk = feed.entries[0]
+        assertEquals("Berserk", berserk.series)
+        assertEquals(3.0, berserk.seriesIndex)
+        assertEquals("http://h:8083/get/cbz/20/calibre", berserk.acquisitionHref(OpdsFormat.COMIC))
+        assertNull(berserk.epubHref)
+        assertTrue(berserk.hasOtherFormatsOnly(OpdsFormat.EPUB))
+        assertEquals("cbz", OpdsFormat.COMIC.extensionFor(berserk.acquisitionLink(OpdsFormat.COMIC)?.type))
+
+        val dune = feed.entries[1]
+        assertNull(dune.series)
+        assertNull(dune.seriesIndex)
+        val comic = dune.acquisitionLink(OpdsFormat.COMIC)
+        assertEquals("http://h:8083/get/cbr/21/calibre", comic?.href)
+        assertEquals("cbr", OpdsFormat.COMIC.extensionFor(comic?.type))
+        assertEquals("http://h:8083/get/epub/21/calibre", dune.epubHref)
+    }
+
+    @Test
     fun honoursXmlBaseAndRelativeHrefs() {
         val xml = """
             <feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://books.example.com/opds/">

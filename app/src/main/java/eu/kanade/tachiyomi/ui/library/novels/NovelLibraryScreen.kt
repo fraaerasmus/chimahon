@@ -513,7 +513,7 @@ fun Screen.NovelLibraryScreen(
         com.canopus.chimareader.opds.OpdsBrowser(
             repository = opdsRepository,
             onClose = { showOpdsBrowser = false },
-            onImportFile = { file, _ -> screenModel.importDownloadedBook(file) },
+            onImportFile = { file, _, _ -> screenModel.importDownloadedBook(file) },
             importBusy = state.isImporting,
             modifier = Modifier.fillMaxSize(),
         )

@@ -7,7 +7,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material.icons.outlined._18UpRating
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -104,7 +104,7 @@ fun Screen.sourcesTab(
                 }
             },
             dismissButton = {
-                Row {
+                FlowRow {
                     TextButton(
                         onClick = {
                             showImportDialog = false
@@ -129,6 +129,16 @@ fun Screen.sourcesTab(
                     ) {
                         Text(stringResource(MR.strings.novel_singular))
                     }
+                    // Chimahon -->
+                    TextButton(
+                        onClick = {
+                            showImportDialog = false
+                            navigator.push(OpdsMangaScreen())
+                        },
+                    ) {
+                        Text("OPDS")
+                    }
+                    // Chimahon <--
                 }
             },
         )

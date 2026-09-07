@@ -17,6 +17,9 @@ object OpdsFeedParser {
     private const val OPEN_SEARCH_NS = "http://a9.com/-/spec/opensearch/1.1/"
     private const val SEARCH_TERMS_TOKEN = "{searchTerms}"
 
+    /** calibre has no series element; it writes `SERIES: name [index]` into the entry content. */
+    private val SERIES_PATTERN = Regex("""SERIES:\s*(.+?)\s*\[([0-9]+(?:\.[0-9]+)?)\]""")
+
     fun parseFeed(feedUrl: String, xml: ByteArray): OpdsFeed {
         val root = parse(xml)
         require(root.localName == "feed" || root.tagName == "feed") { "Not an Atom feed." }
@@ -24,12 +27,16 @@ object OpdsFeedParser {
         val feedLinks = childElements(root, "link").map { toLink(it, feedBase) }
         val entries = childElements(root, "entry").map { entry ->
             val base = baseOf(entry, feedBase)
+            val description = text(entry, "summary") ?: text(entry, "content")
+            val series = description?.let { SERIES_PATTERN.find(it) }
             OpdsEntry(
                 id = text(entry, "id").orEmpty(),
                 title = text(entry, "title").orEmpty().ifBlank { "(untitled)" },
                 authors = childElements(entry, "author").mapNotNull { text(it, "name") },
-                summary = (text(entry, "summary") ?: text(entry, "content"))?.let(::collapse),
+                summary = description?.let(::collapse),
                 links = childElements(entry, "link").map { toLink(it, base) },
+                series = series?.groupValues?.get(1)?.trim()?.takeIf { it.isNotBlank() },
+                seriesIndex = series?.groupValues?.get(2)?.toDoubleOrNull(),
             )
         }
         val searchLink = feedLinks.firstOrNull { it.rel == "search" }

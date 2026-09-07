@@ -56,19 +56,21 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Browses saved OPDS catalogs and downloads books into the novel library.
+ * Browses saved OPDS catalogs and downloads entries in one [format]: EPUBs for the novel library,
+ * comic archives for the manga local source.
  *
- * [onImportFile] receives the downloaded temp file and the name the server gave it, and owns
- * deleting the file when it is done.
+ * [onImportFile] receives the downloaded temp file, the name the server gave it and the entry it
+ * came from, and owns deleting the file when it is done.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OpdsBrowser(
     repository: OpdsCatalogRepository,
     onClose: () -> Unit,
-    onImportFile: (file: File, displayName: String) -> Unit,
+    onImportFile: (file: File, displayName: String, entry: OpdsEntry) -> Unit,
     importBusy: Boolean,
     modifier: Modifier = Modifier,
+    format: OpdsFormat = OpdsFormat.EPUB,
 ) {
     val context = LocalContext.current
     val client = remember { OpdsClient() }
@@ -151,15 +153,16 @@ fun OpdsBrowser(
     }
 
     fun download(catalog: OpdsCatalog, entry: OpdsEntry) {
-        val href = entry.epubHref ?: return
+        val link = entry.acquisitionLink(format) ?: return
+        val fallbackName = "${entry.title}.${format.extensionFor(link.type)}"
         downloads[entry.id] = 0f
         scope.launch {
             runCatching {
-                client.download(catalog, href, context.cacheDir, fallbackName = "${entry.title}.epub") { done, total ->
+                client.download(catalog, link.href, context.cacheDir, fallbackName, format) { done, total ->
                     downloads[entry.id] = if (total != null) (done.toFloat() / total).coerceIn(0f, 1f) else -1f
                 }
             }.onSuccess { result ->
-                onImportFile(result.file, result.fileName)
+                onImportFile(result.file, result.fileName, entry)
                 message = "Downloaded ${entry.title}"
                 error = null
             }.onFailure { error = "Download failed: ${describe(it)}" }
@@ -283,6 +286,7 @@ fun OpdsBrowser(
                 currentFeed == null -> Unit
                 else -> FeedList(
                     feed = currentFeed,
+                    format = format,
                     downloads = downloads,
                     importBusy = importBusy,
                     loadingMore = loadingMore,
@@ -336,6 +340,7 @@ private fun CatalogList(
 @Composable
 private fun FeedList(
     feed: OpdsFeed,
+    format: OpdsFormat,
     downloads: Map<String, Float>,
     importBusy: Boolean,
     loadingMore: Boolean,
@@ -386,14 +391,14 @@ private fun FeedList(
                     when {
                         navigationHref != null ->
                             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null)
-                        entry.epubHref != null -> IconButton(
+                        entry.acquisitionHref(format) != null -> IconButton(
                             onClick = { onDownload(entry) },
                             enabled = progress == null && !importBusy,
                         ) {
                             Icon(Icons.Rounded.Download, contentDescription = "Download")
                         }
-                        entry.hasOtherFormatsOnly -> Text(
-                            text = "No EPUB",
+                        entry.hasOtherFormatsOnly(format) -> Text(
+                            text = "No ${format.label}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

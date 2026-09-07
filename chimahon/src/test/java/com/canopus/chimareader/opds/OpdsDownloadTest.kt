@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -61,6 +62,14 @@ class OpdsDownloadTest {
                             output.write(head(200, payload.size, "attachment; filename=\"Same Dream.epub\""))
                             output.write(payload)
                         }
+                        path.startsWith("/get/cbz/20") -> {
+                            output.write(head(200, payload.size, "attachment; filename=\"Berserk, Vol. 3 - Kentaro Miura.cbz\""))
+                            output.write(payload)
+                        }
+                        path.startsWith("/get/cbr/21") -> {
+                            output.write(head(200, payload.size))
+                            output.write(payload)
+                        }
                         else -> output.write(head(404, 0))
                     }
                     output.flush()
@@ -103,6 +112,25 @@ class OpdsDownloadTest {
         // The id KOReader would compute has to survive the transfer unchanged.
         val reference = File(tempDir, "reference.epub").apply { writeBytes(payload) }
         assertEquals(KosyncDocumentId.partialMd5(reference), KosyncDocumentId.partialMd5(result.file))
+    }
+
+    @Test
+    fun `comic downloads keep the archive bytes and extension`() = runBlocking {
+        val named = OpdsClient().download(
+            catalog = catalog,
+            url = "$base/get/cbz/20/calibre",
+            directory = tempDir,
+            fallbackName = "Berserk, Vol. 3.cbz",
+            format = OpdsFormat.COMIC,
+        )
+        assertArrayEquals(payload, named.file.readBytes())
+        assertEquals("Berserk, Vol. 3 - Kentaro Miura.cbz", named.fileName)
+        assertTrue(named.file.name.endsWith(".cbz"))
+
+        // No Content-Disposition and no extension in the URL: the fallback's extension is kept.
+        val unnamed = OpdsClient().download(catalog, "$base/get/cbr/21/calibre", tempDir, "Dune, Book 1.cbr", OpdsFormat.COMIC)
+        assertEquals("Dune, Book 1.cbr", unnamed.fileName)
+        assertEquals(KosyncDocumentId.partialMd5(named.file), KosyncDocumentId.partialMd5(unnamed.file))
     }
 
     @Test

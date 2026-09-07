@@ -7,10 +7,12 @@ import com.canopus.chimareader.data.BookImporter
 import com.canopus.chimareader.data.BookStorage
 import com.canopus.chimareader.data.NovelCategory
 import com.canopus.chimareader.data.NovelCategoryStorage
+import com.canopus.chimareader.opds.OpdsEntry
 import com.hippo.unifile.UniFile
 import tachiyomi.source.local.LocalSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import mihon.domain.source.interactor.UpdateMangaFromRemote
 import tachiyomi.domain.category.repository.CategoryRepository
 import tachiyomi.domain.library.service.LibraryPreferences
 import tachiyomi.domain.manga.model.Manga
@@ -70,11 +72,61 @@ object ImportHandler {
         addMangaToLibrary(safeFolderName, mangaRepository, libraryPreferences)
     }
 
+    // Chimahon -->
+    data class OpdsComicImport(val seriesFolder: String, val chapterName: String)
+
+    /**
+     * Saves a comic archive downloaded from an OPDS catalog as `local/<series>/<title>.<ext>` and
+     * refreshes the series so the chapter shows up without a library update. The bytes are copied
+     * as received, so the file's KOReader document id matches the same download on another device.
+     *
+     * The series folder comes from the entry's series metadata when the catalog provides it and from
+     * the title with its volume marker stripped otherwise; the chapter file is named after the
+     * entry title, which keeps volumes ordered and lets chapter recognition pick the number up.
+     */
+    suspend fun importComicFromOpds(
+        context: Context,
+        file: java.io.File,
+        displayName: String,
+        entry: OpdsEntry,
+    ): OpdsComicImport = withContext(Dispatchers.IO) {
+        try {
+            val mangaRepository: MangaRepository = Injekt.get()
+            val storageManager: StorageManager = Injekt.get()
+            val libraryPreferences: LibraryPreferences = Injekt.get()
+            val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get()
+
+            val localSourceDir = storageManager.getLocalSourceDirectory()
+                ?: error("The local source folder is not available.")
+            val seriesTitle = entry.series?.takeIf { it.isNotBlank() } ?: MangaImportUtil.getSeriesTitle(entry.title)
+            val seriesFolder = MangaImportUtil.getSafeFolderName(seriesTitle).ifBlank { "Untitled" }
+            val extension = displayName.substringAfterLast('.', "cbz")
+            val chapterName = MangaImportUtil.getSafeFolderName(entry.title)
+                .ifBlank { displayName.substringBeforeLast('.') }
+            val fileName = "$chapterName.$extension"
+
+            val mangaDir = localSourceDir.createDirectory(seriesFolder)
+                ?: error("Could not create the folder $seriesFolder.")
+            mangaDir.findFile(fileName)?.delete()
+            val target = mangaDir.createFile(fileName) ?: error("Could not create $fileName.")
+            file.inputStream().use { input ->
+                target.openOutputStream().use { output -> input.copyTo(output) }
+            }
+
+            val manga = addMangaToLibrary(seriesFolder, mangaRepository, libraryPreferences)
+            updateMangaFromRemote(manga, fetchDetails = true, fetchChapters = true)
+            OpdsComicImport(seriesFolder, chapterName)
+        } finally {
+            file.delete()
+        }
+    }
+    // Chimahon <--
+
     private suspend fun addMangaToLibrary(
         safeFolderName: String,
         mangaRepository: MangaRepository,
         libraryPreferences: LibraryPreferences
-    ) {
+    ): Manga {
         val existingManga = mangaRepository.getMangaByUrlAndSourceId(safeFolderName, LocalSource.ID)
         val manga = if (existingManga == null) {
             val newManga = Manga.create().copy(
@@ -99,6 +151,7 @@ object ImportHandler {
                 mangaRepository.setMangaCategories(manga.id, listOf(defaultCategoryId.toLong()))
             }
         }
+        return manga
     }
 
     suspend fun importNovels(context: Context, uris: List<Uri>) = withContext(Dispatchers.IO) {
