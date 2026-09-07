@@ -231,6 +231,9 @@ class MangaScreenModel(
     private val filterChaptersForDownload: FilterChaptersForDownload = Injekt.get(),
     private val updateMangaFromRemote: UpdateMangaFromRemote = Injekt.get(),
     private val ocrManager: OcrManager = Injekt.get(),
+    // Chimahon -->
+    private val serverUploadManager: eu.kanade.tachiyomi.data.upload.ServerUploadManager = Injekt.get(),
+    // Chimahon <--
     val snackbarHostState: SnackbarHostState = SnackbarHostState(),
     // KMK -->
     private val deleteLibraryUpdateErrors: DeleteLibraryUpdateErrors = Injekt.get(),
@@ -1456,6 +1459,16 @@ class MangaScreenModel(
             }
         }
     }
+
+    // Chimahon -->
+    val serverUploadEnabled: kotlinx.coroutines.flow.Flow<Boolean> = serverUploadManager.enabledChanges(mangaId)
+
+    fun toggleServerUpload() {
+        val state = successState ?: return
+        val message = serverUploadManager.toggle(state.manga)
+        screenModelScope.launch { snackbarHostState.showSnackbar(message = message) }
+    }
+    // Chimahon <--
 
     fun runOcrForLocalManga() {
         val state = successState ?: return

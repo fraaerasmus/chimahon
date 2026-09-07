@@ -262,6 +262,9 @@ class MangaScreen(
 
         // KMK -->
         val coverRatio = remember { mutableFloatStateOf(1f) }
+        // Chimahon -->
+        val serverUploadEnabled by screenModel.serverUploadEnabled.collectAsState(initial = false)
+        // Chimahon <--
         val hazeState = remember { HazeState() }
         val fullCoverBackground = MaterialTheme.colorScheme.surfaceTint.blend(MaterialTheme.colorScheme.surface)
 
@@ -476,6 +479,11 @@ class MangaScreen(
                         successState.processedChapters.any { !it.chapter.isOcrReady }
                 },
             // KMK <--
+            // Chimahon -->
+            serverUploadEnabled = serverUploadEnabled,
+            onToggleServerUpload = { screenModel.toggleServerUpload() }
+                .takeIf { successState.source !is StubSource && successState.mergedData == null },
+            // Chimahon <--
         )
 
         var showScanlatorsDialog by remember { mutableStateOf(false) }

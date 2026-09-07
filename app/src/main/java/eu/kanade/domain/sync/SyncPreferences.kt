@@ -26,6 +26,15 @@ class SyncPreferences(
     fun webDavFolder() = preferenceStore.getString("connection_webdav_folder", "komikku")
     // KMK <--
 
+    // Chimahon -->
+    /** Folder under the WebDAV URL that receives uploaded chapters, as `<folder>/<series>/<chapter>.cbz`. */
+    fun webDavUploadFolder() = preferenceStore.getString("connection_webdav_upload_folder", "manga")
+
+    /** Per-series opt-in for uploading downloaded CBZ chapters to the server. */
+    fun serverUploadEnabled(mangaId: Long) =
+        preferenceStore.getBoolean(Preference.appStateKey("server_upload_$mangaId"), false)
+    // Chimahon <--
+
     fun googleDriveAccessToken() = preferenceStore.getString(
         Preference.appStateKey("connection_google_drive_access_token"),
         "",

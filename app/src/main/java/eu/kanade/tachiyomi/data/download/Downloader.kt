@@ -95,6 +95,9 @@ class Downloader(
 
     private val ocrManager: OcrManager by lazy { Injekt.get() }
     private val mokuroSidecarCopier: MokuroSidecarCopier by lazy { Injekt.get() }
+    // Chimahon -->
+    private val serverUploadManager: eu.kanade.tachiyomi.data.upload.ServerUploadManager by lazy { Injekt.get() }
+    // Chimahon <--
 
     /**
      * Store for persisting downloads across restarts.
@@ -463,6 +466,9 @@ class Downloader(
                 mangaDir.findFile(chapterDirname)
             }
             mokuroSidecarCopier.onDownloadComplete(download, finalChapterDir)
+            // Chimahon -->
+            serverUploadManager.onDownloadComplete(download, finalChapterDir)
+            // Chimahon <--
 
             val promotedQueuedOcr = ocrManager.markChapterReadyForOcr(download.manga, download.chapter)
             if (promotedQueuedOcr) {
@@ -710,6 +716,9 @@ class Downloader(
             urls,
             categories,
             source.name,
+            // Chimahon -->
+            languageIso = eu.kanade.tachiyomi.data.upload.ComicInfoLanguage.fromSourceLang(source.lang),
+            // Chimahon <--
         )
 
         // Remove the old file

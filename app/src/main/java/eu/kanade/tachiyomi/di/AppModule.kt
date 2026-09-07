@@ -40,6 +40,7 @@ import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import eu.kanade.tachiyomi.data.kosync.MangaKosyncManager
+import eu.kanade.tachiyomi.data.upload.ServerUploadManager
 import eu.kanade.tachiyomi.data.download.MokuroSidecarCopier
 import eu.kanade.tachiyomi.data.ocr.LocalOcrBridge
 import eu.kanade.tachiyomi.data.ocr.ModelDownloader
@@ -294,6 +295,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { KosyncSettingsRepository(app) }
         addSingletonFactory { KosyncManager(app, get()) }
         addSingletonFactory { MangaKosyncManager(app, get(), get(), get(), get()) }
+        addSingletonFactory { ServerUploadManager(app, get(), get(), get()) }
         addSingletonFactory { OpdsCatalogRepository(app) }
         // Chimahon <--
         addSingletonFactory<WordAudioPreferences> { get<DictionaryPreferences>() }

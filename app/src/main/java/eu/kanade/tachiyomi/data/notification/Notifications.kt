@@ -51,6 +51,9 @@ object Notifications {
     const val ID_OCR_PROGRESS = -204
     const val CHANNEL_OCR_MODEL_DOWNLOAD = "ocr_model_download_channel"
     const val ID_PANEL_PROGRESS = -205
+    // Chimahon -->
+    const val ID_SERVER_UPLOAD_PROGRESS = -206
+    // Chimahon <--
     const val CHANNEL_PANEL_MODEL_DOWNLOAD = "panel_model_download_channel"
     const val CHANNEL_DOWNLOADER_ERROR = "downloader_error_channel"
     const val ID_DOWNLOAD_CHAPTER_ERROR = -202

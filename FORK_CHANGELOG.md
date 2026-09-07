@@ -73,6 +73,17 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   newer than the last local page turn; push happens when a chapter is left or the reader is
   paused. Pulls are capped at four seconds so an unreachable server does not hold the reader.
 
+- Server upload of downloaded chapters (2026-09-07): a series' three-dot menu gains "Upload
+  to server". While on, every downloaded chapter stored as a single CBZ is PUT over WebDAV
+  to `<WebDAV URL>/<upload folder>/<series>/<series>, Ch. NNN.cbz` (MKCOL first, skipped when
+  the server already has the same size), and each new download follows as it completes.
+  The upload reuses the WebDAV sync URL, username and password; the upload folder is a new
+  setting under Data and storage > Server upload (default `manga`). After an upload the app
+  polls for `<stem>.mokuro` beside the archive, first after two minutes and then doubling,
+  giving up after six hours, and stores it as the reader's sibling sidecar so OCR text is
+  available without re-downloading. Downloaded ComicInfo.xml now carries `LanguageISO` from
+  the source language so the server's OCR sweep knows which engine to use.
+
 ## Dropped (superseded by upstream)
 
 - Player sentence audio mining (2026-07-18, dropped 2026-08-13): upstream v2.3.1/v2.3.2

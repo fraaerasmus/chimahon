@@ -64,6 +64,10 @@ fun MangaToolbar(
     onClickDictionaryProfile: (() -> Unit)?,
     onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
+    // Chimahon -->
+    serverUploadEnabled: Boolean = false,
+    onToggleServerUpload: (() -> Unit)? = null,
+    // Chimahon <--
 
     // For action mode
     actionModeCounter: Int,
@@ -293,6 +297,16 @@ fun MangaToolbar(
                             ),
                         )
                     }
+                    // Chimahon -->
+                    if (onToggleServerUpload != null) {
+                        add(
+                            AppBar.OverflowAction(
+                                title = if (serverUploadEnabled) "Stop uploading to server" else "Upload to server",
+                                onClick = onToggleServerUpload,
+                            ),
+                        )
+                    }
+                    // Chimahon <--
                     if (isDebugBuildType) {
                         add(
                             AppBar.OverflowAction(

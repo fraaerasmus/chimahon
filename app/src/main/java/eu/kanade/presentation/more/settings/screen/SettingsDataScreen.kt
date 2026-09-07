@@ -779,8 +779,37 @@ object SettingsDataScreen : SearchableSettings {
                     ),
                 ),
             ),
-        ) + getSyncServicePreferences(syncPreferences, syncService) + getTtuSyncPref()
+        ) + getSyncServicePreferences(syncPreferences, syncService) + getTtuSyncPref() +
+            /* Chimahon --> */ getServerUploadPref(syncPreferences) /* Chimahon <-- */
     }
+
+    // Chimahon -->
+    @Composable
+    private fun getServerUploadPref(syncPreferences: SyncPreferences): List<Preference> {
+        val scope = rememberCoroutineScope()
+        return listOf(
+            Preference.PreferenceGroup(
+                title = "Server upload",
+                preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.EditTextPreference(
+                        preference = syncPreferences.webDavUploadFolder(),
+                        title = "Upload folder",
+                        subtitle = "Series marked \"Upload to server\" send their downloaded CBZ chapters to " +
+                            "<WebDAV URL>/<this folder>/<series>/<chapter>.cbz and fetch the OCR sidecar the " +
+                            "server writes back. Uses the WebDAV sync connection; select WebDAV as the sync " +
+                            "service to edit its URL, username and password.",
+                        onValueChanged = { newValue ->
+                            scope.launch {
+                                syncPreferences.webDavUploadFolder().set(newValue.trim().trim('/'))
+                            }
+                            true
+                        },
+                    ),
+                ),
+            ),
+        )
+    }
+    // Chimahon <--
 
     @Composable
     private fun getTtuSyncPref(): List<Preference> {
