@@ -797,8 +797,8 @@ object SettingsDataScreen : SearchableSettings {
                         },
                     ),
                     Preference.PreferenceItem.TextPreference(
-                        title = "Novel KOReader Sync",
-                        subtitle = "Sync progress with KOReader devices via a kosync server",
+                        title = "KOReader Sync",
+                        subtitle = "Sync novel and manga progress with KOReader devices via a kosync server",
                         onClick = {
                             navigator.push(KosyncScreen())
                         },

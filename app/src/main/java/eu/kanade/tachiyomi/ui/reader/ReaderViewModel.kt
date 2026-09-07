@@ -183,6 +183,7 @@ class ReaderViewModel @JvmOverloads constructor(
     private val dictionaryPreferences: DictionaryPreferences = Injekt.get(),
     private val ocrManager: eu.kanade.tachiyomi.data.ocr.OcrManager = uy.kohesive.injekt.Injekt.get(),
     private val localFileSystem: tachiyomi.source.local.io.LocalSourceFileSystem = Injekt.get(),
+    private val mangaKosyncManager: eu.kanade.tachiyomi.data.kosync.MangaKosyncManager = Injekt.get(),
     private val application: Application = Injekt.get(),
     private val networkClient: okhttp3.OkHttpClient = Injekt.get<eu.kanade.tachiyomi.network.NetworkHelper>().client,
 ) : ViewModel() {
@@ -644,8 +645,21 @@ class ReaderViewModel @JvmOverloads constructor(
         // SY -->
         page: Int? = null,
         // SY <--
+        // Chimahon -->
+        syncPosition: Boolean = true,
+        // Chimahon <--
     ): ViewerChapters {
+        // Chimahon -->
+        // The chapter being left is pushed before the new one is loaded so the server holds the
+        // page the reader was on, matching the novel reader's push on close.
+        getCurrentChapter()?.takeIf { it != chapter }?.let { previous ->
+            viewModelScope.launchNonCancellable { pushKosyncProgress(previous) }
+        }
+        // Chimahon <--
         loader.loadChapter(chapter /* SY --> */, page/* SY <-- */)
+        // Chimahon -->
+        if (syncPosition && page == null) applyKosyncPosition(chapter)
+        // Chimahon <--
 
         val chapterPos = chapterList.indexOf(chapter)
         val newChapters = ViewerChapters(
@@ -685,7 +699,7 @@ class ReaderViewModel @JvmOverloads constructor(
             trackMangaStats(null)
 
             try {
-                loadChapter(loader, chapter)
+                loadChapter(loader, chapter /* Chimahon --> */, syncPosition = false /* Chimahon <-- */)
 
                 val manga = manga ?: return@launchIO
                 val source = sourceManager.getOrStub(manga.source)
@@ -948,6 +962,9 @@ class ReaderViewModel @JvmOverloads constructor(
 
         if (!incognitoMode && page.status !is Page.State.Error) {
             readerChapter.chapter.last_page_read = pageIndex
+            // Chimahon -->
+            readerChapter.chapter.id?.let(mangaKosyncManager::notePageTurn)
+            // Chimahon <--
 
             if (readerChapter.pages?.lastIndex == pageIndex ||
                 // SY -->
@@ -1066,6 +1083,51 @@ class ReaderViewModel @JvmOverloads constructor(
     private fun getCurrentChapter(): ReaderChapter? {
         return state.value.currentChapter
     }
+
+    // Chimahon -->
+    private fun kosyncOwner(chapter: ReaderChapter): Manga? =
+        state.value.mergedManga?.get(chapter.chapter.manga_id) ?: manga
+
+    /**
+     * Moves [chapter] to a newer position from the KOReader sync server before it is shown. The
+     * saved-state index is aligned too, since restoring it would otherwise win over the pulled page.
+     */
+    private suspend fun applyKosyncPosition(chapter: ReaderChapter) {
+        if (!mangaKosyncManager.isEnabled || incognitoMode) return
+        val index = pullKosyncPosition(chapter) ?: return
+        chapter.requestedPage = index
+        chapter.chapter.last_page_read = index
+        chapterPageIndex = index
+    }
+
+    private suspend fun pullKosyncPosition(chapter: ReaderChapter): Int? {
+        val owner = kosyncOwner(chapter) ?: return null
+        val pageCount = chapter.pages?.size ?: return null
+        val domainChapter = chapter.chapter.toDomainChapter() ?: return null
+        return withTimeoutOrNull(KOSYNC_PULL_TIMEOUT_MILLIS) {
+            runCatching { mangaKosyncManager.pull(owner, domainChapter, pageCount) }
+                .onFailure { logcat(LogPriority.WARN, it) { "kosync: pull failed for ${chapter.chapter.name}" } }
+                .getOrNull()
+        }
+    }
+
+    /** Pulls the current chapter, for the activity to move to on resume. */
+    suspend fun pullKosyncPosition(): Int? {
+        if (!mangaKosyncManager.isEnabled || incognitoMode) return null
+        return getCurrentChapter()?.let { pullKosyncPosition(it) }
+    }
+
+    /** Pushes the page of [readerChapter], by default the current chapter, to the KOReader sync server. */
+    suspend fun pushKosyncProgress(readerChapter: ReaderChapter? = getCurrentChapter()) {
+        val chapter = readerChapter ?: return
+        if (!mangaKosyncManager.isEnabled || incognitoMode) return
+        val owner = kosyncOwner(chapter) ?: return
+        val pageCount = chapter.pages?.size ?: return
+        val domainChapter = chapter.chapter.toDomainChapter() ?: return
+        runCatching { mangaKosyncManager.push(owner, domainChapter, chapter.chapter.last_page_read, pageCount) }
+            .onFailure { logcat(LogPriority.WARN, it) { "kosync: push failed for ${chapter.chapter.name}" } }
+    }
+    // Chimahon <--
 
     fun getSource() = manga?.source?.let { sourceManager.getOrStub(it) } as? HttpSource
 
@@ -2883,3 +2945,8 @@ private fun chimahon.ocr.OcrTextBlock.toViewerBlock(): eu.kanade.tachiyomi.ui.re
 }
 
 private const val OCR_SCAN_WORKERS = 2
+
+// Chimahon -->
+/** Upper bound on waiting for the KOReader sync server before a chapter is shown. */
+private const val KOSYNC_PULL_TIMEOUT_MILLIS = 4_000L
+// Chimahon <--

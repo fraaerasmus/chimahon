@@ -28,6 +28,21 @@ class KosyncDocumentIdTest {
         assertNotEquals(baseline, KosyncDocumentId.partialMd5(file(5000, 3, flipAt = 100)))
     }
 
+    @Test
+    fun `stream digest matches the file digest`() {
+        for ((size, seed) in listOf(500 to 1L, 1024 to 2L, 5000 to 3L, 70000 to 4L, 300000 to 5L)) {
+            val file = file(size, seed)
+            val expected = KosyncDocumentId.partialMd5(file)
+            assertEquals(expected, file.inputStream().use { KosyncDocumentId.partialMd5(it) })
+            // A stream that skips lazily, one byte at a time, has to land on the same samples.
+            assertEquals(expected, ByteSkippingStream(file.readBytes()).use { KosyncDocumentId.partialMd5(it) })
+        }
+    }
+
+    private class ByteSkippingStream(bytes: ByteArray) : java.io.ByteArrayInputStream(bytes) {
+        override fun skip(n: Long): Long = if (n > 0) super.skip(1) else 0
+    }
+
     private fun file(size: Int, seed: Long, flipAt: Int? = null) = File(tempDir, "f-$size-$flipAt").apply {
         var x = seed
         val bytes = ByteArray(size) {

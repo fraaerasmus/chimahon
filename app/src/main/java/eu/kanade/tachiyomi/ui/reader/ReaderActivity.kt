@@ -1087,6 +1087,11 @@ class ReaderActivity : BaseActivity() {
         }
     }
 
+    // Chimahon -->
+    /** Set by onPause so that only a real return to the reader pulls from the KOReader sync server. */
+    private var kosyncPaused = false
+    // Chimahon <--
+
     /**
      * Called when the activity is destroyed. Cleans up the viewer, configuration and any view.
      */
@@ -1103,6 +1108,10 @@ class ReaderActivity : BaseActivity() {
         lifecycleScope.launchNonCancellable {
             viewModel.updateHistory()
         }
+        // Chimahon -->
+        lifecycleScope.launchNonCancellable { viewModel.pushKosyncProgress() }
+        kosyncPaused = true
+        // Chimahon <--
 
         // AM (DISCORD) -->
         updateDiscordRPC(exitingReader = true)
@@ -1118,6 +1127,12 @@ class ReaderActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.restartReadTimer()
+        // Chimahon -->
+        if (kosyncPaused) {
+            kosyncPaused = false
+            lifecycleScope.launch { viewModel.pullKosyncPosition()?.let(::moveToPageIndex) }
+        }
+        // Chimahon <--
 
         // AM (DISCORD) -->
         updateDiscordRPC(exitingReader = false)

@@ -56,6 +56,23 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   files, with images re-encoded to WebP, so there were no original bytes to identify a
   document by. Books imported before this change do not sync until they are re-imported.
 
+- OPDS for manga (2026-09-07): Browse > Sources > add now offers "OPDS", which opens the
+  same saved catalogs in comic mode. CBZ/CBR acquisition links (calibre's
+  `application/x-cbz` / `x-cbr` and the `vnd.comicbook` types) are downloaded byte-exact and
+  saved as `local/<series>/<title>.<ext>` for the local source, then the series is refreshed
+  so the chapter appears at once. The series folder is the entry's series metadata when the
+  feed has it (calibre writes `SERIES: name [index]` into the entry content) and otherwise
+  the title with its trailing volume/chapter marker stripped, so calibre-style
+  "Title, Vol. N" entries do not become one folder per volume.
+- KOReader sync for manga (2026-09-07): the kosync page also syncs CBZ chapters in the local
+  source and in downloads, with a "Sync manga chapters" toggle. A chapter is identified by
+  KOReader's partial MD5 of the archive file, so the same download from one OPDS catalog
+  matches on a Kobo. Progress goes over the wire the way KOReader sends it for documents
+  with pages: the 1-based page number as the progress value plus page / page count. Pull
+  happens when a chapter opens and on returning to the reader, and applies a remote position
+  newer than the last local page turn; push happens when a chapter is left or the reader is
+  paused. Pulls are capped at four seconds so an unreachable server does not hold the reader.
+
 ## Dropped (superseded by upstream)
 
 - Player sentence audio mining (2026-07-18, dropped 2026-08-13): upstream v2.3.1/v2.3.2

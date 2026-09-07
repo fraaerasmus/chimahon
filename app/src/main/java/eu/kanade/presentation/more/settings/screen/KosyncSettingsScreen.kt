@@ -105,9 +105,15 @@ fun KosyncSettingsScreen() {
             PreferenceGroupHeader(title = "KOReader sync")
             SwitchPreferenceWidget(
                 title = "Enable",
-                subtitle = "Sync novel reading position with a KOReader sync server",
+                subtitle = "Sync reading position with a KOReader sync server",
                 checked = settings.enabled,
                 onCheckedChanged = { enabled -> repository.update { it.copy(enabled = enabled) } },
+            )
+            SwitchPreferenceWidget(
+                title = "Sync manga chapters",
+                subtitle = "Also sync the page of CBZ chapters in the local source and in downloads",
+                checked = settings.mangaEnabled,
+                onCheckedChanged = { enabled -> repository.update { it.copy(mangaEnabled = enabled) } },
             )
 
             PreferenceGroupHeader(title = "Server")
@@ -163,7 +169,8 @@ fun KosyncSettingsScreen() {
                     text = "The password is stored only as the MD5 hash KOReader authenticates with. " +
                         "Books must be imported into this app for their progress to sync, and only " +
                         "books imported after this feature was added carry the file identity KOReader " +
-                        "matches on.",
+                        "matches on. Manga chapters sync when they are a single archive file, so a CBZ " +
+                        "fetched from the same OPDS catalog on a Kobo matches.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -172,13 +179,13 @@ fun KosyncSettingsScreen() {
             PreferenceGroupHeader(title = "Behaviour")
             SwitchPreferenceWidget(
                 title = "Sync on open and resume",
-                subtitle = "Pull a newer position from the server when a book opens",
+                subtitle = "Pull a newer position from the server when a book or chapter opens",
                 checked = settings.autoSyncEnabled,
                 onCheckedChanged = { enabled -> repository.update { it.copy(autoSyncEnabled = enabled) } },
             )
             SwitchPreferenceWidget(
                 title = "Push progress",
-                subtitle = "Send this device's position when a book is closed",
+                subtitle = "Send this device's position when a book or chapter is closed",
                 checked = settings.pushEnabled,
                 onCheckedChanged = { enabled -> repository.update { it.copy(pushEnabled = enabled) } },
             )

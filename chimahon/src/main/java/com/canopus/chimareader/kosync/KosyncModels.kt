@@ -8,6 +8,8 @@ data class KosyncSettings(
     val username: String = "",
     val autoSyncEnabled: Boolean = true,
     val pushEnabled: Boolean = true,
+    /** Also sync manga chapters that are single archive files (local source and downloads). */
+    val mangaEnabled: Boolean = true,
 ) {
     val isConfigured: Boolean
         get() = serverUrl.isNotBlank() && username.isNotBlank()

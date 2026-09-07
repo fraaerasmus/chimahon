@@ -23,7 +23,11 @@ interface KosyncApi {
 
     suspend fun getProgress(credentials: KosyncCredentials, document: String): KosyncRemoteProgress?
 
-    /** Returns the server-assigned timestamp (unix seconds) when the server reports one. */
+    /**
+     * Returns the server-assigned timestamp (unix seconds) when the server reports one.
+     * [numericProgress] sends [progress] as a JSON number, which is what KOReader does for page-based
+     * documents; reflowable documents send the XPointer string.
+     */
     suspend fun putProgress(
         credentials: KosyncCredentials,
         document: String,
@@ -31,6 +35,7 @@ interface KosyncApi {
         percentage: Double,
         device: String,
         deviceId: String,
+        numericProgress: Boolean = false,
     ): Long?
 }
 
@@ -77,10 +82,12 @@ class KosyncClient(
         percentage: Double,
         device: String,
         deviceId: String,
+        numericProgress: Boolean,
     ): Long? {
         val payload = buildJsonObject {
             put("document", document)
-            put("progress", progress)
+            val page = progress.toLongOrNull()?.takeIf { numericProgress }
+            if (page != null) put("progress", page) else put("progress", progress)
             put("percentage", percentage)
             put("device", device)
             put("device_id", deviceId)

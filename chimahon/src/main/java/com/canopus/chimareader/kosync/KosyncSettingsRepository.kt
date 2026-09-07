@@ -67,6 +67,7 @@ class KosyncSettingsRepository(context: Context) {
         username = prefs.getString(KEY_USERNAME, null).orEmpty(),
         autoSyncEnabled = prefs.getBoolean(KEY_AUTO_SYNC, true),
         pushEnabled = prefs.getBoolean(KEY_PUSH, true),
+        mangaEnabled = prefs.getBoolean(KEY_MANGA, true),
     )
 
     private fun saveToPrefs(settings: KosyncSettings) {
@@ -76,6 +77,7 @@ class KosyncSettingsRepository(context: Context) {
             .putString(KEY_USERNAME, settings.username)
             .putBoolean(KEY_AUTO_SYNC, settings.autoSyncEnabled)
             .putBoolean(KEY_PUSH, settings.pushEnabled)
+            .putBoolean(KEY_MANGA, settings.mangaEnabled)
             .apply()
     }
 
@@ -86,6 +88,7 @@ class KosyncSettingsRepository(context: Context) {
         private const val KEY_USERNAME = "kosyncUsername"
         private const val KEY_AUTO_SYNC = "kosyncAutoSyncEnabled"
         private const val KEY_PUSH = "kosyncPushEnabled"
+        private const val KEY_MANGA = "kosyncMangaEnabled"
         private const val KEY_USER_KEY = "kosyncUserKey"
         private const val KEY_DEVICE_ID = "kosyncDeviceId"
 

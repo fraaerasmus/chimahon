@@ -1,6 +1,7 @@
 package com.canopus.chimareader.kosync
 
 import java.io.File
+import java.io.InputStream
 import java.io.RandomAccessFile
 import java.security.MessageDigest
 
@@ -28,6 +29,51 @@ object KosyncDocumentId {
             }
         }
         return digest.digest().toHex()
+    }
+
+    /**
+     * The same digest over a forward-only stream, for files behind a content URI. A sample that
+     * reads short is the end of the file, which is where the file version stops too.
+     */
+    fun partialMd5(input: InputStream): String {
+        val digest = MessageDigest.getInstance("MD5")
+        val buffer = ByteArray(SAMPLE_SIZE)
+        var position = 0L
+        for (offset in SAMPLE_OFFSETS) {
+            if (!skipFully(input, offset - position)) break
+            position = offset
+            val read = readFully(input, buffer)
+            if (read <= 0) break
+            digest.update(buffer, 0, read)
+            position += read
+            if (read < SAMPLE_SIZE) break
+        }
+        return digest.digest().toHex()
+    }
+
+    private fun skipFully(input: InputStream, count: Long): Boolean {
+        var remaining = count
+        while (remaining > 0) {
+            val skipped = input.skip(remaining)
+            if (skipped > 0) {
+                remaining -= skipped
+            } else if (input.read() < 0) {
+                return false
+            } else {
+                remaining--
+            }
+        }
+        return true
+    }
+
+    private fun readFully(input: InputStream, buffer: ByteArray): Int {
+        var total = 0
+        while (total < buffer.size) {
+            val read = input.read(buffer, total, buffer.size - total)
+            if (read < 0) break
+            total += read
+        }
+        return total
     }
 
     private const val SAMPLE_SIZE = 1024
