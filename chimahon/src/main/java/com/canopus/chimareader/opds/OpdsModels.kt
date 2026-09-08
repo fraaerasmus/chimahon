@@ -69,7 +69,14 @@ data class OpdsEntry(
     val epubHref: String? get() = acquisitionHref(OpdsFormat.EPUB)
     val hasOtherFormatsOnly: Boolean get() = hasOtherFormatsOnly(OpdsFormat.EPUB)
 
-    fun acquisitionLink(format: OpdsFormat): OpdsLink? = links.firstOrNull { it.isAcquisition && format.accepts(it.type) }
+    /**
+     * The acquisition link to download for [format]. When an entry offers several matching
+     * formats (calibre lists them alphabetically, so CBR comes before CBZ) the format's preferred
+     * extension wins: only a CBZ can carry the server's `.mokuro` entry.
+     */
+    fun acquisitionLink(format: OpdsFormat): OpdsLink? =
+        links.filter { it.isAcquisition && format.accepts(it.type) }
+            .minByOrNull { format.extensions.indexOf(format.extensionFor(it.type)) }
     fun acquisitionHref(format: OpdsFormat): String? = acquisitionLink(format)?.href
     fun hasOtherFormatsOnly(format: OpdsFormat): Boolean = acquisitionHref(format) == null && links.any { it.isAcquisition }
 }

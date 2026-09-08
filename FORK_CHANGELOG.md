@@ -63,7 +63,9 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   so the chapter appears at once. The series folder is the entry's series metadata when the
   feed has it (calibre writes `SERIES: name [index]` into the entry content) and otherwise
   the title with its trailing volume/chapter marker stripped, so calibre-style
-  "Title, Vol. N" entries do not become one folder per volume.
+  "Title, Vol. N" entries do not become one folder per volume. When an entry offers both CBR
+  and CBZ (calibre lists formats alphabetically) the CBZ is taken, since only a CBZ can carry
+  the server's `.mokuro` entry.
 - KOReader sync for manga (2026-09-07): the kosync page also syncs CBZ chapters in the local
   source and in downloads, with a "Sync manga chapters" toggle. A chapter is identified by
   KOReader's partial MD5 of the archive file, so the same download from one OPDS catalog

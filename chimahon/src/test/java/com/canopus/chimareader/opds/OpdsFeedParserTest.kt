@@ -99,6 +99,40 @@ class OpdsFeedParserTest {
     }
 
     @Test
+    fun prefersCbzOverCbrWhenAnEntryOffersBoth() {
+        val xml = """
+            <feed xmlns="http://www.w3.org/2005/Atom">
+              <title>calibre Library</title>
+              <entry>
+                <title>Berserk, Ch. 012</title>
+                <id>urn:uuid:5</id>
+                <link type="application/x-cbr" href="/get/cbr/22/calibre" rel="http://opds-spec.org/acquisition"/>
+                <link type="application/x-cbz" href="/get/cbz/22/calibre" rel="http://opds-spec.org/acquisition"/>
+              </entry>
+              <entry>
+                <title>Vagabond, Ch. 003</title>
+                <id>urn:uuid:6</id>
+                <link type="application/vnd.comicbook-rar" href="/get/cbr/23/calibre" rel="http://opds-spec.org/acquisition"/>
+                <link type="application/epub+zip" href="/get/epub/23/calibre" rel="http://opds-spec.org/acquisition"/>
+                <link type="application/vnd.comicbook+zip" href="/get/cbz/23/calibre" rel="http://opds-spec.org/acquisition"/>
+              </entry>
+              <entry>
+                <title>CBR only</title>
+                <id>urn:uuid:7</id>
+                <link type="application/x-cbr" href="/get/cbr/24/calibre" rel="http://opds-spec.org/acquisition"/>
+              </entry>
+            </feed>
+        """.trimIndent().toByteArray()
+        val feed = OpdsFeedParser.parseFeed("http://h:8083/opds", xml)
+
+        assertEquals("http://h:8083/get/cbz/22/calibre", feed.entries[0].acquisitionHref(OpdsFormat.COMIC))
+        assertEquals("http://h:8083/get/cbz/23/calibre", feed.entries[1].acquisitionHref(OpdsFormat.COMIC))
+        assertEquals("http://h:8083/get/epub/23/calibre", feed.entries[1].epubHref)
+        assertEquals("http://h:8083/get/cbr/24/calibre", feed.entries[2].acquisitionHref(OpdsFormat.COMIC))
+        assertEquals("cbr", OpdsFormat.COMIC.extensionFor(feed.entries[2].acquisitionLink(OpdsFormat.COMIC)?.type))
+    }
+
+    @Test
     fun honoursXmlBaseAndRelativeHrefs() {
         val xml = """
             <feed xmlns="http://www.w3.org/2005/Atom" xml:base="https://books.example.com/opds/">
