@@ -40,6 +40,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
 import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.orderedFullText
+import eu.kanade.tachiyomi.ui.reader.viewer.orderedLineStartOffsets
 import eu.kanade.tachiyomi.ui.reader.viewer.toOrderedOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -161,7 +162,12 @@ internal fun PlayerVideoOcrOverlay(
                 val charOffset = tapped.screenLookupCharOffset(tapX, tapY)
                 val orderedCharOffset = tapped.toOrderedOffset(charOffset)
                 val text = tapped.orderedFullText
-                val lookupSelection = extractOcrLookupSelection(text, orderedCharOffset, activeProfile.languageCode)
+                val lookupSelection = extractOcrLookupSelection(
+                    text,
+                    orderedCharOffset,
+                    activeProfile.languageCode,
+                    tapped.orderedLineStartOffsets(),
+                )
                 if (selection?.block == tapped && selection?.sentenceOffset == lookupSelection?.startOffset) {
                     selection = null
                     showTapHint = false

@@ -2,6 +2,7 @@ package chimahon.dictionary
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
@@ -60,6 +61,20 @@ class LookupTextScannerTest {
 
         assertEquals(expectedText, selection?.text)
         assertEquals(tapOffset, selection?.startOffset)
+    }
+
+    @Test
+    fun `line breaks stop the scan from entering a neighboring line`() {
+        // OCR lines "je pars avec" / "toi demain", joined without a separator like a block's text
+        val text = "je pars avectoi demain"
+        val lineBreaks = setOf(12)
+
+        val french = LookupTextScanner.scan(text, 13, "fr", scanAcrossSpaces = true, lineBreaks = lineBreaks)
+        assertEquals("toi demain", french?.text)
+        assertEquals(12, french?.startOffset)
+
+        val english = LookupTextScanner.scan(text, 8, "en", lineBreaks = lineBreaks)
+        assertEquals("avec", english?.text)
     }
 
     companion object {

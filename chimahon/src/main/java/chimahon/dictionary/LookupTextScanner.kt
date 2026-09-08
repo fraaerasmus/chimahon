@@ -16,19 +16,21 @@ object LookupTextScanner {
         languageCode: String,
         scanAcrossSpaces: Boolean = false,
         maxCodePoints: Int = Int.MAX_VALUE,
+        lineBreaks: Set<Int> = emptySet(),
     ): LookupTextSelection? {
         if (text.isEmpty() || maxCodePoints <= 0) return null
         val normalizedTap = codePointStartOffset(text, tapOffset)
         if (normalizedTap !in text.indices || !isLookupCodePoint(text.codePointAt(normalizedTap))) return null
 
         val isFrench = languageCode.primaryLanguage() == "fr"
-        val start = if (isFrench) findFrenchWordStart(text, normalizedTap) else normalizedTap
+        val start = if (isFrench) findFrenchWordStart(text, normalizedTap, lineBreaks) else normalizedTap
         val end = findScanEnd(
             text = text,
             start = start,
             isFrench = isFrench,
             scanAcrossSpaces = isFrench && scanAcrossSpaces,
             maxCodePoints = maxCodePoints,
+            lineBreaks = lineBreaks,
         )
         if (end <= start) return null
 
@@ -40,9 +42,9 @@ object LookupTextScanner {
         )
     }
 
-    private fun findFrenchWordStart(text: String, tapOffset: Int): Int {
+    private fun findFrenchWordStart(text: String, tapOffset: Int, lineBreaks: Set<Int>): Int {
         var start = tapOffset
-        while (start > 0) {
+        while (start > 0 && start !in lineBreaks) {
             val previous = previousCodePointStartOffset(text, start)
             val codePoint = text.codePointAt(previous)
             when {
@@ -63,11 +65,14 @@ object LookupTextScanner {
         isFrench: Boolean,
         scanAcrossSpaces: Boolean,
         maxCodePoints: Int,
+        lineBreaks: Set<Int>,
     ): Int {
         var end = start
         var count = 0
         while (end < text.length && count < maxCodePoints) {
             val codePoint = text.codePointAt(end)
+            // Block text has no separator between OCR lines, so a line break ends the scan.
+            if (end != start && end in lineBreaks) break
             when {
                 isFrench && isFrenchWordCodePoint(codePoint) -> {
                     end += Character.charCount(codePoint)

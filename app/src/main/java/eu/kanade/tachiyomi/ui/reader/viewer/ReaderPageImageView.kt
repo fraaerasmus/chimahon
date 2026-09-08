@@ -935,6 +935,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
             text = block.fullText,
             start = charOffset,
             languageCode = lookupLanguageCodeProvider(),
+            lineBreaks = block.lineStartOffsets(),
         )
 
         if (wasActive == block && activeOcrCharOffset == lookupSelection?.startOffset) {

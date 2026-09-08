@@ -88,6 +88,11 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   on first creates the upload folder on the server and reports the outcome, the progress
   notification names the chapter and count, and a job that fails every attempt raises an
   error notification with the series and the last reason.
+- OCR lookup respects line breaks (2026-09-08): for space-delimited languages the tap
+  lookup in the manga reader and the video OCR overlay no longer runs into the previous or
+  next OCR line. Block text joins lines without a separator, so tapping the first word of a
+  line used to look up the previous line's last word glued to it. CJK lookups still scan
+  across lines.
 
 ## Dropped (superseded by upstream)
 
