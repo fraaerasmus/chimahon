@@ -50,6 +50,18 @@ Signing: our own keystore (never upstream's), applied in CI via repo secrets
   `ship-chimahon-custom`) under `.claude/skills/` on the maintainer's machine
   (kept untracked).
 
+## Where fork features live
+
+- KOReader sync and OPDS: `app/src/main/java/chimahon/novel/{kosync,opds}` (moved out of the
+  `chimahon` module in the v2.4.1 merge, since they depend on upstream's novel storage which
+  now lives in `app`). `NovelDbPositionStore` is the bridge to upstream's DB-first reader.
+- Reader hooks: `ChimaReaderActivity` (pull on return from stop, push on stop) and fenced
+  `// Chimahon -->` slices in `ReaderScreen` (pull on open) and `ReaderViewModel`
+  (`jumpToSyncedPosition`). Keep these three slices thin; everything else in the reader is
+  upstream's.
+- `BookImporter` and `FileNames` are taken byte-clean from upstream. The OPDS novel path reuses
+  the screen model's import function instead of a separate importer entry point.
+
 ## Releases and versioning
 
 Releases are tag-driven: pushing `vX.Y.Z` to the fork triggers `release.yml`

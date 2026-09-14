@@ -28,8 +28,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import com.canopus.chimareader.kosync.KosyncManager
-import com.canopus.chimareader.kosync.KosyncSettingsRepository
+import chimahon.novel.kosync.KosyncManager
+import chimahon.novel.kosync.KosyncSettingsRepository
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.more.settings.widget.PreferenceGroupHeader
 import eu.kanade.presentation.more.settings.widget.SwitchPreferenceWidget

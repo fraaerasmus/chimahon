@@ -94,6 +94,7 @@ import eu.kanade.tachiyomi.ui.player.utils.applySubtitleRegexFilters
 import eu.kanade.tachiyomi.ui.player.utils.subtitleRegexFilterOptions
 import eu.kanade.tachiyomi.ui.player.utils.displayName
 import eu.kanade.tachiyomi.ui.player.utils.guessJimakuMedia
+import eu.kanade.tachiyomi.ui.player.utils.inPlaybackOrder
 import eu.kanade.tachiyomi.ui.player.utils.matchedSrtFiles
 import eu.kanade.tachiyomi.ui.player.utils.selectBestJimakuEntry
 import eu.kanade.tachiyomi.ui.reader.SaveImageNotifier
@@ -2122,10 +2123,17 @@ class PlayerViewModel @JvmOverloads constructor(
         }.toMutableList()
 
         if (episodesForPlayer.all { it.id != episodeId }) {
-            episodesForPlayer += listOf(selectedEpisode)
+            // Input arrives already sorted from initEpisodeList; re-insert at the
+            // original position instead of appending so prev/next stay in order.
+            val order = episodes.mapNotNull { it.id }.withIndex().associate { it.value to it.index }
+            val selectedOrder = selectedEpisode.id?.let { order[it] } ?: Int.MAX_VALUE
+            val insertAt = episodesForPlayer.indexOfFirst { ep -> (ep.id?.let { order[it] } ?: Int.MAX_VALUE) > selectedOrder }
+                .takeIf { it >= 0 } ?: episodesForPlayer.size
+            episodesForPlayer.add(insertAt, selectedEpisode)
         }
 
         return episodesForPlayer
+            .inPlaybackOrder(anime.sorting == Anime.EPISODE_SORTING_SOURCE)
     }
 
     fun getCurrentEpisodeIndex(): Int {

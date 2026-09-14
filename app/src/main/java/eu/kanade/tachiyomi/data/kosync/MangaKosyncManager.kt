@@ -1,12 +1,12 @@
 package eu.kanade.tachiyomi.data.kosync
 
 import android.content.Context
-import com.canopus.chimareader.kosync.KosyncApi
-import com.canopus.chimareader.kosync.KosyncClient
-import com.canopus.chimareader.kosync.KosyncDocumentId
-import com.canopus.chimareader.kosync.KosyncManager
-import com.canopus.chimareader.kosync.KosyncPagedProgress
-import com.canopus.chimareader.kosync.KosyncSettingsRepository
+import chimahon.novel.kosync.KosyncApi
+import chimahon.novel.kosync.KosyncClient
+import chimahon.novel.kosync.KosyncDocumentId
+import chimahon.novel.kosync.KosyncManager
+import chimahon.novel.kosync.KosyncPagedProgress
+import chimahon.novel.kosync.KosyncSettingsRepository
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import kotlinx.coroutines.CoroutineDispatcher

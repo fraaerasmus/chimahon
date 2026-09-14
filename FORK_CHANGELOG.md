@@ -103,6 +103,18 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   journal redacts those values, so the query check is gone; headers are now filtered to
   the allow-list instead of being fatal, and the list includes `Authorization`, `Cookie`
   and the Emby/Plex token headers.
+- Upstream v2.4.1 merge (2026-09-14): upstream moved the novel reader out of the `chimahon`
+  module into `app` (`chimahon.novel`), made the novel library, reader and history DB-first,
+  and removed the ttu/Drive sync. KOReader sync was re-threaded onto that: the code now lives
+  in `app/src/main/java/chimahon/novel/kosync`, and for registered novels the position is read
+  from and written to the novel chapter and history rows (the `bookmark.json` sidecar only
+  serves unregistered books). The pull runs before the reader reads its resume rows on open
+  and again when the reader returns from a stop; the push runs on stop, after the rows are
+  flushed. Upstream now keeps the original EPUB bytes itself (`<folder>.epub`, or `book.epub`
+  in the extraction cache), so the fork's `source.epub` copy is gone and kosync recognises all
+  three names. OPDS novel downloads go through the same import path as the file picker, so the
+  book is registered in the DB like any other import. The "Novel TTU Sync" settings entry is
+  gone with upstream's removal; the Novels group holds KOReader Sync alone.
 
 ## Dropped (superseded by upstream)
 

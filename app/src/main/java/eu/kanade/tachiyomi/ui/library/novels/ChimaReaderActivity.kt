@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import com.canopus.chimareader.data.BookStorage
+import chimahon.novel.data.BookStorage
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
@@ -37,7 +37,7 @@ import chimahon.DictionaryRepository
 import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.ocr.OcrLanguage
 import chimahon.ocr.OcrResult
-import com.canopus.chimareader.ui.reader.NovelReaderActivity
+import chimahon.novel.ui.reader.NovelReaderActivity
 import eu.kanade.tachiyomi.data.ocr.recognizePage
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupWebViewWarmup
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
@@ -46,7 +46,9 @@ import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import java.io.File
 import org.json.JSONArray
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -56,15 +58,51 @@ import uy.kohesive.injekt.api.get
  * from the EPUB reader WebView into the [OcrLookupPopup] — no screenshot needed,
  * no OCR bitmap involved: just a plain text selection → dictionary lookup.
  *
- * [NovelReaderActivity.activityClass] is pointed at this class from [App.onCreate]
- * so that [BookshelfScreen]'s existing `NovelReaderActivity.launch()` call
- * automatically lands here without any chimahon → app module import.
+ * [NovelReaderActivity.activityClass] is pointed at this class from [AppModule]
+ * so that `NovelReaderActivity.launch()` calls automatically land here.
  */
 class ChimaReaderActivity : NovelReaderActivity() {
 
+    // Chimahon -->
+    private val kosyncManager: chimahon.novel.kosync.KosyncManager? by lazy {
+        runCatching { Injekt.get<chimahon.novel.kosync.KosyncManager>() }.getOrNull()
+    }
+    private var kosyncStoppedOnce = false
+
+    private fun kosyncBookDir(): File? = intent.getStringExtra(NovelReaderActivity.EXTRA_BOOK_DIR)?.let(::File)
+
+    /**
+     * Coming back after a stop: another device may have pushed a newer position while this one
+     * was away. The pull writes the DB rows, then the view is moved there. The first open is
+     * covered by the pull in ReaderScreen, which runs before the view model reads its resume rows.
+     */
+    override fun onStart() {
+        super.onStart()
+        if (!kosyncStoppedOnce) return
+        val kosync = kosyncManager?.takeIf { it.isEnabled && it.loadSettings().autoSyncEnabled } ?: return
+        val bookDir = kosyncBookDir() ?: return
+        val title = bookMetadata?.title.orEmpty()
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { kosync.pull(bookDir, title) }.getOrNull() }
+            val bookmark = (result as? chimahon.novel.kosync.KosyncResult.Pulled)?.bookmark ?: return@launch
+            readerViewModel?.jumpToSyncedPosition(bookmark.chapterIndex, bookmark.progress)
+        }
+    }
+
+    /** Leaving: the base class has just flushed the chapter rows, so the push sends the final position. */
+    override fun onStop() {
+        super.onStop()
+        kosyncStoppedOnce = true
+        val kosync = kosyncManager?.takeIf { it.isEnabled && it.loadSettings().pushEnabled } ?: return
+        val bookDir = kosyncBookDir() ?: return
+        val title = bookMetadata?.title.orEmpty()
+        kosyncScope.launch { runCatching { kosync.push(bookDir, title) } }
+    }
+    // Chimahon <--
+
     private val readerPreferences: eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences by uy.kohesive.injekt.injectLazy()
     private var popupWebView: WebView? = null
-    private val novelReaderSettings by lazy { com.canopus.chimareader.data.NovelReaderSettings(this, getSettingsNamespace()) }
+    private val novelReaderSettings by lazy { chimahon.novel.data.NovelReaderSettings(this, getSettingsNamespace()) }
 
     private var cachedActiveProfile: chimahon.anki.AnkiProfile? = null
     private var cachedTermPaths: chimahon.DictionaryPaths? = null
@@ -72,9 +110,12 @@ class ChimaReaderActivity : NovelReaderActivity() {
     private fun getOrRefreshLookupPaths(): Pair<chimahon.anki.AnkiProfile, chimahon.DictionaryPaths> {
         val prefs = Injekt.get<DictionaryPreferences>()
         val novelId = bookMetadata?.id ?: ""
-        val novelLang = bookMetadata?.lang ?: ""
+        val novelSourceId = bookMetadata?.novelSourceId ?: 0L
+        val novelLang = bookMetadata?.lang?.takeIf { it.isNotBlank() }
+            ?: sourceLangOf(novelSourceId)
         val profile = cachedActiveProfile ?: prefs.profileResolver.resolve(
             novelId = novelId,
+            sourceId = novelSourceId,
             sourceLang = novelLang,
         ).also { cachedActiveProfile = it }
         val paths = cachedTermPaths ?: getDictionaryPaths(this, profile).also { cachedTermPaths = it }
@@ -84,17 +125,41 @@ class ChimaReaderActivity : NovelReaderActivity() {
     override fun getLookupLanguageCode(): String =
         (cachedActiveProfile ?: getOrRefreshLookupPaths().first).languageCode
 
+    /** Source lang fallback so empty-lang books still hit language match. */
+    private fun sourceLangOf(sourceId: Long): String {
+        if (sourceId == 0L) return ""
+        return runCatching {
+            Injekt.get<chimahon.novel.manager.NovelSourceManager>().getOrStub(sourceId).lang
+        }.getOrNull().orEmpty()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val prefs = Injekt.get<DictionaryPreferences>()
         val path = intent.getStringExtra("extra_book_dir")
         if (!path.isNullOrEmpty()) {
             val root = java.io.File(path)
             if (root.exists() && root.isDirectory) {
-                    val metadata = BookStorage.loadMetadata(root)
-                if (metadata != null) {
+                // Profile keys stay folder-based so existing overrides keep working.
+                val novelId = intent.getLongExtra("extra_novel_id", -1L).takeIf { it >= 0L }
+                val row = runBlocking(Dispatchers.IO) {
+                    runCatching {
+                        val repos = Injekt.get<tachiyomi.domain.novel.repository.NovelRepository>()
+                        if (novelId != null) {
+                            runCatching { repos.getNovelById(novelId) }.getOrNull()
+                        } else {
+                            runCatching { repos.getNovelByLocalFolder(root.name) }.getOrNull()
+                        }
+                    }.getOrNull()
+                }
+                if (row != null) {
+                    // Novel override > source default > book lang, else
+                    // source lang > global. Keys stay folder-based so
+                    // existing overrides keep working.
                     val profile = prefs.profileResolver.resolve(
-                        novelId = metadata.id ?: "",
-                        sourceLang = metadata.lang ?: "",
+                        novelId = row.localFolder ?: row.id.toString(),
+                        sourceId = row.source,
+                        sourceLang = row.lang?.takeIf { it.isNotBlank() }
+                            ?: sourceLangOf(row.source),
                     )
                     cachedActiveProfile = profile
                     cachedTermPaths = getDictionaryPaths(this, profile)
@@ -386,7 +451,7 @@ class ChimaReaderActivity : NovelReaderActivity() {
                 withContext(Dispatchers.Main) {
                     pendingShowByRects = true
                     readerViewModel?.bridge?.send(
-                        com.canopus.chimareader.ui.reader.WebViewCommand.GetSelectionRects(
+                        chimahon.novel.ui.reader.WebViewCommand.GetSelectionRects(
                             highlight.codePointCount,
                             highlight.startOffset,
                         ),
@@ -540,4 +605,12 @@ class ChimaReaderActivity : NovelReaderActivity() {
             }
         }
     }
+
+    // Chimahon -->
+    private companion object {
+        /** Outlives the activity so a closing push is not cancelled with it. */
+        val kosyncScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    }
+    // Chimahon <--
+
 }

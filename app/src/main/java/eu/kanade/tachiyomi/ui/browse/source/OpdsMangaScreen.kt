@@ -12,9 +12,9 @@ import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import com.canopus.chimareader.opds.OpdsBrowser
-import com.canopus.chimareader.opds.OpdsCatalogRepository
-import com.canopus.chimareader.opds.OpdsFormat
+import chimahon.novel.opds.OpdsBrowser
+import chimahon.novel.opds.OpdsCatalogRepository
+import chimahon.novel.opds.OpdsFormat
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt
