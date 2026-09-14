@@ -93,6 +93,16 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   next OCR line. Block text joins lines without a separator, so tapping the first word of a
   line used to look up the previous line's last word glued to it. CJK lookups still scan
   across lines.
+- Sentence audio from authenticated streams (2026-09-14): Anki cards mined from a
+  Jellyfin (or Emby/Plex) video no longer fail with "The selected video source could not
+  be read for sentence audio". The sentence-audio resolver refused any remote URL whose
+  query carried a credential-looking parameter (`api_key`, `token`, `Signature`, ...) and
+  refused the whole input when a source header was not on its allow-list. Jellyfin
+  authenticates its stream URLs with `api_key`, so every card lost its audio. The URL is
+  already what mpv plays and what frame/scene capture hands to FFmpeg, and the diagnostic
+  journal redacts those values, so the query check is gone; headers are now filtered to
+  the allow-list instead of being fatal, and the list includes `Authorization`, `Cookie`
+  and the Emby/Plex token headers.
 
 ## Dropped (superseded by upstream)
 

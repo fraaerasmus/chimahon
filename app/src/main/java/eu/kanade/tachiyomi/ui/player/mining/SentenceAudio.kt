@@ -188,12 +188,18 @@ internal object SentenceAudioInputResolver {
         )
     }
 
+    /**
+     * Credentials carried in the query (Jellyfin/Emby `api_key`, signed CDN URLs, ...) are not a
+     * reason to refuse the input: mpv is already streaming from that exact URL, the frame and
+     * scene captures hand it to FFmpeg as-is, and [sanitizeForLog] plus the native diagnostic
+     * redaction keep the values out of the journal. Headers are filtered rather than fatal so an
+     * unexpected extension header only drops itself instead of disabling sentence audio.
+     */
     private fun validateRemoteInput(value: String, headers: List<Pair<String, String>>): List<Pair<String, String>>? {
         val uri = runCatching { URI(value) }.getOrNull() ?: return null
         val host = uri.host?.lowercase(Locale.ROOT)
-        val scheme = uri.scheme?.lowercase(Locale.ROOT)
-        if (!uri.userInfo.isNullOrBlank() || host.isNullOrBlank() || hasRejectedValidationQuery(uri.rawQuery.orEmpty(), host, scheme)) return null
-        return headers.takeIf { it.all(::isAllowedHeader) }
+        if (!uri.userInfo.isNullOrBlank() || host.isNullOrBlank()) return null
+        return headers.filter(::isAllowedHeader)
     }
 
     private fun normalizeInput(value: String): Pair<String, SentenceAudioInputKind>? = when {
@@ -210,17 +216,6 @@ internal object SentenceAudioInputResolver {
         return name.lowercase(Locale.ROOT) in allowedHttpHeaders && value.length <= maxHeaderValueLength &&
             value.none { it == '\u0000' || it == '\r' || it == '\n' || (it.code < 0x20 && it != '\t') }
     }
-
-    private fun hasRejectedValidationQuery(query: String, host: String, scheme: String?): Boolean = query.split('&').any { parameter ->
-        if (parameter.isBlank()) return@any false
-        val name = runCatching { URLDecoder.decode(parameter.substringBefore('='), StandardCharsets.UTF_8.name()).lowercase(Locale.ROOT) }.getOrNull()
-            ?: return true
-        name in rejectedValidationQueryNames ||
-            (name in signedMediaQueryNames && (scheme != "https" || !host.isYouTubeVideoCdn())) ||
-            sensitiveQueryPrefixes.any(name::startsWith)
-    }
-
-    private fun String.isYouTubeVideoCdn() = this == "googlevideo.com" || endsWith(".googlevideo.com")
 
     fun sanitizeForLog(url: String): String {
         if (url.isBlank()) return url
@@ -249,9 +244,11 @@ internal object SentenceAudioInputResolver {
         return scheme in transientSchemes || value.startsWith("magnet:", ignoreCase = true) || value.substringBefore('?').endsWith(".torrent", ignoreCase = true)
     }
 
-    private val allowedHttpHeaders = setOf("user-agent", "accept", "accept-encoding", "accept-language", "cache-control", "origin", "pragma", "referer")
-    private val rejectedValidationQueryNames = setOf("access_token", "api_key", "auth", "authorization", "credential", "credentials", "key", "policy", "token")
-    private val signedMediaQueryNames = setOf("signature", "signed", "sig", "lsig")
+    private val allowedHttpHeaders = setOf(
+        "user-agent", "accept", "accept-encoding", "accept-language", "cache-control", "origin", "pragma", "referer",
+        // Auth headers used by self-hosted media servers (Jellyfin/Emby/Plex) and referer-locked CDNs.
+        "authorization", "cookie", "x-emby-token", "x-emby-authorization", "x-mediabrowser-token", "x-plex-token", "x-api-key",
+    )
     private val sensitiveLogQueryNames = setOf("access_token", "api_key", "auth", "authorization", "credential", "credentials", "key", "policy", "signature", "signed", "sig", "lsig", "token")
     private val sensitiveQueryPrefixes = setOf("x-amz-", "x-goog-")
     private val transientSchemes = setOf("blob", "data", "fd", "fdclose", "edl", "memory", "lavf", "ytdl")
