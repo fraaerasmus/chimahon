@@ -115,6 +115,11 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   three names. OPDS novel downloads go through the same import path as the file picker, so the
   book is registered in the DB like any other import. The "Novel TTU Sync" settings entry is
   gone with upstream's removal; the Novels group holds KOReader Sync alone.
+- Vendored FlexibleAdapter (2026-09-14): JitPack purged
+  `com.github.arkon.FlexibleAdapter:flexible-adapter:c8013533` after its source repository went
+  private, which broke every release build. The AAR and POM Gradle had cached now live in
+  `local-maven/`, listed first in `settings.gradle.kts`, so the catalog coordinate stays
+  upstream's. Drop it once upstream moves off the JitPack coordinate.
 
 ## Dropped (superseded by upstream)
 

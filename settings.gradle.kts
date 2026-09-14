@@ -32,6 +32,10 @@ dependencyResolutionManagement {
     }
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        // Chimahon Custom -->
+        // Artifacts JitPack no longer serves (see local-maven/README.md).
+        maven(url = uri("local-maven"))
+        // Chimahon Custom <--
         mavenCentral()
         google()
         maven(url = "https://www.jitpack.io")

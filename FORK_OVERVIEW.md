@@ -20,6 +20,7 @@ Re-verify these after every upstream merge:
 | Updater repo `fraaerasmus/chimahon` | `app/src/main/java/eu/kanade/tachiyomi/data/updater/AppUpdateChecker.kt` (`getGithubRepo()`) |
 | `Constants.GITHUB_PROJECT` → fork URL | `core/common/src/main/kotlin/tachiyomi/core/common/Constants.kt` |
 | About-screen GitHub link → fork URL | `app/src/main/java/eu/kanade/presentation/more/settings/screen/about/AboutScreen.kt` |
+| `local-maven/` repo listed first (vendored FlexibleAdapter, see its README) | `settings.gradle.kts` (`dependencyResolutionManagement.repositories`) |
 
 Signing: our own keystore (never upstream's), applied in CI via repo secrets
 `SIGNING_KEY` / `ALIAS` / `KEY_STORE_PASSWORD` / `KEY_PASSWORD`.
