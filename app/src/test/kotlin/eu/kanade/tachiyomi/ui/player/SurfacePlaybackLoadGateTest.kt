@@ -9,8 +9,8 @@ class SurfacePlaybackLoadGateTest {
     @Test
     fun `cold start defers playback until the surface exists`() {
         val loaded = mutableListOf<String>()
-        val gate = SurfacePlaybackLoadGate {
-            loaded += it
+        val gate = SurfacePlaybackLoadGate { url, _ ->
+            loaded += url
             true
         }
 
@@ -26,8 +26,8 @@ class SurfacePlaybackLoadGateTest {
     @Test
     fun `latest pending load replaces an older request`() {
         val loaded = mutableListOf<String>()
-        val gate = SurfacePlaybackLoadGate {
-            loaded += it
+        val gate = SurfacePlaybackLoadGate { url, _ ->
+            loaded += url
             true
         }
 
@@ -41,8 +41,8 @@ class SurfacePlaybackLoadGateTest {
     @Test
     fun `surface recreation defers new playback until reattached`() {
         val loaded = mutableListOf<String>()
-        val gate = SurfacePlaybackLoadGate {
-            loaded += it
+        val gate = SurfacePlaybackLoadGate { url, _ ->
+            loaded += url
             true
         }
 
@@ -61,8 +61,8 @@ class SurfacePlaybackLoadGateTest {
     @Test
     fun `surface recreation without a pending request does not reload`() {
         val loaded = mutableListOf<String>()
-        val gate = SurfacePlaybackLoadGate {
-            loaded += it
+        val gate = SurfacePlaybackLoadGate { url, _ ->
+            loaded += url
             true
         }
 
@@ -77,8 +77,8 @@ class SurfacePlaybackLoadGateTest {
     @Test
     fun `closing the gate drops pending and future loads`() {
         val loaded = mutableListOf<String>()
-        val gate = SurfacePlaybackLoadGate {
-            loaded += it
+        val gate = SurfacePlaybackLoadGate { url, _ ->
+            loaded += url
             true
         }
 
@@ -94,9 +94,9 @@ class SurfacePlaybackLoadGateTest {
     fun `rejected surface load remains pending until playback resumes`() {
         val loaded = mutableListOf<String>()
         var canLoad = false
-        val gate = SurfacePlaybackLoadGate {
+        val gate = SurfacePlaybackLoadGate { url, _ ->
             if (canLoad) {
-                loaded += it
+                loaded += url
             }
             canLoad
         }
