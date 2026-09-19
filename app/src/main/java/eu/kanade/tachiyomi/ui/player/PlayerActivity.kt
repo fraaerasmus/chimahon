@@ -542,6 +542,13 @@ class PlayerActivity : BaseActivity() {
 
         mediaSession?.let {
             it.isActive = false
+            // Chimahon -->
+            it.setPlaybackState(
+                PlaybackState.Builder(it.controller.playbackState)
+                    .setState(PlaybackState.STATE_STOPPED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0f)
+                    .build(),
+            )
+            // Chimahon <--
             it.release()
         }
         // Chimahon -->

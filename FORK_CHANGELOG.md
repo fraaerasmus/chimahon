@@ -125,6 +125,8 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   so outside observers (`MediaController.getPlaybackState`, e.g. a NotificationListener) saw
   state NONE for the whole video. The mpv `pause` observer now publishes `STATE_PLAYING` /
   `STATE_PAUSED`, ahead of the exit guard so the pause on backgrounding is reported too.
+  `onDestroy` publishes `STATE_STOPPED` right before releasing the session, so observers
+  see playback end instead of a last state stuck on PLAYING.
 - Upstream v2.4.5 merge (2026-09-19): upstream brought back TTU sync, so the Novels group
   under Data and storage holds both "Novel TTU Sync" and "KOReader Sync" again, and on
   open the reader runs the TTU import and then the KOReader pull before it seeds the resume
