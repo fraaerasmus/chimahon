@@ -55,6 +55,15 @@ class NovelLibraryScreenModel(
     init {
         screenModelScope.launch { migrateNovelJsonData.await() }
         loadLibrary()
+        // Sort choice survives restarts (manga parity); unknown stored
+        // values fall back to the default.
+        mutableState.update {
+            it.copy(
+                sortMode = runCatching { SortMode.valueOf(libraryPreferences.sortMode().get()) }
+                    .getOrDefault(SortMode.DateAdded),
+                sortDescending = libraryPreferences.sortDescending().get(),
+            )
+        }
 
         screenModelScope.launch {
             _searchQuery
@@ -101,10 +110,11 @@ class NovelLibraryScreenModel(
                     novel.id to dm.getDownloadedCount(novel.id, chapters).toLong()
                 }
             } catch (_: Exception) { emptyMap() }
-            // Empty local entries (folder without EPUB content): derived per load,
-            // never stored — the ghost flag is gone.
+            // Empty local entries (folder without readable content): derived
+            // per load, never stored. Readability is one shared check, so the
+            // badge and the tap handler always agree.
             val booksWithoutContent = books
-                .filter { !BookStorage.hasImportedBookContent(BookStorage.getBookDirectory(app, it.id)) }
+                .filter { !BookStorage.hasReadableBookContent(app, it.id) }
                 .map { it.id }
                 .toSet()
 
@@ -640,6 +650,8 @@ class NovelLibraryScreenModel(
     }
     
     fun setSort(mode: SortMode, descending: Boolean) {
+        libraryPreferences.sortMode().set(mode.name)
+        libraryPreferences.sortDescending().set(descending)
         mutableState.update { it.copy(sortMode = mode, sortDescending = descending) }
     }
     

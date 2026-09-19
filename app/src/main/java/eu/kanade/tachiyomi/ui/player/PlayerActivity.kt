@@ -84,6 +84,7 @@ import eu.kanade.tachiyomi.ui.player.settings.AdvancedPlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
+import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.ui.player.utils.safeResumePositionMillis
@@ -134,6 +135,7 @@ class PlayerActivity : BaseActivity() {
     private val playerPreferences: PlayerPreferences by lazy { viewModel.playerPreferences }
     private val audioPreferences: AudioPreferences = Injekt.get()
     private val advancedPlayerPreferences: AdvancedPlayerPreferences = Injekt.get()
+    private val subtitlePreferences: SubtitlePreferences = Injekt.get()
     private val networkPreferences: NetworkPreferences = Injekt.get()
     private val storageManager: StorageManager = Injekt.get()
 
@@ -186,6 +188,9 @@ class PlayerActivity : BaseActivity() {
 
         private const val EXTRA_YOUTUBE_VIDEO = "youtubeVideo"
         private const val EXTRA_YOUTUBE_VIDEO_URL = "youtubeVideoUrl"
+
+        private val MPV_OPTION_NAME_REGEX = Regex("^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
+        private val MPV_PLAIN_OPTION_VALUE_REGEX = Regex("^[a-zA-Z0-9_.:/+-]*$")
 
         fun newIntent(
             context: Context,
@@ -550,6 +555,9 @@ class PlayerActivity : BaseActivity() {
 
         MPVLib.removeLogObserver(playerObserver)
         MPVLib.removeObserver(playerObserver)
+        // Last-resort stop: the static MPVLib singleton keeps decoding after the
+        // surface is gone, so an orphaned stop here prevents background audio.
+        MPVLib.command(arrayOf("stop"))
         player.destroyPlayer()
         castManager.cleanup()
 
@@ -591,6 +599,8 @@ class PlayerActivity : BaseActivity() {
             if (powerManager?.isInteractive == true) {
                 viewModel.deletePendingEpisodes()
             }
+        } else if (isFinishing) {
+            MPVLib.command(arrayOf("stop"))
         }
 
         super.onStop()
@@ -612,11 +622,11 @@ class PlayerActivity : BaseActivity() {
                 viewModel.dialogShown.value == Dialogs.None
             ) {
                 if (!enterPictureInPictureIfAvailable()) {
-                    super.onBackPressed()
+                    finish()
                 }
             }
         } else {
-            super.onBackPressed()
+            finish()
         }
     }
 
@@ -694,15 +704,16 @@ class PlayerActivity : BaseActivity() {
         advancedPlayerPreferences.mpvInput().get().let { mpvInputFile.writeText(it) }
 
         copyScripts()
-        copyAssets(configDir, "subfont.ttf")
         copyAssets(internalConfigDir, "cacert.pem")
         if (configDir != internalConfigDir) {
             removeUnmodifiedAssetCopy(configDir, "cacert.pem")
         }
+        writeFontsConf(configDir)
         setupFontsDirectory()
 
-        MPVLib.setOptionString("sub-ass-force-margins", "yes")
-        MPVLib.setOptionString("sub-use-margins", "yes")
+        val showBlackBars = if (subtitlePreferences.subtitleBlackBars().get()) "yes" else "no"
+        MPVLib.setOptionString("sub-ass-force-margins", showBlackBars)
+        MPVLib.setOptionString("sub-use-margins", showBlackBars)
 
         player.initialize(
             configDir = configDir,
@@ -817,6 +828,48 @@ class PlayerActivity : BaseActivity() {
             "osd-fonts-dir",
             fontsDir.path,
         )
+    }
+
+    /**
+     * Writes a fontconfig file so mpv can resolve Android system fonts in addition to
+     * user-provided ones. mpv reads `<configDir>/fonts.conf` automatically at init.
+     */
+    private fun writeFontsConf(configDir: String) {
+        val fontsDir = chimahon.novel.data.FontManager.getFontsDir(applicationContext)
+        if (!fontsDir.exists()) fontsDir.mkdirs()
+        val parts = listOfNotNull(
+            "<fontconfig>",
+            // Android system fonts reside here
+            "<dir>/system/fonts/</dir>",
+            "<dir>/product/fonts/</dir>",
+            // User provided fonts
+            "<dir>${fontsDir.path}</dir>",
+            // Point fontconfig to the right cache path so that caching works
+            "<cachedir>${applicationContext.cacheDir.path}</cachedir>",
+            // Conveniently there is *no* Java API to query the system default fonts, but we can
+            // manually specify the font families we know Android uses and provides by default.
+            // (compare to 60-latin.conf shipped with fontconfig)
+            "<alias><family>serif</family>",
+            "<prefer><family>Noto Serif</family></prefer>",
+            "</alias>",
+            "<alias><family>Sans Serif</family>",
+            "<prefer>",
+            "<family>Roboto</family>",
+            "<family>Noto Sans</family>", // other languages
+            "</prefer>",
+            "</alias>",
+            "<alias><family>monospace</family>",
+            "<prefer><family>Droid Sans Mono</family></prefer>",
+            "</alias>",
+            "</fontconfig>",
+        )
+        try {
+            File("$configDir/fonts.conf").bufferedWriter().use {
+                it.write(parts.joinToString("\n"))
+            }
+        } catch (e: IOException) {
+            logcat(LogPriority.ERROR, e) { "Failed to write fonts.conf" }
+        }
     }
 
     fun setupCustomButtons(buttons: List<CustomButton>) {
@@ -1338,7 +1391,9 @@ class PlayerActivity : BaseActivity() {
     }
 
     override fun finishAndRemoveTask() {
+        player.isExiting = true
         viewModel.deletePendingEpisodes()
+        MPVLib.command(arrayOf("stop"))
         super.finishAndRemoveTask()
     }
 
@@ -1462,7 +1517,7 @@ class PlayerActivity : BaseActivity() {
             launchIO {
                 TorrentServerService.start()
                 TorrentServerService.wait(10)
-                torrentLinkHandler(video.videoUrl, video.quality)
+                torrentLinkHandler(video.videoUrl, video.quality, video.mpvArgs)
             }
         } else {
             val playableUrl = try {
@@ -1476,12 +1531,73 @@ class PlayerActivity : BaseActivity() {
                 toast("Unable to open video")
                 return
             }
-            loadPlayableUrl(playableUrl)
+            if (video.mpvArgs.isEmpty()) {
+                loadPlayableUrl(playableUrl)
+            } else {
+                loadFile(playableUrl, video.mpvArgs)
+            }
         }
 
     }
 
-    private fun torrentLinkHandler(videoUrl: String, quality: String) {
+    /**
+     * Issues a `loadfile` for [url], appending the per-file options that have to apply no matter
+     * which branch started the load. Keeping this in one place is what stops the torrent path from
+     * inheriting the previous file's `sid`/`aid`.
+     * Ported from Anikku (komikku-app/anikku); routed through the surface gate so behavior is
+     * identical to [loadPlayableUrl] when [mpvArgs] is empty.
+     */
+    private fun loadFile(url: String, mpvArgs: List<Pair<String, String>> = emptyList()) {
+        if (mpvArgs.isEmpty()) {
+            // Legacy path: plain loadfile with mpv auto-selecting tracks, exactly as before.
+            loadPlayableUrl(url)
+            return
+        }
+        // We handle selecting these in the viewmodel
+        val forcedOptions = listOf(
+            Pair("sid", "no"),
+            Pair("aid", "no"),
+        )
+
+        player.loadFileWhenSurfaceReady(url, formatMpvOptions(mpvArgs + forcedOptions))
+    }
+
+    /**
+     * Formats [options] for the `options` argument of `loadfile`.
+     *
+     * mpv parses that argument as its own `key=value` list and never hands it to a shell, so the
+     * FFmpeg sanitizers must not be reused here: they reject values mpv accepts (`$`, `(`, `\`, or
+     * anything starting with `-`) and they *throw*, which would tear down the event collector that
+     * calls [setVideo] -- or crash the app outright from [torrentLinkHandler]'s coroutine.
+     *
+     * Any value the list syntax itself would otherwise eat -- one holding a `,`, a quote, or
+     * whitespace -- is emitted with mpv's `%<bytes>%<value>` escaping. Quoting cannot do the job:
+     * mpv's quoted form ends at the first `"` and has no escape for a literal one, so a value
+     * containing a quote used to produce an unparsable list and lose every option in it. Option
+     * names are validated rather than escaped, since a name mpv could not accept is a mistake in
+     * the extension either way.
+     */
+    private fun formatMpvOptions(options: List<Pair<String, String>>): String {
+        val (valid, invalid) = options.partition { (option, _) -> MPV_OPTION_NAME_REGEX.matches(option) }
+
+        invalid.forEach { (option, _) ->
+            logcat(LogPriority.WARN) { "Ignoring mpv option with unusable name: $option" }
+        }
+
+        return valid.joinToString(",") { (option, value) ->
+            if (MPV_PLAIN_OPTION_VALUE_REGEX.matches(value)) {
+                "$option=$value"
+            } else {
+                "$option=%${value.toByteArray().size}%$value"
+            }
+        }
+    }
+
+    private fun torrentLinkHandler(
+        videoUrl: String,
+        quality: String,
+        mpvArgs: List<Pair<String, String>> = emptyList(),
+    ) {
         var index = 0
 
         // check if link is from localSource
@@ -1489,7 +1605,7 @@ class PlayerActivity : BaseActivity() {
             val videoInputStream = applicationContext.contentResolver.openInputStream(Uri.parse(videoUrl))
             val torrent = TorrentServerApi.uploadTorrent(videoInputStream!!, quality, "", "", false)
             val torrentUrl = TorrentServerUtils.getTorrentPlayLink(torrent, 0)
-            loadPlayableUrl(torrentUrl)
+            loadFile(torrentUrl, mpvArgs)
             return
         }
 
@@ -1506,7 +1622,7 @@ class PlayerActivity : BaseActivity() {
 
         val currentTorrent = TorrentServerApi.addTorrent(videoUrl, quality, "", "", false)
         val videoTorrentUrl = TorrentServerUtils.getTorrentPlayLink(currentTorrent, index)
-        loadPlayableUrl(videoTorrentUrl)
+        loadFile(videoTorrentUrl, mpvArgs)
     }
 
     /**

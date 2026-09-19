@@ -803,7 +803,35 @@ object SettingsDataScreen : SearchableSettings {
                 ),
             ),
         ) + getSyncServicePreferences(syncPreferences, syncService) +
-            /* Chimahon --> */ getServerUploadPref(syncPreferences) + getKosyncPref() /* Chimahon <-- */
+            /* Chimahon --> */ getServerUploadPref(syncPreferences) + /* Chimahon <-- */ getTtuSyncPref()
+    }
+
+    @Composable
+    private fun getTtuSyncPref(): List<Preference> {
+        val navigator = LocalNavigator.currentOrThrow
+        return listOf(
+            Preference.PreferenceGroup(
+                title = stringResource(MR.strings.label_novels),
+                preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.TextPreference(
+                        title = "Novel TTU Sync",
+                        subtitle = "Sync novel progress with ツ reader via Google Drive",
+                        onClick = {
+                            navigator.push(TtuSyncScreen())
+                        },
+                    ),
+                    // Chimahon -->
+                    Preference.PreferenceItem.TextPreference(
+                        title = "KOReader Sync",
+                        subtitle = "Sync novel and manga progress with KOReader devices via a kosync server",
+                        onClick = {
+                            navigator.push(KosyncScreen())
+                        },
+                    ),
+                    // Chimahon <--
+                ),
+            ),
+        )
     }
 
     // Chimahon -->
@@ -826,25 +854,6 @@ object SettingsDataScreen : SearchableSettings {
                                 syncPreferences.webDavUploadFolder().set(newValue.trim().trim('/'))
                             }
                             true
-                        },
-                    ),
-                ),
-            ),
-        )
-    }
-
-    @Composable
-    private fun getKosyncPref(): List<Preference> {
-        val navigator = LocalNavigator.currentOrThrow
-        return listOf(
-            Preference.PreferenceGroup(
-                title = stringResource(MR.strings.label_novels),
-                preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.TextPreference(
-                        title = "KOReader Sync",
-                        subtitle = "Sync novel and manga progress with KOReader devices via a kosync server",
-                        onClick = {
-                            navigator.push(KosyncScreen())
                         },
                     ),
                 ),

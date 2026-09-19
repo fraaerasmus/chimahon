@@ -26,7 +26,14 @@ data class TimeStamp(
     val type: ChapterType = ChapterType.Other,
 )
 
-open class Video(
+/**
+ * Must stay a data class with exactly the extensions-lib v16 constructor shape
+ * (14 params, same order). Extensions call the synthetic default constructor and
+ * copy() whose descriptors embed the full parameter list, so even trailing extras
+ * break them at runtime. Keep extension-invisible state (status, page url) out of
+ * the primary constructor.
+ */
+data class Video(
     var videoUrl: String = "",
     val videoTitle: String = "",
     val resolution: Int? = null,
@@ -36,11 +43,11 @@ open class Video(
     val subtitleTracks: List<Track> = emptyList(),
     val audioTracks: List<Track> = emptyList(),
     val timestamps: List<TimeStamp> = emptyList(),
+    val mpvArgs: List<Pair<String, String>> = emptyList(),
     val ffmpegStreamArgs: List<Pair<String, String>> = emptyList(),
     val ffmpegVideoArgs: List<Pair<String, String>> = emptyList(),
     val internalData: String = "",
     val initialized: Boolean = false,
-    val videoPageUrl: String = "",
 ) {
 
     @Deprecated("Use videoTitle instead", ReplaceWith("videoTitle"))
@@ -51,6 +58,8 @@ open class Video(
     val url: String
         get() = videoPageUrl
 
+    var videoPageUrl: String = ""
+
     constructor(
         url: String,
         quality: String,
@@ -59,38 +68,16 @@ open class Video(
         subtitleTracks: List<Track> = emptyList(),
         audioTracks: List<Track> = emptyList(),
     ) : this(
-        videoPageUrl = url,
         videoTitle = quality,
         videoUrl = videoUrl ?: "",
         headers = headers,
         subtitleTracks = subtitleTracks,
         audioTracks = audioTracks,
-    )
-
-    constructor(
-        videoUrl: String = "",
-        videoTitle: String = "",
-        resolution: Int? = null,
-        bitrate: Int? = null,
-        headers: Headers? = null,
-        preferred: Boolean = false,
-        subtitleTracks: List<Track> = emptyList(),
-        audioTracks: List<Track> = emptyList(),
-        timestamps: List<TimeStamp> = emptyList(),
-        internalData: String = "",
-    ) : this(
-        videoUrl = videoUrl,
-        videoTitle = videoTitle,
-        resolution = resolution,
-        bitrate = bitrate,
-        headers = headers,
-        preferred = preferred,
-        subtitleTracks = subtitleTracks,
-        audioTracks = audioTracks,
-        timestamps = timestamps,
-        internalData = internalData,
-        videoPageUrl = "",
-    )
+        // Disambiguates the primary constructor from the 10-param secondary below
+        initialized = false,
+    ) {
+        this.videoPageUrl = url
+    }
 
     @Suppress("UNUSED_PARAMETER")
     constructor(
@@ -105,75 +92,15 @@ open class Video(
     @Volatile
     var status: State = State.QUEUE
 
-    fun copy(
-        videoUrl: String = this.videoUrl,
-        videoTitle: String = this.videoTitle,
-        resolution: Int? = this.resolution,
-        bitrate: Int? = this.bitrate,
-        headers: Headers? = this.headers,
-        preferred: Boolean = this.preferred,
-        subtitleTracks: List<Track> = this.subtitleTracks,
-        audioTracks: List<Track> = this.audioTracks,
-        timestamps: List<TimeStamp> = this.timestamps,
-        ffmpegStreamArgs: List<Pair<String, String>> = this.ffmpegStreamArgs,
-        ffmpegVideoArgs: List<Pair<String, String>> = this.ffmpegVideoArgs,
-        internalData: String = this.internalData,
-    ): Video {
-        return Video(
-            videoUrl = videoUrl,
-            videoTitle = videoTitle,
-            resolution = resolution,
-            bitrate = bitrate,
-            headers = headers,
-            preferred = preferred,
-            subtitleTracks = subtitleTracks,
-            audioTracks = audioTracks,
-            timestamps = timestamps,
-            ffmpegStreamArgs = ffmpegStreamArgs,
-            ffmpegVideoArgs = ffmpegVideoArgs,
-            internalData = internalData,
-        )
-    }
-
-    fun copy(
-        videoUrl: String = this.videoUrl,
-        videoTitle: String = this.videoTitle,
-        resolution: Int? = this.resolution,
-        bitrate: Int? = this.bitrate,
-        headers: Headers? = this.headers,
-        preferred: Boolean = this.preferred,
-        subtitleTracks: List<Track> = this.subtitleTracks,
-        audioTracks: List<Track> = this.audioTracks,
-        timestamps: List<TimeStamp> = this.timestamps,
-        ffmpegStreamArgs: List<Pair<String, String>> = this.ffmpegStreamArgs,
-        ffmpegVideoArgs: List<Pair<String, String>> = this.ffmpegVideoArgs,
-        internalData: String = this.internalData,
-        initialized: Boolean = this.initialized,
-        videoPageUrl: String = this.videoPageUrl,
-    ): Video {
-        return Video(
-            videoUrl = videoUrl,
-            videoTitle = videoTitle,
-            resolution = resolution,
-            bitrate = bitrate,
-            headers = headers,
-            preferred = preferred,
-            subtitleTracks = subtitleTracks,
-            audioTracks = audioTracks,
-            timestamps = timestamps,
-            ffmpegStreamArgs = ffmpegStreamArgs,
-            ffmpegVideoArgs = ffmpegVideoArgs,
-            internalData = internalData,
-            initialized = initialized,
-            videoPageUrl = videoPageUrl,
-        )
-    }
-
     enum class State {
         QUEUE,
         LOAD_VIDEO,
         READY,
         ERROR,
+    }
+
+    companion object {
+        const val MPV_ARGS_TAG = "ANIYOMI_MPV_ARGS"
     }
 }
 
@@ -188,6 +115,7 @@ data class SerializableVideo(
     val subtitleTracks: List<Track> = emptyList(),
     val audioTracks: List<Track> = emptyList(),
     val timestamps: List<TimeStamp> = emptyList(),
+    val mpvArgs: List<Pair<String, String>> = emptyList(),
     val ffmpegStreamArgs: List<Pair<String, String>> = emptyList(),
     val ffmpegVideoArgs: List<Pair<String, String>> = emptyList(),
     val internalData: String = "",
@@ -209,6 +137,7 @@ data class SerializableVideo(
                         vid.subtitleTracks,
                         vid.audioTracks,
                         vid.timestamps,
+                        vid.mpvArgs,
                         vid.ffmpegStreamArgs,
                         vid.ffmpegVideoArgs,
                         vid.internalData,
@@ -235,12 +164,12 @@ data class SerializableVideo(
                         sVid.subtitleTracks,
                         sVid.audioTracks,
                         sVid.timestamps,
+                        sVid.mpvArgs,
                         sVid.ffmpegStreamArgs,
                         sVid.ffmpegVideoArgs,
                         sVid.internalData,
                         sVid.initialized,
-                        sVid.videoPageUrl,
-                    )
+                    ).apply { videoPageUrl = sVid.videoPageUrl }
                 }
     }
 }

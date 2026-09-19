@@ -125,6 +125,15 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   so outside observers (`MediaController.getPlaybackState`, e.g. a NotificationListener) saw
   state NONE for the whole video. The mpv `pause` observer now publishes `STATE_PLAYING` /
   `STATE_PAUSED`, ahead of the exit guard so the pause on backgrounding is reported too.
+- Upstream v2.4.5 merge (2026-09-19): upstream brought back TTU sync, so the Novels group
+  under Data and storage holds both "Novel TTU Sync" and "KOReader Sync" again, and on
+  open the reader runs the TTU import and then the KOReader pull before it seeds the resume
+  position. Upstream moved the Browse "+" import dialog into a shared
+  `LocalMangaImportHost.kt` (also used by the new manga library add button); the fork's
+  "OPDS" button is now an optional `onOpds` callback on `LocalMangaImportDialogs`, passed
+  only from Browse > Sources. Upstream dropped the `DropdownMenu` import from
+  `NovelLibraryScreen.kt` without a conflict while the fork's add menu still uses it; the
+  import is restored.
 
 ## Dropped (superseded by upstream)
 
