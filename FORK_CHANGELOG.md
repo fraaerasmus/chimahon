@@ -120,6 +120,11 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   private, which broke every release build. The AAR and POM Gradle had cached now live in
   `local-maven/`, listed first in `settings.gradle.kts`, so the catalog coordinate stays
   upstream's. Drop it once upstream moves off the JitPack coordinate.
+- Player media session reports playing/paused (2026-09-19): the anime player's
+  `MediaSession` was created with an actions-only `PlaybackState` that was never updated,
+  so outside observers (`MediaController.getPlaybackState`, e.g. a NotificationListener) saw
+  state NONE for the whole video. The mpv `pause` observer now publishes `STATE_PLAYING` /
+  `STATE_PAUSED`, ahead of the exit guard so the pause on backgrounding is reported too.
 
 ## Dropped (superseded by upstream)
 

@@ -539,6 +539,9 @@ class PlayerActivity : BaseActivity() {
             it.isActive = false
             it.release()
         }
+        // Chimahon -->
+        mediaSession = null
+        // Chimahon <--
 
         if (noisyReceiver.initialized) {
             unregisterReceiver(noisyReceiver)
@@ -985,6 +988,19 @@ class PlayerActivity : BaseActivity() {
     }
 
     internal fun onObserverEvent(property: String, value: Boolean) {
+        // Chimahon -->
+        // Before the isExiting guard: backgrounding sets isExiting, then pauses
+        if (property == "pause") {
+            mediaSession?.let {
+                val state = if (value) PlaybackState.STATE_PAUSED else PlaybackState.STATE_PLAYING
+                it.setPlaybackState(
+                    PlaybackState.Builder(it.controller.playbackState)
+                        .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
+                        .build(),
+                )
+            }
+        }
+        // Chimahon <--
         if (player.isExiting) return
         when (property) {
             "pause" -> {
