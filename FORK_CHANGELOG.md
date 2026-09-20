@@ -127,6 +127,14 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   `STATE_PAUSED`, ahead of the exit guard so the pause on backgrounding is reported too.
   `onDestroy` publishes `STATE_STOPPED` right before releasing the session, so observers
   see playback end instead of a last state stuck on PLAYING.
+- Jellyfin playback reporting (2026-09-19): streams from the Jellyfin extension were invisible
+  to the server (no session, no now-playing), because nothing called `/Sessions/Playing*`.
+  `JellyfinPlaybackReporter` recognises such a stream from the video itself (a `MediaBrowser`
+  `Authorization` header plus a `/Videos/{id}/` url), then reports start, pause/resume, a 10s
+  progress check-in and stop, reusing that header so the session matches the extension's
+  device and token. No settings; other sources, downloads, casting and the external player
+  are untouched. Side effect, same as any Jellyfin client: the server now stores the resume
+  position and marks items played near the end.
 - Upstream v2.4.5 merge (2026-09-19): upstream brought back TTU sync, so the Novels group
   under Data and storage holds both "Novel TTU Sync" and "KOReader Sync" again, and on
   open the reader runs the TTU import and then the KOReader pull before it seeds the resume

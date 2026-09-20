@@ -131,6 +131,11 @@ class PlayerActivity : BaseActivity() {
     val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     private var mediaSession: MediaSession? = null
+
+    // Chimahon -->
+    @Volatile
+    private var jellyfinReporter: JellyfinPlaybackReporter? = null
+    // Chimahon <--
     private val gesturePreferences: GesturePreferences by lazy { viewModel.gesturePreferences }
     private val playerPreferences: PlayerPreferences by lazy { viewModel.playerPreferences }
     private val audioPreferences: AudioPreferences = Injekt.get()
@@ -553,6 +558,8 @@ class PlayerActivity : BaseActivity() {
         }
         // Chimahon -->
         mediaSession = null
+        jellyfinReporter?.stop()
+        jellyfinReporter = null
         // Chimahon <--
 
         if (noisyReceiver.initialized) {
@@ -1059,6 +1066,7 @@ class PlayerActivity : BaseActivity() {
                         .build(),
                 )
             }
+            jellyfinReporter?.setPaused(value)
         }
         // Chimahon <--
         if (player.isExiting) return
@@ -1727,6 +1735,14 @@ class PlayerActivity : BaseActivity() {
     // at void is.xyz.mpv.MPVLib.event(int) (MPVLib.java:86)
     private fun fileLoaded() {
         if (player.isExiting) return
+        // Chimahon -->
+        // Every load is a new play session on the server: next episode, quality switch
+        jellyfinReporter?.stop(atLastReported = true)
+        jellyfinReporter = viewModel.currentVideo.value
+            ?.let { JellyfinPlaybackReporter.parseTarget(it.videoUrl, it.headers) }
+            ?.let { target -> JellyfinPlaybackReporter(target) { viewModel.pos.value } }
+            ?.also { it.start(paused = player.paused == true) }
+        // Chimahon <--
         setMpvMediaTitle()
         setupPlayerOrientation()
         setupChapters()
