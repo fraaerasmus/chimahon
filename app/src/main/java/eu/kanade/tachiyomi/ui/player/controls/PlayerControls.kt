@@ -810,6 +810,9 @@ fun PlayerControls(
             onSubtitleSpeedChange = viewModel::updateSubtitleSpeed,
             onSubtitleRegexFiltersChanged = viewModel::refreshSubtitleRegexFilters,
             onDismissRequest = { viewModel.showPanel(Panels.None) },
+            // Chimahon -->
+            subtitlePositionSeconds = { viewModel.pos.value.toDouble() },
+            // Chimahon <--
         )
 
         val activity = LocalContext.current as PlayerActivity

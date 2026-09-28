@@ -21,6 +21,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +47,9 @@ fun SubtitleListPanel(
     onSelectCue: (Int) -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    // Chimahon -->
+    positionSeconds: () -> Double = { 0.0 },
+    // Chimahon <--
 ) {
     BackHandler(onBack = onDismissRequest)
 
@@ -51,6 +58,7 @@ fun SubtitleListPanel(
             cues = cues,
             activeCueIndex = activeCueIndex,
             onSelectCue = onSelectCue,
+            positionSeconds = positionSeconds,
             modifier = Modifier.align(Alignment.CenterEnd),
         )
     }
@@ -61,6 +69,7 @@ private fun SubtitleSideList(
     cues: ImmutableList<SubtitleCue>,
     activeCueIndex: Int?,
     onSelectCue: (Int) -> Unit,
+    positionSeconds: () -> Double,
     modifier: Modifier = Modifier,
 ) {
     val configuration = LocalConfiguration.current
@@ -71,6 +80,7 @@ private fun SubtitleSideList(
         cues = cues,
         activeCueIndex = activeCueIndex,
         onSelectCue = onSelectCue,
+        positionSeconds = positionSeconds,
         modifier = modifier
             .padding(end = 8.dp, top = 36.dp, bottom = 36.dp)
             .width(width)
@@ -83,15 +93,27 @@ private fun SubtitleCueLazyList(
     cues: ImmutableList<SubtitleCue>,
     activeCueIndex: Int?,
     onSelectCue: (Int) -> Unit,
+    positionSeconds: () -> Double,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    val activePosition = activePosition(cues, activeCueIndex)
+    // Chimahon -->
+    val activePosition = cues.indexOfFirst { it.index == activeCueIndex }
+    var hasFollowed by remember { mutableStateOf(false) }
 
-    LaunchedEffect(activePosition, cues.size) {
+    // Keyed on the cue itself: once the history is capped, a new line no longer moves the last position.
+    LaunchedEffect(activeCueIndex, activePosition, cues.isEmpty()) {
         if (cues.isEmpty()) return@LaunchedEffect
-        listState.animateScrollToCenteredItem(activePosition)
+        val target = when {
+            activePosition >= 0 -> activePosition
+            // No line is active between cues. Stay put rather than jumping away and back.
+            hasFollowed -> return@LaunchedEffect
+            else -> fallbackPosition(cues, positionSeconds())
+        }
+        hasFollowed = true
+        listState.animateScrollToCenteredItem(target)
     }
+    // Chimahon <--
 
     if (cues.isEmpty()) {
         EmptySubtitleListMessage(modifier)
@@ -124,14 +146,45 @@ private suspend fun LazyListState.animateScrollToCenteredItem(index: Int) {
     }
 
     val item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return
-    val viewportCenter = layoutInfo.viewportSize.height / 2
-    val itemCenter = item.offset + item.size / 2
-    val scrollDelta = itemCenter - viewportCenter
+    // Chimahon -->
+    val scrollDelta = centeredScrollDelta(
+        itemOffset = item.offset,
+        itemSize = item.size,
+        viewportStartOffset = layoutInfo.viewportStartOffset,
+        viewportEndOffset = layoutInfo.viewportEndOffset,
+    )
+    // Chimahon <--
 
     if (scrollDelta != 0) {
         animateScrollBy(scrollDelta.toFloat())
     }
 }
+
+// Chimahon -->
+/**
+ * How far to scroll so an item sits in the middle of the viewport.
+ *
+ * Item offsets start where the top content padding ends, so the centre has to come from the viewport
+ * offsets, which share that origin. The viewport height does not, and put the item on the bottom edge.
+ */
+internal fun centeredScrollDelta(
+    itemOffset: Int,
+    itemSize: Int,
+    viewportStartOffset: Int,
+    viewportEndOffset: Int,
+): Int {
+    val viewportCenter = (viewportStartOffset + viewportEndOffset) / 2
+    val itemCenter = itemOffset + itemSize / 2
+    return itemCenter - viewportCenter
+}
+
+/**
+ * Where to open the list while no line is active: the last line that started by [positionSeconds].
+ */
+internal fun fallbackPosition(cues: List<SubtitleCue>, positionSeconds: Double): Int {
+    return cues.indexOfLast { it.positionSeconds <= positionSeconds }.coerceAtLeast(0)
+}
+// Chimahon <--
 
 @Composable
 private fun SubtitleCueSideRow(
@@ -187,10 +240,4 @@ private fun activeLineColor(selected: Boolean): Color {
     } else {
         Color.Transparent
     }
-}
-
-private fun activePosition(cues: List<SubtitleCue>, activeCueIndex: Int?): Int {
-    if (cues.isEmpty()) return 0
-    val active = cues.indexOfFirst { it.index == activeCueIndex }
-    return if (active >= 0) active else cues.lastIndex
 }
