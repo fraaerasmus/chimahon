@@ -23,6 +23,13 @@ class SubtitleSwipeActionTest {
     }
 
     @Test
+    fun `drags tracked on the horizontal axis only never replay or hide`() {
+        assertEquals(SubtitleSwipeAction.Previous, resolveSubtitleSwipeAction(-200f, 0f, 30f))
+        assertEquals(SubtitleSwipeAction.Next, resolveSubtitleSwipeAction(200f, 0f, 30f))
+        assertNull(resolveSubtitleSwipeAction(0f, 0f, 30f))
+    }
+
+    @Test
     fun `diagonal and short swipes have no subtitle action`() {
         assertNull(resolveSubtitleSwipeAction(30f, 30f, 30f))
         assertNull(resolveSubtitleSwipeAction(0f, 29f, 30f))

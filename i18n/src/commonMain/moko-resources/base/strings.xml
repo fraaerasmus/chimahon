@@ -314,7 +314,7 @@
     <string name="pref_player_gesture_h_seek">Horizontal seek gesture</string>
     <string name="pref_player_gesture_h_seek_summary">Swipe left or right to rewind or fast-forward</string>
     <string name="pref_player_gesture_subtitle_swipe">Subtitle swipe controls</string>
-    <string name="pref_player_gesture_subtitle_swipe_summary">Swipe left/right between subtitles, up to hide, and down to show. Replaces seek and volume/brightness swipes.</string>
+    <string name="pref_player_gesture_subtitle_swipe_summary">Swipe left/right to move between subtitle lines. Replaces the seek swipe.</string>
     <string name="pref_player_skip_length">Seek skip length</string>
     <string name="pref_player_smooth_seek">Enable precise seeking</string>
     <string name="pref_player_smooth_seek_summary">When enabled, seeking will not focus on keyframes, leading to slower but precise seeking</string>
@@ -1821,4 +1821,8 @@
     <string name="pref_long_press_gesture">Long press</string>
     <string name="long_press_screenshot">Screenshot</string>
     <string name="long_press_double_speed">Hold for 2x speed</string>
+    <string name="pref_player_gesture_vertical_swipe">Vertical swipe</string>
+    <string name="vertical_swipe_subtitle_actions">Replay line / hide subtitles</string>
+    <string name="vertical_swipe_volume_brightness">Volume and brightness</string>
+    <string name="pref_controls_allow_gestures_when_locked">Allow gestures while locked</string>
 </resources>

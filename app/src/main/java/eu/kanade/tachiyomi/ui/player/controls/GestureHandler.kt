@@ -45,6 +45,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +66,7 @@ import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.Sheets
+import eu.kanade.tachiyomi.ui.player.VerticalSwipeGesture
 import eu.kanade.tachiyomi.ui.player.controls.components.DoubleTapSeekTriangles
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
@@ -129,7 +131,13 @@ fun GestureHandler(
     val duration by viewModel.duration.collectAsState()
     val position by viewModel.pos.collectAsState()
     val controlsShown by viewModel.controlsShown.collectAsState()
-    val areControlsLocked by viewModel.areControlsLocked.collectAsState()
+    // Chimahon -->
+    // Gestures only count as locked while the user has not allowed them in the locked state.
+    // Kept under the upstream name so every lock check below stays untouched.
+    val controlsLocked by viewModel.areControlsLocked.collectAsState()
+    val allowGesturesWhenLocked by playerPreferences.allowGesturesWhenLocked().collectAsState()
+    val areControlsLocked by rememberUpdatedState(controlsLocked && !allowGesturesWhenLocked)
+    // Chimahon <--
     val disableLongPressScr by playerPreferences.disableLongPressScreenshot().collectAsState()
     val singleTapToPause by playerPreferences.singleTapToPause().collectAsState()
     val seekAmount by viewModel.doubleTapSeekAmount.collectAsState()
@@ -153,6 +161,9 @@ fun GestureHandler(
     val showSeekbar by gesturePreferences.showSeekBar().collectAsState()
     // Chimahon -->
     val longPressGesture by gesturePreferences.longPressGesture().collectAsState()
+    val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
+    val subtitleVerticalSwipe = subtitleSwipeControls &&
+        subtitleSwipeVertical == VerticalSwipeGesture.SubtitleActions
     // Chimahon <--
     var isLongPressing by remember { mutableStateOf(false) }
     val currentVolume by viewModel.currentVolume.collectAsState()
@@ -298,11 +309,38 @@ fun GestureHandler(
                     )
                 }
             }
-            .pointerInput(areControlsLocked, subtitleSwipeControls, subtitleSwipeDistance) {
+            .pointerInput(areControlsLocked, subtitleSwipeControls, subtitleSwipeDistance, subtitleVerticalSwipe) {
                 if (!subtitleSwipeControls || areControlsLocked) return@pointerInput
                 var startedAt = 0L
                 var totalDragX = 0f
                 var totalDragY = 0f
+                // Chimahon -->
+                if (!subtitleVerticalSwipe) {
+                    // Vertical swipes belong to volume/brightness, so only claim horizontal drags.
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            startedAt = SystemClock.uptimeMillis()
+                            totalDragX = 0f
+                        },
+                        onDragEnd = {
+                            if (SystemClock.uptimeMillis() - startedAt > SUBTITLE_SWIPE_TIME_LIMIT_MILLIS) {
+                                return@detectHorizontalDragGestures
+                            }
+
+                            when (resolveSubtitleSwipeAction(totalDragX, 0f, subtitleSwipeDistance)) {
+                                SubtitleSwipeAction.Previous -> viewModel.seekToAdjacentSubtitle(forward = false)
+                                SubtitleSwipeAction.Next -> viewModel.seekToAdjacentSubtitle(forward = true)
+                                else -> Unit
+                            }
+                        },
+                        onDragCancel = { totalDragX = 0f },
+                    ) { change, dragAmount ->
+                        totalDragX += dragAmount
+                        change.consume()
+                    }
+                    return@pointerInput
+                }
+                // Chimahon <--
                 detectDragGestures(
                     onDragStart = {
                         startedAt = SystemClock.uptimeMillis()
@@ -368,8 +406,10 @@ fun GestureHandler(
                     if (showSeekbar) viewModel.showSeekBar()
                 }
             }
-            .pointerInput(areControlsLocked, subtitleSwipeControls) {
-                if (subtitleSwipeControls || !gestureVolumeBrightness || areControlsLocked) return@pointerInput
+            // Chimahon -->
+            .pointerInput(areControlsLocked, subtitleVerticalSwipe) {
+                if (subtitleVerticalSwipe || !gestureVolumeBrightness || areControlsLocked) return@pointerInput
+                // Chimahon <--
                 var startingY = 0f
                 var mpvVolumeStartingY = 0f
                 var originalVolume = currentVolume

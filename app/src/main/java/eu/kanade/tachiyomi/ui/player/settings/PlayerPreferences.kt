@@ -26,6 +26,11 @@ class PlayerPreferences(
     // Controls
 
     fun allowGestures() = preferenceStore.getBoolean("pref_allow_gestures_in_panels", false)
+
+    // Chimahon -->
+    fun allowGesturesWhenLocked() = preferenceStore.getBoolean("pref_allow_gestures_when_locked", false)
+    // Chimahon <--
+
     fun disableLongPressScreenshot() = preferenceStore.getBoolean("pref_disable_long_press_screenshot", false)
     fun singleTapToPause() = preferenceStore.getBoolean("pref_single_tap_to_pause", false)
     fun showLoadingCircle() = preferenceStore.getBoolean("pref_show_loading", true)

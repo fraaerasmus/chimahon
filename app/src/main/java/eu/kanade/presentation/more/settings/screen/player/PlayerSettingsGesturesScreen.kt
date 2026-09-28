@@ -20,6 +20,7 @@ import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
 import eu.kanade.tachiyomi.ui.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
+import eu.kanade.tachiyomi.ui.player.VerticalSwipeGesture
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import kotlinx.collections.immutable.persistentListOf
@@ -59,6 +60,11 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val subtitleSwipeControls by gesturePreferences.subtitleSwipeControls().collectAsState()
         val disableLongPressScr = playerPreferences.disableLongPressScreenshot()
         val longPressGesture = gesturePreferences.longPressGesture()
+        // Chimahon -->
+        val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
+        val slidersAvailable = !subtitleSwipeControls ||
+            subtitleSwipeVertical == VerticalSwipeGesture.VolumeBrightness
+        // Chimahon <--
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_player_sliders),
@@ -66,12 +72,12 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = enableVolumeBrightnessGestures,
                     title = stringResource(MR.strings.enable_volume_brightness_gestures),
-                    enabled = !subtitleSwipeControls,
+                    enabled = slidersAvailable,
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = swapVol,
                     title = stringResource(MR.strings.pref_controls_swap_vol_brightness),
-                    enabled = !subtitleSwipeControls,
+                    enabled = slidersAvailable,
                 ),
                 // Chimahon -->
                 Preference.PreferenceItem.ListPreference(
@@ -126,6 +132,17 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                     title = stringResource(MR.strings.pref_player_gesture_subtitle_swipe),
                     subtitle = stringResource(MR.strings.pref_player_gesture_subtitle_swipe_summary),
                 ),
+                // Chimahon -->
+                Preference.PreferenceItem.ListPreference(
+                    preference = gesturePreferences.subtitleSwipeVertical(),
+                    title = stringResource(MR.strings.pref_player_gesture_vertical_swipe),
+                    entries = listOf(
+                        VerticalSwipeGesture.SubtitleActions,
+                        VerticalSwipeGesture.VolumeBrightness,
+                    ).associateWith { stringResource(it.stringRes) }.toPersistentMap(),
+                    enabled = subtitleSwipeControlsEnabled,
+                ),
+                // Chimahon <--
                 Preference.PreferenceItem.SwitchPreference(
                     preference = enableHorizontalSeekGesture,
                     title = stringResource(MR.strings.enable_horizontal_seek_gesture),

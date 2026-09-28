@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.ui.player.settings
 
 import eu.kanade.tachiyomi.ui.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
+import eu.kanade.tachiyomi.ui.player.VerticalSwipeGesture
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
@@ -19,6 +20,11 @@ class GesturePreferences(
 
     // Chimahon -->
     fun longPressGesture() = preferenceStore.getEnum("pref_long_press_gesture", LongPressGesture.Screenshot)
+
+    fun subtitleSwipeVertical() = preferenceStore.getEnum(
+        "pref_subtitle_swipe_vertical",
+        VerticalSwipeGesture.SubtitleActions,
+    )
     // Chimahon <--
 
     // Seeking
