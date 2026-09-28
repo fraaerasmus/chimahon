@@ -223,7 +223,10 @@ fun PlayerControls(
         val currentPanel = viewModel.panelShown.value
         if (
             viewModel.sheetShown.value != Sheets.None ||
-            currentPanel != Panels.None ||
+            // Chimahon -->
+            // The subtitle list sits beside the subtitles, so looking a word up stays possible.
+            (currentPanel != Panels.None && currentPanel != Panels.SubtitleSideList) ||
+            // Chimahon <--
             viewModel.dialogShown.value != Dialogs.None
         ) {
             return@openSubtitleLookup

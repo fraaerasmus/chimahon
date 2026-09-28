@@ -183,6 +183,10 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   (default 100%, the stock 0.15 seconds per pixel). It applies to the horizontal seek
   gesture, so it is greyed out while that gesture is off or "Subtitle swipe controls"
   replaces it.
+- Lookup with the subtitle list open (2026-09-27): upstream blocks the subtitle dictionary
+  popup while any panel, sheet or dialog is showing. The subtitle side list is now exempt,
+  so tapping a word in the on-screen subtitle looks it up with the list open. Other panels,
+  sheets and dialogs still block it.
 
 ## Dropped (superseded by upstream)
 
