@@ -21,7 +21,10 @@ class TtuSyncManager(
     private val folderNames: TtuFolderNames = TtuFolderNames(context),
     private val localStore: TtuLocalStore = TtuLocalStoreImpl(context),
     private val driveClient: TtuDriveClient = TtuDriveClient(context, authManager),
-    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
+    private val json: Json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    },
 ) {
 
     val settingsFlow: Flow<SyncSettings>
@@ -107,10 +110,55 @@ class TtuSyncManager(
         }
     }
 
+    suspend fun syncBooks(
+        refs: List<TtuBookRef>,
+        direction: SyncDirection = SyncDirection.AUTO,
+        onProgress: (suspend (current: Int, total: Int, result: SyncResult) -> Unit)? = null,
+    ): List<SyncResult> {
+        if (!isEnabled || refs.isEmpty()) return refs.map { SyncResult.Skipped }
+        val rootId = driveClient.findOrCreateRootFolder()
+        runCatching { driveClient.preloadBookFolders(rootId) }
+
+        val states = refs.map { it to localStore.read(it) }
+        val folderMap = states.mapNotNull { (ref, state) ->
+            if (state == null) return@mapNotNull null
+            val folderName = folderNames.get(state.novelId, ref.folder)
+                ?: TtuSyncRules.sanitizeTtuFilename(ref.title)
+            val folderId = driveClient.findOrCreateBookFolder(
+                rootId = rootId,
+                folderName = folderName,
+                coverDataProvider = state.coverBytes?.let { bytes -> { bytes } },
+            )
+            folderNames.set(state.novelId, ref.folder, folderName)
+            ref to (state to folderId)
+        }.toMap()
+
+        val preloadedFiles = driveClient.listSyncFiles(folderMap.values.map { it.second }.distinct())
+
+        return refs.mapIndexed { index, ref ->
+            val pair = folderMap[ref]
+            val result = if (pair == null) {
+                SyncResult.Skipped
+            } else {
+                val (state, folderId) = pair
+                val files = preloadedFiles[folderId] ?: DriveSyncFiles()
+                try {
+                    performSync(state, direction, importOnly = false, preloadedFiles = files)
+                } catch (e: Exception) {
+                    Log.e(TAG, "syncBooks failed for '${ref.title}'", e)
+                    SyncResult.Failed(ref.title, e.message ?: "Unknown error")
+                }
+            }
+            onProgress?.invoke(index + 1, refs.size, result)
+            result
+        }
+    }
+
     private suspend fun performSync(
         state: TtuLocalState,
         direction: SyncDirection,
         importOnly: Boolean,
+        preloadedFiles: DriveSyncFiles? = null,
     ): SyncResult {
         val displayTitle = state.ref.title
         val rootId = driveClient.findOrCreateRootFolder()
@@ -124,7 +172,7 @@ class TtuSyncManager(
         )
         folderNames.set(state.novelId, state.ref.folder, folderName)
 
-        val remoteFiles = driveClient.listSyncFiles(bookFolderId)
+        val remoteFiles = preloadedFiles ?: driveClient.listSyncFiles(bookFolderId)
         Log.d(
             TAG,
             "performSync state: folder='$folderName', localLastModified=${state.lastModified}, remoteProgress=${remoteFiles.progress?.name}",
@@ -133,7 +181,7 @@ class TtuSyncManager(
         val resolvedDirection = if (direction != SyncDirection.AUTO) {
             direction
         } else {
-            TtuSyncRules.determineDirection(state.lastModified, remoteFiles.progress)
+            TtuSyncRules.determineDirection(state.lastModified, remoteFiles.progress, state.characterCount)
         }
         Log.d(TAG, "performSync direction: requested=$direction, resolved=$resolvedDirection")
 
@@ -163,22 +211,30 @@ class TtuSyncManager(
                 val content = driveClient.downloadFile(remoteFiles.progress.id)
                 val ttuProgress = json.decodeFromString<TtuProgress>(content)
                 val (chapterIndex, fraction) = resolveCharacterPosition(state, ttuProgress)
-                localStore.writePosition(
+                val writeSuccess = localStore.writePosition(
                     ref = state.ref,
                     chapterIndex = chapterIndex,
                     progress = fraction,
                     characterCount = ttuProgress.exploredCharCount,
                     lastModified = ttuProgress.lastBookmarkModified,
                 )
-                importedCharacterCount = ttuProgress.exploredCharCount
-                imported = true
-                Log.d(
-                    TAG,
-                    "importProgress saved: title='$displayTitle', remoteFile='${remoteFiles.progress.name}', " +
-                        "chapter=$chapterIndex, progress=$fraction, chars=$importedCharacterCount",
-                )
+                if (writeSuccess) {
+                    importedCharacterCount = ttuProgress.exploredCharCount
+                    imported = true
+                    Log.d(
+                        TAG,
+                        "importProgress saved: title='$displayTitle', remoteFile='${remoteFiles.progress.name}', " +
+                            "chapter=$chapterIndex, progress=$fraction, chars=$importedCharacterCount",
+                    )
+                } else {
+                    Log.w(TAG, "importProgress writePosition failed: title='$displayTitle'")
+                    return SyncResult.Failed(displayTitle, "Failed to write local bookmark")
+                }
+            } catch (e: DriveFileNotFoundException) {
+                throw e
             } catch (e: Exception) {
-                Log.w(TAG, "importProgress failed: title='$displayTitle', file='${remoteFiles.progress.name}'", e)
+                Log.e(TAG, "importProgress failed: title='$displayTitle', file='${remoteFiles.progress.name}'", e)
+                return SyncResult.Failed(displayTitle, e.message ?: "Failed to import progress")
             }
         } else {
             Log.d(TAG, "importProgress skipped: title='$displayTitle', no remote progress file")
@@ -233,7 +289,7 @@ class TtuSyncManager(
             }
 
             val ttuProgress = TtuProgress(
-                dataId = remoteProgress?.dataId ?: 0,
+                dataId = remoteProgress?.dataId ?: 0L,
                 exploredCharCount = state.characterCount,
                 progress = charBasedProgress,
                 lastBookmarkModified = state.lastModified,
@@ -338,8 +394,10 @@ class TtuSyncManager(
                     stat
                 } else {
                     val newer = if (stat.charactersRead > existing.charactersRead ||
-                        (stat.charactersRead == existing.charactersRead &&
-                            stat.readingTime > existing.readingTime)
+                        (
+                            stat.charactersRead == existing.charactersRead &&
+                                stat.readingTime > existing.readingTime
+                            )
                     ) {
                         stat
                     } else {

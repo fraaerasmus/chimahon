@@ -36,8 +36,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material.icons.outlined.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -174,8 +175,8 @@ fun Screen.NovelLibraryScreen(
         syncStatus?.start()
         syncStatus?.updateProgress(0f)
         try {
-            refs.forEachIndexed { index, ref ->
-                when (val result = sync.syncBook(ref, direction)) {
+            sync.syncBooks(refs, direction) { current, total, result ->
+                when (result) {
                     is SyncResult.Imported -> imported++
                     is SyncResult.Exported -> exported++
                     is SyncResult.Synced -> synced++
@@ -185,9 +186,7 @@ fun Screen.NovelLibraryScreen(
                         Log.w("TtuSyncUi", "TTU sync failed for '${result.title}': ${result.error}")
                     }
                 }
-                if (refs.isNotEmpty()) {
-                    syncStatus?.updateProgress((index + 1).toFloat() / refs.size.toFloat())
-                }
+                syncStatus?.updateProgress(current.toFloat() / total.toFloat())
             }
         } finally {
             syncStatus?.stop()
@@ -324,9 +323,8 @@ fun Screen.NovelLibraryScreen(
         bottomBar = {
             val singleSelection = if (state.selection.size == 1) state.selection.first() else null
             val singleBook = singleSelection?.let { id -> state.books.firstOrNull { it.id == id } }
-            val ttuManualSync = ttuSyncManager?.isEnabled == true &&
-                ttuSyncManager?.loadSettings()?.mode == SyncMode.Manual &&
-                singleBook?.title != null
+            val ttuAvailable = ttuSyncManager?.isEnabled == true && singleBook?.title != null
+            val isManualSync = ttuSyncManager?.loadSettings()?.mode == SyncMode.Manual
             NovelLibraryBottomActionMenu(
                 visible = state.selectionMode,
                 onEditClicked = screenModel::showEditDialog,
@@ -334,9 +332,28 @@ fun Screen.NovelLibraryScreen(
                 onChangeCategoryClicked = screenModel::showChangeCategoryDialog,
                 onDeleteClicked = screenModel::showDeleteConfirmDialog,
                 onResetClicked = screenModel::resetStatsForSelected,
-                onSyncImport = if (ttuManualSync) {
+                isManualSync = isManualSync,
+                onSyncAuto = if (ttuAvailable && singleBook != null && singleBook.title != null) {
                     {
-                        val ref = TtuBookRef(singleBook!!.id, singleBook.title!!)
+                        val ref = TtuBookRef(singleBook.id, singleBook.title)
+                        ttuSyncJob = coroutineScope.launch(Dispatchers.IO) {
+                            val summary = runTtuSync(
+                                listOf(ref),
+                                SyncDirection.AUTO,
+                            )
+                            withContext(Dispatchers.Main) {
+                                context.toast(summary)
+                                screenModel.clearSelection()
+                                screenModel.loadLibrary()
+                            }
+                        }
+                    }
+                } else {
+                    null
+                },
+                onSyncImport = if (ttuAvailable && singleBook != null && singleBook.title != null) {
+                    {
+                        val ref = TtuBookRef(singleBook.id, singleBook.title)
                         ttuSyncJob = coroutineScope.launch(Dispatchers.IO) {
                             val summary = runTtuSync(
                                 listOf(ref),
@@ -352,9 +369,9 @@ fun Screen.NovelLibraryScreen(
                 } else {
                     null
                 },
-                onSyncExport = if (ttuManualSync) {
+                onSyncExport = if (ttuAvailable && singleBook != null && singleBook.title != null) {
                     {
-                        val ref = TtuBookRef(singleBook!!.id, singleBook.title!!)
+                        val ref = TtuBookRef(singleBook.id, singleBook.title)
                         ttuSyncJob = coroutineScope.launch(Dispatchers.IO) {
                             val summary = runTtuSync(
                                 listOf(ref),
@@ -1239,6 +1256,8 @@ fun NovelLibraryBottomActionMenu(
     onChangeCategoryClicked: () -> Unit,
     onDeleteClicked: () -> Unit,
     onResetClicked: () -> Unit,
+    isManualSync: Boolean = false,
+    onSyncAuto: (() -> Unit)? = null,
     onSyncImport: (() -> Unit)? = null,
     onSyncExport: (() -> Unit)? = null,
 ) {
@@ -1299,22 +1318,54 @@ fun NovelLibraryBottomActionMenu(
                         onClick = onEditClicked,
                     )
                 }
-                if (onSyncImport != null) {
+                if (isManualSync && onSyncImport != null && onSyncExport != null) {
+                    var syncExpanded by remember { mutableStateOf(false) }
                     BottomMenuButton(
-                        title = "TTU import",
-                        icon = Icons.Outlined.Download,
+                        title = stringResource(SYMR.strings.label_sync),
+                        icon = Icons.Outlined.Sync,
                         toConfirm = false,
                         onLongClick = {},
-                        onClick = onSyncImport,
-                    )
-                }
-                if (onSyncExport != null) {
+                        onClick = { syncExpanded = true },
+                    ) {
+                        DropdownMenu(
+                            expanded = syncExpanded,
+                            onDismissRequest = { syncExpanded = false },
+                        ) {
+                            if (onSyncAuto != null) {
+                                DropdownMenuItem(
+                                    text = { Text("Auto") },
+                                    onClick = {
+                                        syncExpanded = false
+                                        onSyncAuto()
+                                    },
+                                    leadingIcon = { Icon(Icons.Outlined.Sync, null) },
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Import from Drive") },
+                                onClick = {
+                                    syncExpanded = false
+                                    onSyncImport()
+                                },
+                                leadingIcon = { Icon(Icons.Outlined.Download, null) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export to Drive") },
+                                onClick = {
+                                    syncExpanded = false
+                                    onSyncExport()
+                                },
+                                leadingIcon = { Icon(Icons.Outlined.Upload, null) },
+                            )
+                        }
+                    }
+                } else if (onSyncAuto != null) {
                     BottomMenuButton(
-                        title = "TTU export",
-                        icon = Icons.Outlined.Upload,
+                        title = stringResource(SYMR.strings.label_sync),
+                        icon = Icons.Outlined.Sync,
                         toConfirm = false,
                         onLongClick = {},
-                        onClick = onSyncExport,
+                        onClick = onSyncAuto,
                     )
                 }
                 BottomMenuButton(
