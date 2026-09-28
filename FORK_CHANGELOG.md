@@ -161,6 +161,16 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
     and made each new line snap up and slide back. It is now centred with the viewport
     offsets, follows the cue id (so it keeps following once the history is capped at 120
     lines), and holds still between lines instead of jumping to the end of the list.
+- Upstream v2.4.6 merge (2026-09-27): three conflicts, all unions. `PlayerActivity`'s
+  `fileLoaded()` runs the Jellyfin reporter and then upstream's new Discord presence update.
+  Upstream deleted `SurfacePlaybackLoadGateTest` because its copy no longer compiled against
+  the `(url, options)` callback; the fork's copy already follows that callback and stays, so
+  the file is fork-only from here on.
+- Subtitle position past 100 no longer crashes (2026-09-27): upstream v2.4.6 maps positions
+  above 100 (the slider goes to 150) to a negative bottom padding, which Compose rejects
+  with "Padding must be non-negative" as soon as a subtitle is drawn. The fork clamps the
+  padding at zero and moves the line down by the same amount with an offset. Drop this once
+  upstream stops passing a negative padding.
 
 ## Dropped (superseded by upstream)
 
