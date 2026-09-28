@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
@@ -973,7 +974,13 @@ private fun PlayerSubtitleTextLayer(
                 if (topAligned) {
                     Modifier.padding(top = 24.dp)
                 } else {
-                    Modifier.padding(bottom = resolvedBottomPadding)
+                    // Chimahon -->
+                    // Padding throws on a negative value, which positions past 100 produce.
+                    // Those move the line down with an offset instead.
+                    Modifier
+                        .padding(bottom = resolvedBottomPadding.coerceAtLeast(0.dp))
+                        .offset(y = -resolvedBottomPadding.coerceAtMost(0.dp))
+                    // Chimahon <--
                 },
             ),
         contentAlignment = if (topAligned) Alignment.TopCenter else Alignment.BottomCenter,
