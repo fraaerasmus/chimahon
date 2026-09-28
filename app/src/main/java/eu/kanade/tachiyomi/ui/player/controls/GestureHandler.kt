@@ -87,6 +87,17 @@ import kotlin.math.abs
 private const val SUBTITLE_SWIPE_TIME_LIMIT_MILLIS = 500L
 private const val SUBTITLE_SWIPE_DOMINANCE_RATIO = 1.2f
 
+// Chimahon -->
+private const val HORIZONTAL_SEEK_SECONDS_PER_PIXEL = 0.15f
+
+/**
+ * Seconds a horizontal swipe seeks for each pixel travelled, scaled by the user's sensitivity.
+ */
+internal fun horizontalSeekSecondsPerPixel(sensitivityPercent: Int): Float {
+    return HORIZONTAL_SEEK_SECONDS_PER_PIXEL * sensitivityPercent / 100f
+}
+// Chimahon <--
+
 internal enum class SubtitleSwipeAction {
     ToggleVisibility,
     ReplayCurrent,
@@ -164,6 +175,7 @@ fun GestureHandler(
     val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
     val subtitleVerticalSwipe = subtitleSwipeControls &&
         subtitleSwipeVertical == VerticalSwipeGesture.SubtitleActions
+    val seekSensitivity by gesturePreferences.horizontalSeekSensitivity().collectAsState()
     // Chimahon <--
     var isLongPressing by remember { mutableStateOf(false) }
     val currentVolume by viewModel.currentVolume.collectAsState()
@@ -392,7 +404,14 @@ fun GestureHandler(
                 ) { change, dragAmount ->
                     if (position <= 0f && dragAmount < 0) return@detectHorizontalDragGestures
                     if (position >= duration && dragAmount > 0) return@detectHorizontalDragGestures
-                    calculateNewHorizontalGestureValue(startingPosition, startingX, change.position.x, 0.15f).let {
+                    // Chimahon -->
+                    calculateNewHorizontalGestureValue(
+                        startingPosition,
+                        startingX,
+                        change.position.x,
+                        horizontalSeekSecondsPerPixel(seekSensitivity),
+                    ).let {
+                        // Chimahon <--
                         viewModel.gestureSeekAmount.update { _ ->
                             Pair(
                                 startingPosition,

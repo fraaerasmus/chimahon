@@ -35,6 +35,11 @@ class GesturePreferences(
     fun skipLengthPreference() = preferenceStore.getInt("pref_skip_length_preference", 10)
     fun playerSmoothSeek() = preferenceStore.getBoolean("pref_player_smooth_seek", false)
 
+    // Chimahon -->
+    // Percent of the stock distance a horizontal swipe seeks
+    fun horizontalSeekSensitivity() = preferenceStore.getInt("pref_horizontal_seek_sensitivity", 100)
+    // Chimahon <--
+
     // Double tap
 
     fun leftDoubleTapGesture() = preferenceStore.getEnum("pref_left_double_tap", SingleActionGesture.Seek)

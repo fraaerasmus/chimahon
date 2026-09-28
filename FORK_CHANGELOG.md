@@ -178,6 +178,11 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   widget (Share, Samsung's Translate) are not in it; native `TextView` rows would be the
   way to get those. A tap still seeks to the line; the row no longer uses `clickable`,
   which claimed the touch and fired on release after a long hold.
+- Seek swipe sensitivity (2026-09-27): Player > Gestures > "Seek swipe sensitivity" sets how
+  far a horizontal swipe seeks, from 10% to 300% of the stock distance in steps of 10%
+  (default 100%, the stock 0.15 seconds per pixel). It applies to the horizontal seek
+  gesture, so it is greyed out while that gesture is off or "Subtitle swipe controls"
+  replaces it.
 
 ## Dropped (superseded by upstream)
 

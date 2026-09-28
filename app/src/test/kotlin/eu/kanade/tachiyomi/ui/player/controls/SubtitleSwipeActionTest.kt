@@ -30,6 +30,22 @@ class SubtitleSwipeActionTest {
     }
 
     @Test
+    fun `seek sensitivity scales the stock seconds per pixel`() {
+        assertEquals(0.15f, horizontalSeekSecondsPerPixel(100), 0.0001f)
+        assertEquals(0.015f, horizontalSeekSecondsPerPixel(10), 0.0001f)
+        assertEquals(0.45f, horizontalSeekSecondsPerPixel(300), 0.0001f)
+    }
+
+    @Test
+    fun `a swipe seeks further at a higher sensitivity`() {
+        val slow = calculateNewHorizontalGestureValue(60, 0f, 400f, horizontalSeekSecondsPerPixel(50))
+        val fast = calculateNewHorizontalGestureValue(60, 0f, 400f, horizontalSeekSecondsPerPixel(200))
+
+        assertEquals(90, slow)
+        assertEquals(180, fast)
+    }
+
+    @Test
     fun `diagonal and short swipes have no subtitle action`() {
         assertNull(resolveSubtitleSwipeAction(30f, 30f, 30f))
         assertNull(resolveSubtitleSwipeAction(0f, 29f, 30f))

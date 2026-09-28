@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.ui.player.SingleActionGesture
 import eu.kanade.tachiyomi.ui.player.VerticalSwipeGesture
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
+import java.text.NumberFormat
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
@@ -35,6 +36,11 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 object PlayerSettingsGesturesScreen : SearchableSettings {
+
+    // Chimahon -->
+    // The seek sensitivity slider moves in steps of 10%, from 10% to 300%
+    private const val SEEK_SENSITIVITY_STEP = 10
+    // Chimahon <--
 
     @ReadOnlyComposable
     @Composable
@@ -111,6 +117,12 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val defaultSkipIntroLength by gesturePreferences.defaultIntroLength().stateIn(scope).collectAsState()
         val skipLengthPreference = gesturePreferences.skipLengthPreference()
         val playerSmoothSeek = gesturePreferences.playerSmoothSeek()
+        // Chimahon -->
+        val horizontalSeekEnabled by enableHorizontalSeekGesture.collectAsState()
+        val seekSensitivityPreference = gesturePreferences.horizontalSeekSensitivity()
+        val seekSensitivity by seekSensitivityPreference.collectAsState()
+        val percentFormat = remember { NumberFormat.getPercentInstance() }
+        // Chimahon <--
 
         var showDialog by rememberSaveable { mutableStateOf(false) }
         if (showDialog) {
@@ -149,6 +161,22 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                     subtitle = stringResource(MR.strings.pref_player_gesture_h_seek_summary),
                     enabled = !subtitleSwipeControlsEnabled,
                 ),
+                // Chimahon -->
+                Preference.PreferenceItem.SliderPreference(
+                    value = seekSensitivity / SEEK_SENSITIVITY_STEP,
+                    title = stringResource(MR.strings.pref_player_gesture_seek_sensitivity),
+                    subtitle = stringResource(
+                        MR.strings.pref_player_gesture_seek_sensitivity_summary,
+                        percentFormat.format(seekSensitivity / 100f),
+                    ),
+                    valueRange = 1..30,
+                    enabled = !subtitleSwipeControlsEnabled && horizontalSeekEnabled,
+                    onValueChanged = {
+                        seekSensitivityPreference.set(it * SEEK_SENSITIVITY_STEP)
+                        true
+                    },
+                ),
+                // Chimahon <--
                 Preference.PreferenceItem.SwitchPreference(
                     preference = showSeekbar,
                     title = stringResource(MR.strings.pref_show_seekbar),

@@ -16,6 +16,14 @@ class GesturePreferencesTest {
     }
 
     @Test
+    fun seekSwipeKeepsTheStockDistanceByDefault() {
+        val preference = GesturePreferences(InMemoryPreferenceStore()).horizontalSeekSensitivity()
+
+        assertEquals("pref_horizontal_seek_sensitivity", preference.key())
+        assertEquals(100, preference.defaultValue())
+    }
+
+    @Test
     fun gesturesStayLockedByDefault() {
         val preference = PlayerPreferences(InMemoryPreferenceStore()).allowGesturesWhenLocked()
 

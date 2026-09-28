@@ -1827,4 +1827,6 @@
     <string name="vertical_swipe_subtitle_actions">Replay line / hide subtitles</string>
     <string name="vertical_swipe_volume_brightness">Volume and brightness</string>
     <string name="pref_controls_allow_gestures_when_locked">Allow gestures while locked</string>
+    <string name="pref_player_gesture_seek_sensitivity">Seek swipe sensitivity</string>
+    <string name="pref_player_gesture_seek_sensitivity_summary">%1$s. Higher seeks further for the same swipe.</string>
 </resources>
