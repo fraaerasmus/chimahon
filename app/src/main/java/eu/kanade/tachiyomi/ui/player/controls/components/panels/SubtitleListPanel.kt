@@ -2,8 +2,10 @@ package eu.kanade.tachiyomi.ui.player.controls.components.panels
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,13 +27,19 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -121,19 +130,24 @@ private fun SubtitleCueLazyList(
     }
 
     BoxWithConstraints(modifier = modifier) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(vertical = 4.dp),
-            contentPadding = PaddingValues(vertical = maxHeight * 0.5f),
-        ) {
-            items(cues, key = { it.index }) { cue ->
-                SubtitleCueSideRow(
-                    cue = cue,
-                    selected = cue.index == activeCueIndex,
-                    onClick = { onSelectCue(cue.index) },
-                )
+        // Chimahon -->
+        // Long press a line to select text and get the system text menu (copy, translate, lookup).
+        SelectionContainer {
+            // Chimahon <--
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(vertical = 4.dp),
+                contentPadding = PaddingValues(vertical = this@BoxWithConstraints.maxHeight * 0.5f),
+            ) {
+                items(cues, key = { it.index }) { cue ->
+                    SubtitleCueSideRow(
+                        cue = cue,
+                        selected = cue.index == activeCueIndex,
+                        onClick = { onSelectCue(cue.index) },
+                    )
+                }
             }
         }
     }
@@ -193,11 +207,33 @@ private fun SubtitleCueSideRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Chimahon -->
+    val currentOnClick by rememberUpdatedState(onClick)
+    // Chimahon <--
     Text(
         text = cue.text,
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            // Chimahon -->
+            // Not clickable: it claims the touch and also fires when a long hold is released, so
+            // selecting text would seek. This leaves the touch unconsumed and ignores long holds.
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        waitForUpOrCancellation()
+                    }
+                    if (up != null) currentOnClick()
+                }
+            }
+            .semantics {
+                role = Role.Button
+                onClick {
+                    currentOnClick()
+                    true
+                }
+            }
+            // Chimahon <--
             .background(activeLineColor(selected), RoundedCornerShape(2.dp))
             .padding(horizontal = 12.dp, vertical = 7.dp),
         style = subtitleLogTextStyle(),

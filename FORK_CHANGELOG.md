@@ -171,6 +171,13 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   with "Padding must be non-negative" as soon as a subtitle is drawn. The fork clamps the
   padding at zero and moves the line down by the same amount with an offset. Drop this once
   upstream stops passing a negative padding.
+- Selectable subtitle list (2026-09-27): long press a line in the player's subtitle side
+  list to select text and get the system text menu: Copy, Select all, apps that handle
+  selected text (Translate, this app's dictionary lookup) and the system's smart actions.
+  It is Compose's `SelectionContainer`, so items a phone maker builds into its own text
+  widget (Share, Samsung's Translate) are not in it; native `TextView` rows would be the
+  way to get those. A tap still seeks to the line; the row no longer uses `clickable`,
+  which claimed the touch and fired on release after a long hold.
 
 ## Dropped (superseded by upstream)
 
