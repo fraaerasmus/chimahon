@@ -31,7 +31,9 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +58,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -68,6 +71,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -104,6 +108,7 @@ import eu.kanade.tachiyomi.ui.player.controls.components.SeekbarWithTimers
 import eu.kanade.tachiyomi.ui.player.controls.components.TextPlayerUpdate
 import eu.kanade.tachiyomi.ui.player.controls.components.VolumeSlider
 import eu.kanade.tachiyomi.ui.player.controls.components.panels.SubtitlesBorderStyle
+import eu.kanade.tachiyomi.ui.player.controls.components.sharePointerInputWithSiblings
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.toFixed
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
@@ -263,7 +268,14 @@ fun PlayerControls(
         viewModel = viewModel,
         interactionSource = interactionSource,
     )
-    Box(Modifier.fillMaxSize()) {
+    // Chimahon -->
+    // Without a lookup open, touches the subtitle line does not claim fall through to the gestures.
+    Box(
+        Modifier
+            .fillMaxSize()
+            .then(if (subtitleLookupRequest == null) Modifier.sharePointerInputWithSiblings() else Modifier),
+    ) {
+        // Chimahon <--
         if (subtitleLookupRequest != null) {
             Box(Modifier.fillMaxSize().clickable {
                 subtitleLookupRequest = null
@@ -879,7 +891,10 @@ private fun PlayerSubtitleTextLayer(
     languageCode: String = "",
     // Chimahon <--
     request: SubtitleLookupRequest? = null,
-    onLookup: (SubtitleLookupSelection) -> Unit = {},
+    // Chimahon -->
+    // Null leaves the line without pointer input, so every touch on it reaches the gestures.
+    onLookup: ((SubtitleLookupSelection) -> Unit)? = null,
+    // Chimahon <--
     modifier: Modifier = Modifier,
     topAligned: Boolean = false,
     bottomPadding: Dp? = null,
@@ -917,6 +932,10 @@ private fun PlayerSubtitleTextLayer(
 
     var textLayout by remember(subtitleText) { mutableStateOf<TextLayoutResult?>(null) }
     var textLayerOrigin by remember(subtitleText) { mutableStateOf(Offset.Zero) }
+    // Chimahon -->
+    val currentOnLookup by rememberUpdatedState(onLookup)
+    val currentLanguageCode by rememberUpdatedState(languageCode)
+    // Chimahon <--
     val fontSizeSp = (subtitleFontSize * subtitleScale * fontSizeFactor).coerceIn(minFontSize, maxFontSize)
     val resolvedBottomPadding = bottomPadding ?: (28f + (100 - subtitlePos).coerceIn(0, 100) * 2.2f).dp
     val outlineWidth = borderSize.coerceAtLeast(1) * 1.8f
@@ -1002,23 +1021,45 @@ private fun PlayerSubtitleTextLayer(
                         )
                     }
                 }
-                // Timing can arrive after the text, or change when an identical line repeats.
-                .pointerInput(subtitleText, textLayout, textLayerOrigin, subtitleDelaySeconds, cue) {
-                    detectTapGestures(
-                        onTap = { position ->
-                            val layout = textLayout ?: return@detectTapGestures
-                            layout.subtitleLookupSelectionForTap(subtitleText, position, cue, subtitleDelaySeconds, languageCode)
-                                ?.offsetBy(textLayerOrigin)
-                                ?.let(onLookup)
-                        },
-                        onLongPress = { position ->
-                            val layout = textLayout ?: return@detectTapGestures
-                            layout.subtitleLookupSelectionForTap(subtitleText, position, cue, subtitleDelaySeconds, languageCode)
-                                ?.offsetBy(textLayerOrigin)
-                                ?.let(onLookup)
-                        },
-                    )
-                },
+                // Chimahon -->
+                .then(
+                    if (onLookup == null) {
+                        Modifier
+                    } else {
+                        // Timing can arrive after the text, or change when an identical line repeats.
+                        Modifier.pointerInput(subtitleText, textLayout, textLayerOrigin, subtitleDelaySeconds, cue) {
+                            awaitEachGesture {
+                                // Claim the touch before the gesture handler sees it, but only on a word.
+                                // Anything else on the line is left unconsumed for it (double tap, swipes).
+                                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                val selection = textLayout
+                                    ?.subtitleLookupSelectionForTap(
+                                        subtitleText,
+                                        down.position,
+                                        cue,
+                                        subtitleDelaySeconds,
+                                        currentLanguageCode,
+                                    )
+                                    ?.offsetBy(textLayerOrigin)
+                                    ?: return@awaitEachGesture
+                                down.consume()
+                                // Let the down finish its passes, or our own consumption reads as a cancel.
+                                awaitPointerEvent(PointerEventPass.Final)
+
+                                // A release and a long press both open the lookup. A touch that turns into
+                                // a swipe is consumed by the gesture handler and cancels instead.
+                                var cancelled = false
+                                val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                    waitForUpOrCancellation().also { cancelled = it == null }
+                                }
+                                if (cancelled) return@awaitEachGesture
+                                up?.consume()
+                                currentOnLookup?.invoke(selection)
+                            }
+                        }
+                    },
+                ),
+            // Chimahon <--
         ) {
             if (borderStyle == SubtitlesBorderStyle.OutlineAndShadow) {
                 Text(
