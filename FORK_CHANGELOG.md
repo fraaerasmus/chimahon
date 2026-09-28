@@ -144,6 +144,23 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   only from Browse > Sources. Upstream dropped the `DropdownMenu` import from
   `NovelLibraryScreen.kt` without a conflict while the fork's add menu still uses it; the
   import is restored.
+- Player gestures and subtitle list (2026-09-27):
+  - Vertical swipe chooser: "Subtitle swipe controls" used to switch off the volume and
+    brightness swipes. Player > Gestures gains "Vertical swipe" under that switch, choosing
+    between "Replay line / hide subtitles" (default, as before) and "Volume and brightness".
+    Horizontal swipes keep moving between subtitle lines either way.
+  - Gestures while locked: Player > Player > "Allow gestures while locked" (default off)
+    keeps swipes, double tap and long press working while the controls are locked. The
+    buttons stay hidden and a single tap still reveals the unlock button.
+  - Double tap on the subtitle line: the subtitle layer claimed every touch on its box, so a
+    double tap there did nothing. It now only claims touches that land on a word (lookup
+    stays instant); the rest of the line, and the whole secondary subtitle line, fall
+    through to the player gestures via `sharePointerInputWithSiblings`.
+  - Subtitle side list: the active line was centred against the viewport height while item
+    offsets start after the top content padding, which parked it half below the bottom edge
+    and made each new line snap up and slide back. It is now centred with the viewport
+    offsets, follows the cue id (so it keeps following once the history is capped at 120
+    lines), and holds still between lines instead of jumping to the end of the list.
 
 ## Dropped (superseded by upstream)
 
