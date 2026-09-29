@@ -187,6 +187,25 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   popup while any panel, sheet or dialog is showing. The subtitle side list is now exempt,
   so tapping a word in the on-screen subtitle looks it up with the list open. Other panels,
   sheets and dialogs still block it.
+- Player key bindings (2026-09-29): Player > "Key bindings" sets what each gamepad button
+  and keyboard key does in the player. Upstream hardcodes a handful of keys, ignores gamepad
+  buttons, and only sees a key when no view holds focus, so Space did not pause on a real
+  device.
+  - A binding is one key, a key with Ctrl, Alt or Shift, a long press, or a combination
+    (one key pressed while another is held). It is set by pressing the key in the dialog.
+  - Actions: play or pause, seek by a number of seconds, volume, previous, next and replay
+    subtitle, show or hide subtitles, next subtitle track (primary and secondary), back,
+    and any mpv command written as in input.conf.
+  - Defaults: Space and gamepad A pause, Left and Right seek 5 seconds, Up and Down change
+    the volume, L1 and R1 move between subtitles, Y replays one, Select hides them, L2 and
+    R2 cycle the primary and secondary subtitle track, B goes back. Up and Down used to
+    reach mpv, which seeks a minute; delete those two bindings to get that back.
+  - A key with no binding goes where it went before, so mpv and input.conf keep working.
+    While a sheet, panel or dialog is open only a key bound to back is taken.
+  - A key that has a long press, or that a combination holds, runs its plain binding when
+    it is let go instead of when it is pressed, since only then is it known which was meant.
+  - Upstream's swapped Left and Right in `PlayerActivity.onKeyDown` are left as they are.
+    The default bindings take both keys first, so the swap only shows if they are deleted.
 
 ## Dropped (superseded by upstream)
 

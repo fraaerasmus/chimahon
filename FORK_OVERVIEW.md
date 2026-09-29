@@ -62,6 +62,11 @@ Signing: our own keystore (never upstream's), applied in CI via repo secrets
   upstream's.
 - `BookImporter` and `FileNames` are taken byte-clean from upstream. The OPDS novel path reuses
   the screen model's import function instead of a separate importer entry point.
+- Player key bindings: `app/src/main/java/chimahon/keybinding`. The hooks into upstream files
+  are fenced and thin: `dispatchKeyEvent` in `PlayerActivity`, `cycleSubtitle` in
+  `PlayerViewModel`, one entry in `PlayerSettingsMainScreen` and one registration in
+  `PreferenceModule`. Bindings are stored one preference per screen
+  (`pref_key_bindings_<screen>`), so a reader can get its own set later without a migration.
 
 ## Releases and versioning
 
