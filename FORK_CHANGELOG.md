@@ -206,6 +206,24 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
     it is let go instead of when it is pressed, since only then is it known which was meant.
   - Upstream's swapped Left and Right in `PlayerActivity.onKeyDown` are left as they are.
     The default bindings take both keys first, so the swap only shows if they are deleted.
+- Looking words up with keys (2026-09-29): a subtitle word can be looked up, the popup read
+  and a card added without touching the screen.
+  - "Pick a subtitle word" (gamepad X or Enter) pauses and highlights the first word of the
+    subtitle on screen. Left and Right move word by word. A or Enter opens the dictionary
+    popup on the word, and Left and Right then move the popup to the next word.
+  - In the popup Up and Down change entry, L1 and R1 scroll, Y plays the word's audio and X
+    adds the entry to Anki. B or Escape closes it and playback carries on, unless the player
+    was paused before the word was picked.
+  - Words end where the dictionary's best match ends, which is what a tap on the same
+    character looks up, so the cursor and the popup highlight the same text. A spot the
+    dictionary does not know is one character in Japanese or Chinese and a whole word in a
+    spaced language.
+  - These keys are a second set, "While looking a word up", under Player > "Key bindings".
+    It applies while a word is picked or the popup is open, including one opened by a tap.
+  - Someone who changed their player bindings before this build has to add "Pick a
+    subtitle word" themselves, as saved bindings are never rewritten.
+  - The popup keys act on the entry nearest the top of the popup, as the popup's own arrows
+    do. A last entry too short to scroll to the top cannot be reached with them.
 
 ## Dropped (superseded by upstream)
 

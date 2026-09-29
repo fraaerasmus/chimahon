@@ -63,10 +63,16 @@ Signing: our own keystore (never upstream's), applied in CI via repo secrets
 - `BookImporter` and `FileNames` are taken byte-clean from upstream. The OPDS novel path reuses
   the screen model's import function instead of a separate importer entry point.
 - Player key bindings: `app/src/main/java/chimahon/keybinding`. The hooks into upstream files
-  are fenced and thin: `dispatchKeyEvent` in `PlayerActivity`, `cycleSubtitle` in
-  `PlayerViewModel`, one entry in `PlayerSettingsMainScreen` and one registration in
-  `PreferenceModule`. Bindings are stored one preference per screen
+  are fenced and thin: `dispatchKeyEvent` in `PlayerActivity`, `cycleSubtitle` and
+  `wordCursor` in `PlayerViewModel`, one entry in `PlayerSettingsMainScreen` and one
+  registration in `PreferenceModule`. Bindings are stored one preference per screen
   (`pref_key_bindings_<screen>`), so a reader can get its own set later without a migration.
+- Looking words up with keys: `PlayerWordCursor` holds the cursor, and the screen stays
+  upstream's. `PlayerControls` tells it when the popup opens and closes and passes its word
+  to the subtitle layer as the highlight, the subtitle layer reports its text and opens the
+  popup through the same function a tap uses, and `PlayerSubtitleLookupPopup` runs the popup
+  keys in its WebView. `lookupWithSearchResolution` in `OcrLookupPopup` is made `internal`
+  so the cursor measures words exactly as the popup does.
 
 ## Releases and versioning
 
