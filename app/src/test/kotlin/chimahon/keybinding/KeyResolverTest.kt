@@ -17,15 +17,35 @@ class KeyResolverTest {
         modifiers = KeyEvent.META_CTRL_ON,
         action = KeyAction.CycleSubtitle.name,
     )
-    private val bindings = listOf(pause, seek, ctrlH)
+    private val replay = KeyBinding(keyCode = KeyEvent.KEYCODE_BUTTON_Y, action = KeyAction.ReplaySubtitle.name)
+    private val holdReplay = replay.copy(longPress = true, action = KeyAction.ToggleSubtitles.name)
+    private val holdOnly = KeyBinding(
+        keyCode = KeyEvent.KEYCODE_BUTTON_X,
+        longPress = true,
+        action = KeyAction.CycleSubtitle.name,
+    )
+    private val shift = KeyBinding(keyCode = KeyEvent.KEYCODE_BUTTON_L1, action = KeyAction.PreviousSubtitle.name)
+    private val shiftedSeek = seek.copy(chordKeyCode = KeyEvent.KEYCODE_BUTTON_L1, argument = "60")
+    private val shiftedMute = KeyBinding(
+        keyCode = KeyEvent.KEYCODE_BUTTON_A,
+        chordKeyCode = KeyEvent.KEYCODE_BUTTON_R1,
+        action = KeyAction.MpvCommand.name,
+        argument = "cycle mute",
+    )
+    private val bindings = listOf(pause, seek, ctrlH, replay, holdReplay, holdOnly, shift, shiftedSeek, shiftedMute)
 
-    private val resolver = KeyResolver()
+    private val resolver = KeyResolver(longPressMillis = 500)
 
-    private fun down(keyCode: Int, meta: Int = 0, repeat: Int = 0, bound: List<KeyBinding> = bindings) =
-        resolver.onKey(bound, keyCode, meta, isDown = true, repeatCount = repeat)
+    private fun down(
+        keyCode: Int,
+        meta: Int = 0,
+        repeat: Int = 0,
+        bound: List<KeyBinding> = bindings,
+        at: Long = 0,
+    ) = resolver.onKey(bound, keyCode, meta, isDown = true, repeatCount = repeat, eventTime = at)
 
-    private fun up(keyCode: Int, meta: Int = 0, bound: List<KeyBinding> = bindings) =
-        resolver.onKey(bound, keyCode, meta, isDown = false, repeatCount = 0)
+    private fun up(keyCode: Int, meta: Int = 0, bound: List<KeyBinding> = bindings, at: Long = 0) =
+        resolver.onKey(bound, keyCode, meta, isDown = false, repeatCount = 0, eventTime = at)
 
     @Test
     fun `an unbound key passes on the way down and up`() {
@@ -106,5 +126,80 @@ class KeyResolverTest {
         resolver.reset()
 
         assertEquals(KeyResult.Pass, up(KeyEvent.KEYCODE_SPACE))
+    }
+
+    @Test
+    fun `a short press of a key with a long press runs the short one on release`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_Y, at = 1000))
+        assertEquals(KeyResult.Consumed(replay), up(KeyEvent.KEYCODE_BUTTON_Y, at = 1200))
+    }
+
+    @Test
+    fun `a short press of a key with only a long press does nothing`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_X, at = 1000))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_BUTTON_X, at = 1200))
+    }
+
+    @Test
+    fun `a long press fires once while the key is still held`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_Y, at = 1000))
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_Y, repeat = 1, at = 1400))
+        assertEquals(KeyResult.Consumed(holdReplay), down(KeyEvent.KEYCODE_BUTTON_Y, repeat = 2, at = 1500))
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_Y, repeat = 3, at = 1550))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_BUTTON_Y, at = 1600))
+    }
+
+    @Test
+    fun `a long press from a device that sends no repeats fires on release`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_Y, at = 1000))
+        assertEquals(KeyResult.Consumed(holdReplay), up(KeyEvent.KEYCODE_BUTTON_Y, at = 1500))
+    }
+
+    @Test
+    fun `a key pressed while its chord key is held runs the chord`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_L1))
+        assertEquals(KeyResult.Consumed(shiftedSeek), down(KeyEvent.KEYCODE_DPAD_RIGHT))
+        assertEquals(KeyResult.Consumed(shiftedSeek), down(KeyEvent.KEYCODE_DPAD_RIGHT, repeat = 1))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_DPAD_RIGHT))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_BUTTON_L1))
+    }
+
+    @Test
+    fun `a chord key let go on its own runs its own binding`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_L1))
+        assertEquals(KeyResult.Consumed(shift), up(KeyEvent.KEYCODE_BUTTON_L1))
+    }
+
+    @Test
+    fun `a chord key with no binding of its own is still swallowed`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_R1))
+        assertEquals(KeyResult.Consumed(shiftedMute), down(KeyEvent.KEYCODE_BUTTON_A))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_BUTTON_A))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_BUTTON_R1))
+
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_R1))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_BUTTON_R1))
+    }
+
+    @Test
+    fun `without the chord key the plain binding runs`() {
+        assertEquals(KeyResult.Consumed(seek), down(KeyEvent.KEYCODE_DPAD_RIGHT))
+        assertEquals(KeyResult.Pass, down(KeyEvent.KEYCODE_BUTTON_A))
+    }
+
+    @Test
+    fun `a key held for a chord never counts as a long press`() {
+        val bound = bindings + shift.copy(longPress = true, action = KeyAction.Back.name)
+
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_L1, bound = bound, at = 1000))
+        assertEquals(KeyResult.Consumed(shiftedSeek), down(KeyEvent.KEYCODE_DPAD_RIGHT, bound = bound, at = 1100))
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_L1, repeat = 1, bound = bound, at = 1600))
+        assertEquals(KeyResult.Consumed(null), up(KeyEvent.KEYCODE_BUTTON_L1, bound = bound, at = 1700))
+    }
+
+    @Test
+    fun `a release runs the binding caught on the way down when the set changes`() {
+        assertEquals(KeyResult.Consumed(null), down(KeyEvent.KEYCODE_BUTTON_Y, at = 1000))
+        assertEquals(KeyResult.Consumed(replay), up(KeyEvent.KEYCODE_BUTTON_Y, bound = emptyList(), at = 1100))
     }
 }

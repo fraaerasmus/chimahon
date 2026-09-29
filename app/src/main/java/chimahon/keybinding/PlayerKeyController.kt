@@ -63,6 +63,7 @@ class PlayerKeyController(
             metaState = event.metaState,
             isDown = event.action == KeyEvent.ACTION_DOWN,
             repeatCount = event.repeatCount,
+            eventTime = event.eventTime,
         )
         if (result !is KeyResult.Consumed) return false
         result.fire?.let(::run)
