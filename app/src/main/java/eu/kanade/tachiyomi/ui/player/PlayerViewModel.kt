@@ -39,6 +39,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import chimahon.keybinding.nextTrackId
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.entries.anime.interactor.SetAnimeViewerFlags
 import eu.kanade.domain.base.BasePreferences
@@ -1353,6 +1354,33 @@ class PlayerViewModel @JvmOverloads constructor(
         applyParsedSubtitleCuesForSelectedTrack()
         rememberSubtitleSelectionForCurrentEpisode()
     }
+
+    // Chimahon -->
+    /**
+     * Steps one subtitle slot to its next track, then off. Turning the primary off turns the
+     * secondary off with it, and the secondary only cycles while a primary is showing.
+     */
+    fun cycleSubtitle(secondary: Boolean) {
+        val (first, second) = selectedSubtitles.value
+        if (secondary && first == -1) return
+        val trackIds = subtitleTracks.value.map { it.id }
+        val selection = if (secondary) {
+            Pair(first, nextTrackId(trackIds, current = second, other = first))
+        } else {
+            val next = nextTrackId(trackIds, current = first, other = second)
+            Pair(next, if (next == -1) -1 else second)
+        }
+        _selectedSubtitles.update { selection }
+        activity.player.secondarySid = selection.second
+        activity.player.sid = selection.first
+        applyParsedSubtitleCuesForSelectedTrack()
+        rememberSubtitleSelectionForCurrentEpisode()
+
+        val changed = if (secondary) selection.second else selection.first
+        val name = subtitleTracks.value.firstOrNull { it.id == changed }?.name
+        playerUpdate.update { PlayerUpdates.ShowText(name ?: activity.stringResource(MR.strings.off)) }
+    }
+    // Chimahon <--
 
     fun updateSubtitle(sid: Int, secondarySid: Int) {
         _selectedSubtitles.update { Pair(sid, secondarySid) }
