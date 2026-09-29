@@ -61,6 +61,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media.AudioAttributesCompat
 import androidx.media.AudioFocusRequestCompat
 import androidx.media.AudioManagerCompat
+import chimahon.keybinding.PlayerKeyController
 import com.hippo.unifile.UniFile
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.theme.TachiyomiTheme
@@ -1284,6 +1285,29 @@ class PlayerActivity : BaseActivity() {
             PlayerOrientation.SensorLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
+
+    // Chimahon -->
+    private val keyController by lazy {
+        PlayerKeyController(
+            viewModel = viewModel,
+            goBack = {
+                // Sheets and popups close through the dispatcher. With none open its own fallback
+                // would skip onBackPressed, which is where leaving into picture in picture lives.
+                if (onBackPressedDispatcher.hasEnabledCallbacks()) {
+                    onBackPressedDispatcher.onBackPressed()
+                } else {
+                    @Suppress("DEPRECATION")
+                    onBackPressed()
+                }
+            },
+        )
+    }
+
+    // Bound keys are taken here, ahead of whichever view holds focus. The rest carry on below.
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        return keyController.onKey(event, isInPictureInPictureMode) || super.dispatchKeyEvent(event)
+    }
+    // Chimahon <--
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
