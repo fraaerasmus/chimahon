@@ -7,22 +7,42 @@ import kotlinx.serialization.json.Json
 /** A screen with its own set of bindings. Each set is stored under its own preference. */
 enum class KeyContext(val prefKey: String) {
     Player("player"),
+
+    /** The player while a word of the subtitle is picked out or its dictionary popup is open. */
+    PlayerLookup("player_lookup"),
 }
 
-enum class KeyAction(val repeatable: Boolean = false, val hasArgument: Boolean = false) {
-    PlayPause,
-    SeekBy(repeatable = true, hasArgument = true),
-    VolumeUp(repeatable = true),
-    VolumeDown(repeatable = true),
-    PreviousSubtitle,
-    NextSubtitle,
-    ReplaySubtitle,
-    ToggleSubtitles,
-    CycleSubtitle,
-    CycleSecondarySubtitle,
-    Back,
-    MpvCommand(hasArgument = true),
+/** [context] is the one screen the action works on. Null is every screen. */
+enum class KeyAction(
+    val context: KeyContext?,
+    val repeatable: Boolean = false,
+    val hasArgument: Boolean = false,
+) {
+    PlayPause(KeyContext.Player),
+    SeekBy(KeyContext.Player, repeatable = true, hasArgument = true),
+    VolumeUp(KeyContext.Player, repeatable = true),
+    VolumeDown(KeyContext.Player, repeatable = true),
+    PreviousSubtitle(KeyContext.Player),
+    NextSubtitle(KeyContext.Player),
+    ReplaySubtitle(KeyContext.Player),
+    ToggleSubtitles(KeyContext.Player),
+    CycleSubtitle(KeyContext.Player),
+    CycleSecondarySubtitle(KeyContext.Player),
+    StartWordCursor(KeyContext.Player),
+    CursorPrevious(KeyContext.PlayerLookup, repeatable = true),
+    CursorNext(KeyContext.PlayerLookup, repeatable = true),
+    OpenPopup(KeyContext.PlayerLookup),
+    PreviousEntry(KeyContext.PlayerLookup, repeatable = true),
+    NextEntry(KeyContext.PlayerLookup, repeatable = true),
+    ScrollUp(KeyContext.PlayerLookup, repeatable = true),
+    ScrollDown(KeyContext.PlayerLookup, repeatable = true),
+    PlayWordAudio(KeyContext.PlayerLookup),
+    MineEntry(KeyContext.PlayerLookup),
+    Back(null),
+    MpvCommand(null, hasArgument = true),
     ;
+
+    fun isFor(context: KeyContext) = this.context == null || this.context == context
 
     /** Whether [argument] is one this action can run with. */
     fun accepts(argument: String): Boolean = when (this) {

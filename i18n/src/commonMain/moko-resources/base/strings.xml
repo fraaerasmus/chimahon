@@ -1832,7 +1832,9 @@
     <string name="pref_player_key_bindings">Key bindings</string>
     <string name="pref_player_key_bindings_summary">Gamepad buttons and keyboard keys</string>
     <string name="key_bindings_info">A key with no binding goes to mpv, where input.conf can use it.</string>
-    <string name="key_bindings_empty">No key bindings. Every key goes to mpv.</string>
+    <string name="key_bindings_empty">No key bindings here</string>
+    <string name="key_context_player">In the player</string>
+    <string name="key_context_player_lookup">While looking a word up</string>
     <string name="key_bindings_reset">Reset to defaults</string>
     <string name="key_bindings_reset_confirm">Replace your key bindings with the defaults?</string>
     <string name="key_binding_add">Add key binding</string>
@@ -1863,6 +1865,16 @@
     <string name="key_action_toggle_subtitles">Show or hide subtitles</string>
     <string name="key_action_cycle_subtitle">Next subtitle track</string>
     <string name="key_action_cycle_secondary_subtitle">Next secondary subtitle track</string>
+    <string name="key_action_start_word_cursor">Pick a subtitle word</string>
+    <string name="key_action_cursor_previous">Previous word</string>
+    <string name="key_action_cursor_next">Next word</string>
+    <string name="key_action_open_popup">Look the word up</string>
+    <string name="key_action_previous_entry">Previous entry</string>
+    <string name="key_action_next_entry">Next entry</string>
+    <string name="key_action_scroll_up">Scroll up</string>
+    <string name="key_action_scroll_down">Scroll down</string>
+    <string name="key_action_play_word_audio">Play the word\'s audio</string>
+    <string name="key_action_mine_entry">Add the entry to Anki</string>
     <string name="key_action_back">Back</string>
     <string name="key_action_mpv_command">mpv command</string>
     <string name="key_action_mpv_command_value">mpv: %1$s</string>

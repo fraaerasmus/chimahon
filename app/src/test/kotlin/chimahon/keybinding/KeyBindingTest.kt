@@ -2,7 +2,6 @@ package chimahon.keybinding
 
 import android.view.KeyEvent
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import tachiyomi.core.common.preference.InMemoryPreferenceStore
@@ -42,11 +41,11 @@ class KeyBindingTest {
     }
 
     @Test
-    fun `every context has defaults that name real actions and do not collide`() {
+    fun `every context has defaults that name its own actions and do not collide`() {
         KeyContext.entries.forEach { context ->
             val defaults = defaultKeyBindings(context)
 
-            defaults.forEach { assertNotNull(KeyAction.fromName(it.action), it.action) }
+            defaults.forEach { assertEquals(true, KeyAction.fromName(it.action)?.isFor(context), it.action) }
             defaults.forEachIndexed { index, binding ->
                 assertEquals(index, defaults.indexOfFirst { it.sameTrigger(binding) }, "$context $binding")
             }

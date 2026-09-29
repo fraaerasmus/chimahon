@@ -39,6 +39,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
+import chimahon.keybinding.PlayerWordCursor
 import chimahon.keybinding.nextTrackId
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.domain.entries.anime.interactor.SetAnimeViewerFlags
@@ -1356,6 +1357,8 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     // Chimahon -->
+    val wordCursor by lazy { PlayerWordCursor(this) }
+
     /**
      * Steps one subtitle slot to its next track, then off. Turning the primary off turns the
      * secondary off with it, and the secondary only cycles while a primary is showing.

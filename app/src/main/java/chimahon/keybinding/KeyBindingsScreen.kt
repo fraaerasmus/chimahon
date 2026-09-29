@@ -6,17 +6,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material3.AlertDialog
@@ -47,7 +46,6 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
-import eu.kanade.presentation.components.FloatingActionAddButton
 import eu.kanade.presentation.player.components.ExposedTextDropDownMenu
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
@@ -58,9 +56,7 @@ import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
-import tachiyomi.presentation.core.screens.EmptyScreen
 import tachiyomi.presentation.core.util.collectAsState
-import tachiyomi.presentation.core.util.plus
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
@@ -70,7 +66,7 @@ object KeyBindingsScreen : Screen() {
 
     private sealed interface Dialog {
         /** [binding] is the one being edited, or null for a new one. */
-        data class Edit(val binding: KeyBinding?) : Dialog
+        data class Edit(val context: KeyContext, val binding: KeyBinding?) : Dialog
         data object Reset : Dialog
     }
 
@@ -78,10 +74,12 @@ object KeyBindingsScreen : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val backPress = LocalBackPress.current
-        val preference = remember { Injekt.get<KeyBindingPreferences>().bindings(KeyContext.Player) }
-        val bindings by preference.collectAsState()
+        val preferences = remember {
+            val keyBindingPreferences = Injekt.get<KeyBindingPreferences>()
+            KeyContext.entries.associateWith { keyBindingPreferences.bindings(it) }
+        }
+        val bindings = preferences.mapValues { it.value.collectAsState().value }
         var dialog by remember { mutableStateOf<Dialog?>(null) }
-        val listState = rememberLazyListState()
 
         Scaffold(
             topBar = { scrollBehavior ->
@@ -95,7 +93,7 @@ object KeyBindingsScreen : Screen() {
                                     title = stringResource(MR.strings.key_bindings_reset),
                                     icon = Icons.Outlined.RestartAlt,
                                     onClick = { dialog = Dialog.Reset },
-                                    enabled = bindings != preference.defaultValue(),
+                                    enabled = preferences.any { bindings[it.key] != it.value.defaultValue() },
                                 ),
                             ),
                         )
@@ -103,26 +101,8 @@ object KeyBindingsScreen : Screen() {
                     scrollBehavior = scrollBehavior,
                 )
             },
-            floatingActionButton = {
-                FloatingActionAddButton(
-                    lazyListState = listState,
-                    onClick = { dialog = Dialog.Edit(null) },
-                )
-            },
         ) { paddingValues ->
-            if (bindings.isEmpty()) {
-                EmptyScreen(
-                    stringRes = MR.strings.key_bindings_empty,
-                    modifier = Modifier.padding(paddingValues),
-                )
-                return@Scaffold
-            }
-
-            LazyColumn(
-                state = listState,
-                // Room under the last row, so its delete button clears the add button.
-                contentPadding = paddingValues + PaddingValues(bottom = 88.dp),
-            ) {
+            LazyColumn(contentPadding = paddingValues) {
                 item {
                     Text(
                         text = stringResource(MR.strings.key_bindings_info),
@@ -134,23 +114,59 @@ object KeyBindingsScreen : Screen() {
                         ),
                     )
                 }
-                items(bindings, key = { "${it.trigger}-${it.longPress}" }) { binding ->
-                    val keys = bindingKeysLabel(binding.trigger, binding.longPress)
-                    ListItem(
-                        headlineContent = { Text(text = keys) },
-                        supportingContent = { Text(text = actionLabel(binding)) },
-                        trailingContent = {
-                            IconButton(onClick = { preference.set(bindings - binding) }) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Delete,
-                                    contentDescription = stringResource(MR.strings.key_binding_delete, keys),
-                                )
+                KeyContext.entries.forEach { context ->
+                    val contextBindings = bindings.getValue(context)
+                    item(key = context.prefKey) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = MaterialTheme.padding.medium, end = MaterialTheme.padding.small),
+                        ) {
+                            Text(
+                                text = stringResource(context.titleRes),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f),
+                            )
+                            TextButton(onClick = { dialog = Dialog.Edit(context, null) }) {
+                                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                                Text(text = stringResource(MR.strings.action_add))
                             }
-                        },
-                        modifier = Modifier
-                            .animateItem()
-                            .clickable { dialog = Dialog.Edit(binding) },
-                    )
+                        }
+                    }
+                    if (contextBindings.isEmpty()) {
+                        item(key = "${context.prefKey}-empty") {
+                            Text(
+                                text = stringResource(MR.strings.key_bindings_empty),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(MaterialTheme.padding.medium),
+                            )
+                        }
+                    }
+                    items(
+                        items = contextBindings,
+                        key = { "${context.prefKey}-${it.trigger}-${it.longPress}" },
+                    ) { binding ->
+                        val keys = bindingKeysLabel(binding.trigger, binding.longPress)
+                        ListItem(
+                            headlineContent = { Text(text = keys) },
+                            supportingContent = { Text(text = actionLabel(binding)) },
+                            trailingContent = {
+                                IconButton(
+                                    onClick = { preferences.getValue(context).set(contextBindings - binding) },
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Delete,
+                                        contentDescription = stringResource(MR.strings.key_binding_delete, keys),
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .animateItem()
+                                .clickable { dialog = Dialog.Edit(context, binding) },
+                        )
+                    }
                 }
             }
         }
@@ -158,17 +174,21 @@ object KeyBindingsScreen : Screen() {
         when (val shown = dialog) {
             null -> {}
             is Dialog.Edit -> KeyBindingDialog(
+                context = shown.context,
                 initial = shown.binding,
-                bindings = bindings,
+                bindings = bindings.getValue(shown.context),
                 onDismissRequest = { dialog = null },
-                onSave = { preference.set(bindings.withBinding(it, replaced = shown.binding)) },
+                onSave = {
+                    val edited = bindings.getValue(shown.context).withBinding(it, replaced = shown.binding)
+                    preferences.getValue(shown.context).set(edited)
+                },
             )
             Dialog.Reset -> AlertDialog(
                 onDismissRequest = { dialog = null },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            preference.delete()
+                            preferences.values.forEach { it.delete() }
                             dialog = null
                         },
                     ) {
@@ -189,6 +209,7 @@ object KeyBindingsScreen : Screen() {
 
 @Composable
 private fun KeyBindingDialog(
+    context: KeyContext,
     initial: KeyBinding?,
     bindings: List<KeyBinding>,
     onDismissRequest: () -> Unit,
@@ -196,7 +217,8 @@ private fun KeyBindingDialog(
 ) {
     var trigger by remember { mutableStateOf(initial?.trigger) }
     var longPress by remember { mutableStateOf(initial?.longPress ?: false) }
-    var action by remember { mutableStateOf(initial?.let { KeyAction.fromName(it.action) } ?: KeyAction.PlayPause) }
+    val actions = remember(context) { KeyAction.entries.filter { it.isFor(context) } }
+    var action by remember { mutableStateOf(initial?.let { KeyAction.fromName(it.action) } ?: actions.first()) }
     var argument by remember { mutableStateOf(initial?.argument.orEmpty()) }
 
     // A new binding starts out waiting for its key.
@@ -236,11 +258,18 @@ private fun KeyBindingDialog(
             }
         },
         title = {
-            Text(
-                text = stringResource(
-                    if (initial == null) MR.strings.key_binding_add else MR.strings.key_binding_edit,
-                ),
-            )
+            Column {
+                Text(
+                    text = stringResource(
+                        if (initial == null) MR.strings.key_binding_add else MR.strings.key_binding_edit,
+                    ),
+                )
+                Text(
+                    text = stringResource(context.titleRes),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         },
         text = {
             Column(
@@ -335,7 +364,6 @@ private fun KeyBindingDialog(
                     }
                 }
 
-                val actions = KeyAction.entries
                 val actionNames = actions.map { stringResource(it.titleRes) }
                 ExposedTextDropDownMenu(
                     selectedValue = stringResource(action.titleRes),
@@ -418,6 +446,22 @@ private val KeyAction.titleRes: StringResource
         KeyAction.ToggleSubtitles -> MR.strings.key_action_toggle_subtitles
         KeyAction.CycleSubtitle -> MR.strings.key_action_cycle_subtitle
         KeyAction.CycleSecondarySubtitle -> MR.strings.key_action_cycle_secondary_subtitle
+        KeyAction.StartWordCursor -> MR.strings.key_action_start_word_cursor
+        KeyAction.CursorPrevious -> MR.strings.key_action_cursor_previous
+        KeyAction.CursorNext -> MR.strings.key_action_cursor_next
+        KeyAction.OpenPopup -> MR.strings.key_action_open_popup
+        KeyAction.PreviousEntry -> MR.strings.key_action_previous_entry
+        KeyAction.NextEntry -> MR.strings.key_action_next_entry
+        KeyAction.ScrollUp -> MR.strings.key_action_scroll_up
+        KeyAction.ScrollDown -> MR.strings.key_action_scroll_down
+        KeyAction.PlayWordAudio -> MR.strings.key_action_play_word_audio
+        KeyAction.MineEntry -> MR.strings.key_action_mine_entry
         KeyAction.Back -> MR.strings.key_action_back
         KeyAction.MpvCommand -> MR.strings.key_action_mpv_command
+    }
+
+private val KeyContext.titleRes: StringResource
+    get() = when (this) {
+        KeyContext.Player -> MR.strings.key_context_player
+        KeyContext.PlayerLookup -> MR.strings.key_context_player_lookup
     }

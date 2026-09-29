@@ -17,6 +17,7 @@
 
 package eu.kanade.tachiyomi.ui.player.controls
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -90,6 +91,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
+import chimahon.keybinding.PlayerWordCursor
+import chimahon.keybinding.highlightRequest
 import eu.kanade.presentation.more.settings.screen.player.custombutton.getButtons
 import eu.kanade.presentation.theme.playerRippleConfiguration
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
@@ -193,6 +196,16 @@ fun PlayerControls(
     var resetControls by remember { mutableStateOf(true) }
     var subtitleLookupRequest by remember { mutableStateOf<SubtitleLookupRequest?>(null) }
     var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
+    // Chimahon -->
+    // Looking a word up with keys: the cursor has to know when the popup opens and closes.
+    val wordCursor by viewModel.wordCursor.cursor.collectAsState()
+    LaunchedEffect(subtitleLookupRequest != null) {
+        viewModel.wordCursor.onPopupOpen(subtitleLookupRequest != null)
+    }
+    BackHandler(enabled = wordCursor != null && subtitleLookupRequest == null) {
+        viewModel.wordCursor.end()
+    }
+    // Chimahon <--
     val customButtons by viewModel.customButtons.collectAsState()
     val customButton by viewModel.primaryButton.collectAsState()
 
@@ -291,7 +304,11 @@ fun PlayerControls(
             cue = activeSubtitleCue,
             subtitleDelaySeconds = primarySubtitleDelaySeconds,
             languageCode = lookupProfile.languageCode,
-            request = subtitleLookupRequest,
+            // Chimahon -->
+            // With no popup open, the word under the key cursor is the one highlighted.
+            request = subtitleLookupRequest ?: wordCursor?.highlightRequest(),
+            wordCursor = viewModel.wordCursor,
+            // Chimahon <--
             onLookup = openSubtitleLookup,
         )
         PlayerSubtitleTextLayer(
@@ -898,6 +915,8 @@ private fun PlayerSubtitleTextLayer(
     // Chimahon -->
     // Null leaves the line without pointer input, so every touch on it reaches the gestures.
     onLookup: ((SubtitleLookupSelection) -> Unit)? = null,
+    // Only the line that can be looked up is given the key cursor.
+    wordCursor: PlayerWordCursor? = null,
     // Chimahon <--
     modifier: Modifier = Modifier,
     topAligned: Boolean = false,
@@ -932,6 +951,13 @@ private fun PlayerSubtitleTextLayer(
     val bold by subtitlePreferences.boldSubtitles().collectAsState()
     val italic by subtitlePreferences.italicSubtitles().collectAsState()
 
+    // Chimahon -->
+    // Ahead of the return below, so the cursor also hears of the line going away.
+    if (wordCursor != null) {
+        LaunchedEffect(wordCursor, subtitleText) { wordCursor.onSubtitleText(subtitleText) }
+    }
+    // Chimahon <--
+
     if (subtitleText.isBlank()) return
 
     var textLayout by remember(subtitleText) { mutableStateOf<TextLayoutResult?>(null) }
@@ -939,6 +965,25 @@ private fun PlayerSubtitleTextLayer(
     // Chimahon -->
     val currentOnLookup by rememberUpdatedState(onLookup)
     val currentLanguageCode by rememberUpdatedState(languageCode)
+    if (wordCursor != null) {
+        // A key asked for the popup: look the word up as a tap on its first character would.
+        val openAt by wordCursor.openAt.collectAsState()
+        LaunchedEffect(openAt, textLayout, textLayerOrigin) {
+            val offset = openAt?.takeIf { it in subtitleText.indices } ?: return@LaunchedEffect
+            val layout = textLayout ?: return@LaunchedEffect
+            wordCursor.openAt.value = null
+            layout
+                .subtitleLookupSelectionForTap(
+                    subtitleText,
+                    layout.getBoundingBox(offset).center,
+                    cue,
+                    subtitleDelaySeconds,
+                    currentLanguageCode,
+                )
+                ?.offsetBy(textLayerOrigin)
+                ?.let { currentOnLookup?.invoke(it) }
+        }
+    }
     // Chimahon <--
     val fontSizeSp = (subtitleFontSize * subtitleScale * fontSizeFactor).coerceIn(minFontSize, maxFontSize)
     // Map the position preference the same way mpv's sub-pos behaves: 100 sits flush at the

@@ -13,10 +13,27 @@ fun defaultKeyBindings(context: KeyContext): List<KeyBinding> = when (context) {
         bind(KeyEvent.KEYCODE_BUTTON_L1, KeyAction.PreviousSubtitle),
         bind(KeyEvent.KEYCODE_BUTTON_R1, KeyAction.NextSubtitle),
         bind(KeyEvent.KEYCODE_BUTTON_Y, KeyAction.ReplaySubtitle),
+        bind(KeyEvent.KEYCODE_BUTTON_X, KeyAction.StartWordCursor),
+        bind(KeyEvent.KEYCODE_ENTER, KeyAction.StartWordCursor),
         bind(KeyEvent.KEYCODE_BUTTON_SELECT, KeyAction.ToggleSubtitles),
         bind(KeyEvent.KEYCODE_BUTTON_L2, KeyAction.CycleSubtitle),
         bind(KeyEvent.KEYCODE_BUTTON_R2, KeyAction.CycleSecondarySubtitle),
         bind(KeyEvent.KEYCODE_BUTTON_B, KeyAction.Back),
+    )
+    KeyContext.PlayerLookup -> listOf(
+        bind(KeyEvent.KEYCODE_DPAD_LEFT, KeyAction.CursorPrevious),
+        bind(KeyEvent.KEYCODE_DPAD_RIGHT, KeyAction.CursorNext),
+        bind(KeyEvent.KEYCODE_BUTTON_A, KeyAction.OpenPopup),
+        bind(KeyEvent.KEYCODE_ENTER, KeyAction.OpenPopup),
+        bind(KeyEvent.KEYCODE_DPAD_CENTER, KeyAction.OpenPopup),
+        bind(KeyEvent.KEYCODE_DPAD_UP, KeyAction.PreviousEntry),
+        bind(KeyEvent.KEYCODE_DPAD_DOWN, KeyAction.NextEntry),
+        bind(KeyEvent.KEYCODE_BUTTON_L1, KeyAction.ScrollUp),
+        bind(KeyEvent.KEYCODE_BUTTON_R1, KeyAction.ScrollDown),
+        bind(KeyEvent.KEYCODE_BUTTON_X, KeyAction.MineEntry),
+        bind(KeyEvent.KEYCODE_BUTTON_Y, KeyAction.PlayWordAudio),
+        bind(KeyEvent.KEYCODE_BUTTON_B, KeyAction.Back),
+        bind(KeyEvent.KEYCODE_ESCAPE, KeyAction.Back),
     )
 }
 

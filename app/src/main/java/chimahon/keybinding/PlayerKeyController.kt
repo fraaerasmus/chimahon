@@ -35,8 +35,8 @@ class PlayerKeyController(
     private val goBack: () -> Unit,
     preferences: KeyBindingPreferences = Injekt.get(),
 ) {
-    private val bindings = preferences.bindings(KeyContext.Player).get()
-    private val backBindings = bindings.filter { it.action == KeyAction.Back.name }
+    private val playerBindings = preferences.bindings(KeyContext.Player).get()
+    private val lookupBindings = preferences.bindings(KeyContext.PlayerLookup).get()
     private val resolver = KeyResolver()
 
     /** True when the event was taken. */
@@ -49,9 +49,11 @@ class PlayerKeyController(
             panel = viewModel.panelShown.value,
             dialog = viewModel.dialogShown.value,
         )
+        val lookup = viewModel.wordCursor.isActive
+        val bindings = if (lookup) lookupBindings else playerBindings
         val active = when (gate) {
             PlayerKeyGate.All -> bindings
-            PlayerKeyGate.BackOnly -> backBindings
+            PlayerKeyGate.BackOnly -> bindings.filter { it.action == KeyAction.Back.name }
             PlayerKeyGate.None -> {
                 resolver.reset()
                 return false
@@ -71,7 +73,18 @@ class PlayerKeyController(
     }
 
     private fun run(binding: KeyBinding) {
+        val wordCursor = viewModel.wordCursor
         when (KeyAction.fromName(binding.action) ?: return) {
+            KeyAction.StartWordCursor -> wordCursor.start()
+            KeyAction.CursorPrevious -> wordCursor.move(-1)
+            KeyAction.CursorNext -> wordCursor.move(1)
+            KeyAction.OpenPopup -> wordCursor.openPopup()
+            KeyAction.PreviousEntry -> wordCursor.runInPopup(PopupKeyScripts.PREVIOUS_ENTRY)
+            KeyAction.NextEntry -> wordCursor.runInPopup(PopupKeyScripts.NEXT_ENTRY)
+            KeyAction.ScrollUp -> wordCursor.runInPopup(PopupKeyScripts.SCROLL_UP)
+            KeyAction.ScrollDown -> wordCursor.runInPopup(PopupKeyScripts.SCROLL_DOWN)
+            KeyAction.PlayWordAudio -> wordCursor.runInPopup(PopupKeyScripts.PLAY_WORD_AUDIO)
+            KeyAction.MineEntry -> wordCursor.runInPopup(PopupKeyScripts.MINE_ENTRY)
             KeyAction.PlayPause -> viewModel.pauseUnpause()
             KeyAction.SeekBy -> binding.argument.toIntOrNull()?.let {
                 viewModel.seekBy(it, viewModel.gesturePreferences.playerSmoothSeek().get())

@@ -85,6 +85,13 @@ internal fun PlayerSubtitleLookupPopup(
 
     BackHandler(enabled = request != null, onBack = onDismiss)
 
+    // Chimahon -->
+    // Keys bound to the popup act on its page.
+    LaunchedEffect(webView) {
+        viewModel.wordCursor.popupScripts.collect { webView.evaluateJavascript(it, null) }
+    }
+    // Chimahon <--
+
     val visible = request != null
     val mediaRequest: AnkiMediaRequest? = remember(request) {
         request?.let {
