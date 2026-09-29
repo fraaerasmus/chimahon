@@ -68,4 +68,45 @@ class KeyBindingTest {
         assertEquals("pref_key_bindings_player", preference.key())
         assertEquals(defaultKeyBindings(KeyContext.Player), preference.defaultValue())
     }
+
+    @Test
+    fun `a new binding goes on the end`() {
+        val pause = KeyBinding(keyCode = 1, action = "PlayPause")
+        val back = KeyBinding(keyCode = 2, action = "Back")
+
+        assertEquals(listOf(pause, back), listOf(pause).withBinding(back, replaced = null))
+    }
+
+    @Test
+    fun `an edited binding keeps its place`() {
+        val pause = KeyBinding(keyCode = 1, action = "PlayPause")
+        val back = KeyBinding(keyCode = 2, action = "Back")
+        val edited = pause.copy(keyCode = 3)
+
+        assertEquals(listOf(edited, back), listOf(pause, back).withBinding(edited, replaced = pause))
+    }
+
+    @Test
+    fun `a binding takes over a trigger another one had`() {
+        val pause = KeyBinding(keyCode = 1, action = "PlayPause")
+        val back = KeyBinding(keyCode = 2, action = "Back")
+        val replay = KeyBinding(keyCode = 3, action = "ReplaySubtitle")
+        val bindings = listOf(pause, back, replay)
+
+        val added = KeyBinding(keyCode = 1, action = "Back")
+        assertEquals(listOf(back, replay, added), bindings.withBinding(added, replaced = null))
+
+        val moved = replay.copy(keyCode = 1)
+        assertEquals(listOf(back, moved), bindings.withBinding(moved, replaced = replay))
+    }
+
+    @Test
+    fun `only an argument the action can use is accepted`() {
+        assertEquals(true, KeyAction.SeekBy.accepts("-5"))
+        assertEquals(false, KeyAction.SeekBy.accepts("0"))
+        assertEquals(false, KeyAction.SeekBy.accepts("soon"))
+        assertEquals(true, KeyAction.MpvCommand.accepts("cycle sub"))
+        assertEquals(false, KeyAction.MpvCommand.accepts("  "))
+        assertEquals(true, KeyAction.PlayPause.accepts(""))
+    }
 }

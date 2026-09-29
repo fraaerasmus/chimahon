@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Gesture
+import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.Search
@@ -35,6 +36,7 @@ import androidx.core.graphics.ColorUtils
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import chimahon.keybinding.KeyBindingsScreen
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
@@ -186,6 +188,14 @@ object PlayerSettingsMainScreen : Screen() {
             icon = Icons.Outlined.Gesture,
             screen = PlayerSettingsGesturesScreen,
         ),
+        // Chimahon -->
+        Item(
+            titleRes = MR.strings.pref_player_key_bindings,
+            subtitleRes = MR.strings.pref_player_key_bindings_summary,
+            icon = Icons.Outlined.Keyboard,
+            screen = KeyBindingsScreen,
+        ),
+        // Chimahon <--
         Item(
             titleRes = MR.strings.pref_player_decoder,
             subtitleRes = MR.strings.pref_player_decoder_summary,

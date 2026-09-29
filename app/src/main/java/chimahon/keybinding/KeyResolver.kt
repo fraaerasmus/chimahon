@@ -86,21 +86,4 @@ class KeyResolver(private val longPressMillis: Long = 500) {
     }
 
     private fun Press.isLong(eventTime: Long) = long != null && eventTime - downTime >= longPressMillis
-
-    private companion object {
-        // KeyEvent.isModifierKey() is a method on the Android stub, which unit tests cannot call.
-        val MODIFIER_KEYS = setOf(
-            KeyEvent.KEYCODE_SHIFT_LEFT,
-            KeyEvent.KEYCODE_SHIFT_RIGHT,
-            KeyEvent.KEYCODE_ALT_LEFT,
-            KeyEvent.KEYCODE_ALT_RIGHT,
-            KeyEvent.KEYCODE_CTRL_LEFT,
-            KeyEvent.KEYCODE_CTRL_RIGHT,
-            KeyEvent.KEYCODE_META_LEFT,
-            KeyEvent.KEYCODE_META_RIGHT,
-            KeyEvent.KEYCODE_SYM,
-            KeyEvent.KEYCODE_NUM,
-            KeyEvent.KEYCODE_FUNCTION,
-        )
-    }
 }
