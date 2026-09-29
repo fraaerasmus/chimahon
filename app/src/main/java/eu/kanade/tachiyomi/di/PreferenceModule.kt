@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.di
 
 import android.app.Application
+import chimahon.keybinding.KeyBindingPreferences
 import eu.kanade.domain.base.BasePreferences
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.domain.source.service.SourcePreferences
@@ -79,6 +80,11 @@ class PreferenceModule(val app: Application) : InjektModule {
         addSingletonFactory {
             GesturePreferences(get())
         }
+        // Chimahon -->
+        addSingletonFactory {
+            KeyBindingPreferences(get())
+        }
+        // Chimahon <--
         addSingletonFactory {
             SubtitlePreferences(get())
         }
