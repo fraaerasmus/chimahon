@@ -22,20 +22,16 @@ enum class KeyAction(
     SeekBy(KeyContext.Player, repeatable = true, hasArgument = true),
     VolumeBy(KeyContext.Player, repeatable = true, hasArgument = true),
     BrightnessBy(KeyContext.Player, repeatable = true, hasArgument = true),
-    PreviousSubtitle(KeyContext.Player),
-    NextSubtitle(KeyContext.Player),
+    SubtitleLine(KeyContext.Player, hasArgument = true),
     ReplaySubtitle(KeyContext.Player),
     ToggleSubtitles(KeyContext.Player),
-    CycleSubtitle(KeyContext.Player),
-    CycleSecondarySubtitle(KeyContext.Player),
+    SubtitleTrack(KeyContext.Player, hasArgument = true),
+    SecondarySubtitleTrack(KeyContext.Player, hasArgument = true),
     StartWordCursor(KeyContext.Player),
-    CursorPrevious(KeyContext.PlayerLookup, repeatable = true),
-    CursorNext(KeyContext.PlayerLookup, repeatable = true),
+    Word(KeyContext.PlayerLookup, repeatable = true, hasArgument = true),
     OpenPopup(KeyContext.PlayerLookup),
-    PreviousEntry(KeyContext.PlayerLookup, repeatable = true),
-    NextEntry(KeyContext.PlayerLookup, repeatable = true),
-    ScrollUp(KeyContext.PlayerLookup, repeatable = true),
-    ScrollDown(KeyContext.PlayerLookup, repeatable = true),
+    Entry(KeyContext.PlayerLookup, repeatable = true, hasArgument = true),
+    Scroll(KeyContext.PlayerLookup, repeatable = true, hasArgument = true),
     PlayWordAudio(KeyContext.PlayerLookup),
     MineEntry(KeyContext.PlayerLookup),
     Back(null),
@@ -44,10 +40,10 @@ enum class KeyAction(
 
     fun isFor(context: KeyContext) = this.context == null || this.context == context
 
-    /** Whether [argument] is one this action can run with. */
-    fun accepts(argument: String): Boolean = when (this) {
-        SeekBy, VolumeBy, BrightnessBy -> argument.toIntOrNull().let { it != null && it != 0 }
-        MpvCommand -> argument.isNotBlank()
+    /** Whether [argument] is one this action can run with. A number is a signed step. */
+    fun accepts(argument: String): Boolean = when {
+        this == MpvCommand -> argument.isNotBlank()
+        hasArgument -> argument.toIntOrNull().let { it != null && it != 0 }
         else -> true
     }
 
@@ -100,13 +96,25 @@ private val json = Json { ignoreUnknownKeys = true }
 fun encodeKeyBindings(bindings: List<KeyBinding>): String = json.encodeToString(bindings)
 
 fun decodeKeyBindings(text: String): List<KeyBinding> = json.decodeFromString<List<KeyBinding>>(text).map {
-    // Volume up and down were two actions before a press could take a number of steps.
-    when (it.action) {
-        "VolumeUp" -> it.copy(action = KeyAction.VolumeBy.name, argument = "1")
-        "VolumeDown" -> it.copy(action = KeyAction.VolumeBy.name, argument = "-1")
-        else -> it
-    }
+    // Each way of a pair was an action of its own before a press could take a signed step.
+    val (action, step) = STEP_ACTIONS_BEFORE[it.action] ?: return@map it
+    it.copy(action = action.name, argument = step)
 }
+
+private val STEP_ACTIONS_BEFORE = mapOf(
+    "VolumeUp" to (KeyAction.VolumeBy to "1"),
+    "VolumeDown" to (KeyAction.VolumeBy to "-1"),
+    "PreviousSubtitle" to (KeyAction.SubtitleLine to "-1"),
+    "NextSubtitle" to (KeyAction.SubtitleLine to "1"),
+    "CycleSubtitle" to (KeyAction.SubtitleTrack to "1"),
+    "CycleSecondarySubtitle" to (KeyAction.SecondarySubtitleTrack to "1"),
+    "CursorPrevious" to (KeyAction.Word to "-1"),
+    "CursorNext" to (KeyAction.Word to "1"),
+    "PreviousEntry" to (KeyAction.Entry to "-1"),
+    "NextEntry" to (KeyAction.Entry to "1"),
+    "ScrollUp" to (KeyAction.Scroll to "-1"),
+    "ScrollDown" to (KeyAction.Scroll to "1"),
+)
 
 // KeyEvent.isModifierKey() is a method on the Android stub, which unit tests cannot call.
 internal val MODIFIER_KEYS = setOf(

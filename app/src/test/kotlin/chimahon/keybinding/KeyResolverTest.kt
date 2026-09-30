@@ -15,16 +15,16 @@ class KeyResolverTest {
     private val ctrlH = KeyBinding(
         keyCode = KeyEvent.KEYCODE_H,
         modifiers = KeyEvent.META_CTRL_ON,
-        action = KeyAction.CycleSubtitle.name,
+        action = KeyAction.ToggleSubtitles.name,
     )
     private val replay = KeyBinding(keyCode = KeyEvent.KEYCODE_BUTTON_Y, action = KeyAction.ReplaySubtitle.name)
     private val holdReplay = replay.copy(longPress = true, action = KeyAction.ToggleSubtitles.name)
     private val holdOnly = KeyBinding(
         keyCode = KeyEvent.KEYCODE_BUTTON_X,
         longPress = true,
-        action = KeyAction.CycleSubtitle.name,
+        action = KeyAction.ToggleSubtitles.name,
     )
-    private val shift = KeyBinding(keyCode = KeyEvent.KEYCODE_BUTTON_L1, action = KeyAction.PreviousSubtitle.name)
+    private val shift = KeyBinding(keyCode = KeyEvent.KEYCODE_BUTTON_L1, action = KeyAction.PlayPause.name)
     private val shiftedSeek = seek.copy(chordKeyCode = KeyEvent.KEYCODE_BUTTON_L1, argument = "60")
     private val shiftedMute = KeyBinding(
         keyCode = KeyEvent.KEYCODE_BUTTON_A,
@@ -106,7 +106,7 @@ class KeyResolverTest {
 
     @Test
     fun `the binding caught on the way down governs repeats when the set changes`() {
-        val lookupSet = listOf(seek.copy(action = KeyAction.NextSubtitle.name, argument = ""))
+        val lookupSet = listOf(seek.copy(action = KeyAction.ReplaySubtitle.name, argument = ""))
 
         assertEquals(KeyResult.Consumed(seek), down(KeyEvent.KEYCODE_DPAD_RIGHT))
         assertEquals(KeyResult.Consumed(seek), down(KeyEvent.KEYCODE_DPAD_RIGHT, repeat = 1, bound = lookupSet))

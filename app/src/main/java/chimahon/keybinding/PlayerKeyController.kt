@@ -76,15 +76,13 @@ class PlayerKeyController(
 
     private fun run(binding: KeyBinding) {
         val wordCursor = viewModel.wordCursor
+        val step = binding.argument.toIntOrNull() ?: 0
         when (KeyAction.fromName(binding.action) ?: return) {
             KeyAction.StartWordCursor -> wordCursor.start()
-            KeyAction.CursorPrevious -> wordCursor.move(-1)
-            KeyAction.CursorNext -> wordCursor.move(1)
+            KeyAction.Word -> wordCursor.move(step)
             KeyAction.OpenPopup -> wordCursor.openPopup()
-            KeyAction.PreviousEntry -> wordCursor.runInPopup(PopupKeyScripts.PREVIOUS_ENTRY)
-            KeyAction.NextEntry -> wordCursor.runInPopup(PopupKeyScripts.NEXT_ENTRY)
-            KeyAction.ScrollUp -> wordCursor.runInPopup(PopupKeyScripts.SCROLL_UP)
-            KeyAction.ScrollDown -> wordCursor.runInPopup(PopupKeyScripts.SCROLL_DOWN)
+            KeyAction.Entry -> wordCursor.runInPopup(PopupKeyScripts.entry(step))
+            KeyAction.Scroll -> wordCursor.runInPopup(PopupKeyScripts.scroll(step))
             KeyAction.PlayWordAudio -> wordCursor.runInPopup(PopupKeyScripts.PLAY_WORD_AUDIO)
             KeyAction.MineEntry -> wordCursor.runInPopup(PopupKeyScripts.MINE_ENTRY)
             KeyAction.PlayPause -> viewModel.pauseUnpause()
@@ -97,12 +95,11 @@ class PlayerKeyController(
                 viewModel.changeBrightnessTo(viewModel.currentBrightness.value + steps * 0.05f)
                 viewModel.displayBrightnessSlider()
             }
-            KeyAction.PreviousSubtitle -> viewModel.seekToAdjacentSubtitle(forward = false)
-            KeyAction.NextSubtitle -> viewModel.seekToAdjacentSubtitle(forward = true)
+            KeyAction.SubtitleLine -> repeat(step.absoluteValue) { viewModel.seekToAdjacentSubtitle(step > 0) }
             KeyAction.ReplaySubtitle -> viewModel.replayCurrentSubtitle()
             KeyAction.ToggleSubtitles -> viewModel.setSubtitlesVisible(!viewModel.subtitlesVisible.value)
-            KeyAction.CycleSubtitle -> viewModel.cycleSubtitle(secondary = false)
-            KeyAction.CycleSecondarySubtitle -> viewModel.cycleSubtitle(secondary = true)
+            KeyAction.SubtitleTrack -> viewModel.cycleSubtitle(secondary = false, by = step)
+            KeyAction.SecondarySubtitleTrack -> viewModel.cycleSubtitle(secondary = true, by = step)
             KeyAction.Back -> goBack()
             KeyAction.MpvCommand -> {
                 val command = tokenizeMpvCommand(binding.argument)

@@ -5,10 +5,12 @@ package chimahon.keybinding
  * own entry navigation and the buttons of an entry, so nothing is added to the page itself.
  */
 object PopupKeyScripts {
-    const val NEXT_ENTRY = "window.DictionaryRenderer?.navigate(1);"
-    const val PREVIOUS_ENTRY = "window.DictionaryRenderer?.navigate(-1);"
-    const val SCROLL_DOWN = "window.scrollBy(0, window.innerHeight * 0.8);"
-    const val SCROLL_UP = "window.scrollBy(0, -window.innerHeight * 0.8);"
+    /** [by] entries on, negative for back. */
+    fun entry(by: Int) = "window.DictionaryRenderer?.navigate($by);"
+
+    /** [by] screens down, negative for up. */
+    fun scroll(by: Int) = "window.scrollBy(0, window.innerHeight * 0.8 * $by);"
+
     val PLAY_WORD_AUDIO = clickInCurrentEntry(".word-audio-btn")
     val MINE_ENTRY = clickInCurrentEntry(".anki-add-btn")
 

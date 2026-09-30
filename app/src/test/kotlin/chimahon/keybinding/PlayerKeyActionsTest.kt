@@ -31,6 +31,14 @@ class PlayerKeyActionsTest {
     }
 
     @Test
+    fun `cycling backwards walks the tracks the other way and wraps`() {
+        assertEquals(3, nextTrackId(tracks, current = -1, other = -1, by = -1))
+        assertEquals(-1, nextTrackId(tracks, current = 1, other = -1, by = -1))
+        assertEquals(1, nextTrackId(tracks, current = 3, other = 2, by = -1))
+        assertEquals(2, nextTrackId(tracks, current = -1, other = -1, by = 2))
+    }
+
+    @Test
     fun `an mpv command splits on spaces`() {
         assertEquals(listOf("cycle", "sub"), tokenizeMpvCommand("  cycle   sub "))
         assertEquals(emptyList<String>(), tokenizeMpvCommand("   "))

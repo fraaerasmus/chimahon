@@ -245,6 +245,11 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   command" rows are gone. Each action is one row, and a key that takes a number carries it on
   its cap ("← -5 s") and in the dialog. Brightness is a new such action: a key moves the
   player window's brightness by a count of 5% steps, negative to dim.
+- Previous and next as one action with a step (2026-09-30): "Previous subtitle" and "Next
+  subtitle" are one "Subtitle line" row whose keys carry -1 or +1, and the same for the two
+  subtitle track rows, "Word", "Entry" and "Scroll" in the popup. A step of 2 or 3 works
+  too. L2 and R2 still step the subtitle tracks forward, and holding them now steps back.
+  Keys saved with the old names read as a step of one, so nothing changes until edited.
 
 ## Dropped (superseded by upstream)
 

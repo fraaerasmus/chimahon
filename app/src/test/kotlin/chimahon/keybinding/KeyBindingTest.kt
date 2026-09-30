@@ -33,18 +33,25 @@ class KeyBindingTest {
     }
 
     @Test
-    fun `volume keys saved before volume took a size read as one step`() {
+    fun `keys saved before actions took a step read as a step of one`() {
+        val old = listOf(
+            "VolumeUp", "VolumeDown", "PreviousSubtitle", "NextSubtitle", "CycleSubtitle",
+            "CycleSecondarySubtitle", "CursorPrevious", "CursorNext", "PreviousEntry", "NextEntry",
+            "ScrollUp", "ScrollDown",
+        )
         val decoded = decodeKeyBindings(
-            """[{"keyCode":19,"action":"VolumeUp"},{"keyCode":20,"action":"VolumeDown"}]""",
+            old.mapIndexed { index, name -> """{"keyCode":$index,"action":"$name"}""" }.joinToString(",", "[", "]"),
         )
 
         assertEquals(
             listOf(
-                KeyBinding(keyCode = 19, action = "VolumeBy", argument = "1"),
-                KeyBinding(keyCode = 20, action = "VolumeBy", argument = "-1"),
+                "VolumeBy" to "1", "VolumeBy" to "-1", "SubtitleLine" to "-1", "SubtitleLine" to "1",
+                "SubtitleTrack" to "1", "SecondarySubtitleTrack" to "1", "Word" to "-1", "Word" to "1",
+                "Entry" to "-1", "Entry" to "1", "Scroll" to "-1", "Scroll" to "1",
             ),
-            decoded,
+            decoded.map { it.action to it.argument },
         )
+        decoded.forEach { assertEquals(true, KeyAction.fromName(it.action) != null, it.action) }
     }
 
     @Test
@@ -65,6 +72,18 @@ class KeyBindingTest {
                 assertEquals(index, defaults.indexOfFirst { it.sameTrigger(binding) }, "$context $binding")
             }
         }
+    }
+
+    @Test
+    fun `holding a track key by default steps back through the tracks`() {
+        val defaults = defaultKeyBindings(KeyContext.Player)
+        val l2 = defaults.filter { it.keyCode == KeyEvent.KEYCODE_BUTTON_L2 }
+
+        assertEquals(
+            listOf(false to "1", true to "-1"),
+            l2.map { it.longPress to it.argument },
+        )
+        assertEquals(listOf(KeyAction.SubtitleTrack.name), l2.map { it.action }.distinct())
     }
 
     @Test
@@ -123,6 +142,8 @@ class KeyBindingTest {
         assertEquals(false, KeyAction.VolumeBy.accepts("0"))
         assertEquals(true, KeyAction.BrightnessBy.accepts("-1"))
         assertEquals(false, KeyAction.BrightnessBy.accepts(""))
+        assertEquals(true, KeyAction.Entry.accepts("3"))
+        assertEquals(false, KeyAction.SubtitleTrack.accepts("0"))
         assertEquals(true, KeyAction.MpvCommand.accepts("cycle sub"))
         assertEquals(false, KeyAction.MpvCommand.accepts("  "))
         assertEquals(true, KeyAction.PlayPause.accepts(""))

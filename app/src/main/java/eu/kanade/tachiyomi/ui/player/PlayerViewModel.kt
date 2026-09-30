@@ -1360,17 +1360,18 @@ class PlayerViewModel @JvmOverloads constructor(
     val wordCursor by lazy { PlayerWordCursor(this) }
 
     /**
-     * Steps one subtitle slot to its next track, then off. Turning the primary off turns the
-     * secondary off with it, and the secondary only cycles while a primary is showing.
+     * Steps one subtitle slot [by] tracks, through the tracks and off, either way round. Turning
+     * the primary off turns the secondary off with it, and the secondary only cycles while a
+     * primary is showing.
      */
-    fun cycleSubtitle(secondary: Boolean) {
+    fun cycleSubtitle(secondary: Boolean, by: Int = 1) {
         val (first, second) = selectedSubtitles.value
         if (secondary && first == -1) return
         val trackIds = subtitleTracks.value.map { it.id }
         val selection = if (secondary) {
-            Pair(first, nextTrackId(trackIds, current = second, other = first))
+            Pair(first, nextTrackId(trackIds, current = second, other = first, by = by))
         } else {
-            val next = nextTrackId(trackIds, current = first, other = second)
+            val next = nextTrackId(trackIds, current = first, other = second, by = by)
             Pair(next, if (next == -1) -1 else second)
         }
         _selectedSubtitles.update { selection }

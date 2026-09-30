@@ -1,12 +1,12 @@
 package chimahon.keybinding
 
 /**
- * The subtitle track after [current], going through [trackIds] and then off (-1). [other] is the
- * track the other subtitle slot shows, which is skipped.
+ * The subtitle track [by] steps on from [current], going through [trackIds] and then off (-1),
+ * either way round. [other] is the track the other subtitle slot shows, which is skipped.
  */
-fun nextTrackId(trackIds: List<Int>, current: Int, other: Int): Int {
+fun nextTrackId(trackIds: List<Int>, current: Int, other: Int, by: Int = 1): Int {
     val choices = listOf(-1) + trackIds.filter { it != other }
-    return choices[(choices.indexOf(current) + 1) % choices.size]
+    return choices[Math.floorMod(choices.indexOf(current) + by, choices.size)]
 }
 
 /**

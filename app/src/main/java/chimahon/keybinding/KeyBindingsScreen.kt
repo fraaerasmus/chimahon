@@ -516,7 +516,8 @@ private val KeyAction.argumentLabelRes: StringResource
         KeyAction.SeekBy -> MR.strings.key_binding_seconds
         KeyAction.VolumeBy -> MR.strings.key_binding_volume_steps
         KeyAction.BrightnessBy -> MR.strings.key_binding_brightness_steps
-        else -> MR.strings.key_binding_mpv_command
+        KeyAction.MpvCommand -> MR.strings.key_binding_mpv_command
+        else -> MR.strings.key_binding_step
     }
 
 private val KeyAction.argumentSummaryRes: StringResource
@@ -524,7 +525,8 @@ private val KeyAction.argumentSummaryRes: StringResource
         KeyAction.SeekBy -> MR.strings.key_binding_seconds_summary
         KeyAction.VolumeBy -> MR.strings.key_binding_volume_steps_summary
         KeyAction.BrightnessBy -> MR.strings.key_binding_brightness_steps_summary
-        else -> MR.strings.key_binding_mpv_command_summary
+        KeyAction.MpvCommand -> MR.strings.key_binding_mpv_command_summary
+        else -> MR.strings.key_binding_step_summary
     }
 
 private val KeyAction.titleRes: StringResource
@@ -533,20 +535,16 @@ private val KeyAction.titleRes: StringResource
         KeyAction.SeekBy -> MR.strings.key_action_seek_by
         KeyAction.VolumeBy -> MR.strings.key_action_volume
         KeyAction.BrightnessBy -> MR.strings.key_action_brightness
-        KeyAction.PreviousSubtitle -> MR.strings.key_action_previous_subtitle
-        KeyAction.NextSubtitle -> MR.strings.key_action_next_subtitle
+        KeyAction.SubtitleLine -> MR.strings.key_action_subtitle_line
         KeyAction.ReplaySubtitle -> MR.strings.key_action_replay_subtitle
         KeyAction.ToggleSubtitles -> MR.strings.key_action_toggle_subtitles
-        KeyAction.CycleSubtitle -> MR.strings.key_action_cycle_subtitle
-        KeyAction.CycleSecondarySubtitle -> MR.strings.key_action_cycle_secondary_subtitle
+        KeyAction.SubtitleTrack -> MR.strings.key_action_subtitle_track
+        KeyAction.SecondarySubtitleTrack -> MR.strings.key_action_secondary_subtitle_track
         KeyAction.StartWordCursor -> MR.strings.key_action_start_word_cursor
-        KeyAction.CursorPrevious -> MR.strings.key_action_cursor_previous
-        KeyAction.CursorNext -> MR.strings.key_action_cursor_next
+        KeyAction.Word -> MR.strings.key_action_word
         KeyAction.OpenPopup -> MR.strings.key_action_open_popup
-        KeyAction.PreviousEntry -> MR.strings.key_action_previous_entry
-        KeyAction.NextEntry -> MR.strings.key_action_next_entry
-        KeyAction.ScrollUp -> MR.strings.key_action_scroll_up
-        KeyAction.ScrollDown -> MR.strings.key_action_scroll_down
+        KeyAction.Entry -> MR.strings.key_action_entry
+        KeyAction.Scroll -> MR.strings.key_action_scroll
         KeyAction.PlayWordAudio -> MR.strings.key_action_play_word_audio
         KeyAction.MineEntry -> MR.strings.key_action_mine_entry
         KeyAction.Back -> MR.strings.key_action_back
