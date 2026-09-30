@@ -240,6 +240,11 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   number of the phone's volume steps, the way a seek takes seconds. "Volume up" and "Volume
   down" became one "Volume" action with a step count, negative for down; bindings saved with
   the old two read as one step each. Playback gains "Add a volume change" next to "Add a seek".
+- One row per action (2026-09-30): the key bindings list no longer splits a seek or a volume
+  change into a row per number, and the "Add a seek", "Add a volume change" and "Add an mpv
+  command" rows are gone. Each action is one row, and a key that takes a number carries it on
+  its cap ("← -5 s") and in the dialog. Brightness is a new such action: a key moves the
+  player window's brightness by a count of 5% steps, negative to dim.
 
 ## Dropped (superseded by upstream)
 
