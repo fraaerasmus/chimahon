@@ -224,6 +224,18 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
     subtitle word" themselves, as saved bindings are never rewritten.
   - The popup keys act on the entry nearest the top of the popup, as the popup's own arrows
     do. A last entry too short to scroll to the top cannot be reached with them.
+- Key bindings listed by action (2026-09-29): Player > "Key bindings" now lists what can be
+  done, under Playback, Subtitles, Look up a word, Dictionary popup and Other, with each
+  action's keys drawn as key caps and "Not set" where there is none. Tapping an action opens
+  its keys: press a key to add one, a chip makes it a long press, and nothing is kept until
+  Save. A seek's seconds are edited there too. The four directions show as arrows, and a
+  gamepad button carries a gamepad mark so its A is told from the A key.
+- Arrows in a tapped popup (2026-09-29): Left and Right did nothing in a dictionary popup
+  opened by a tap, since they move a cursor and a tap made none; they now start on the tapped
+  word. Left at the first word, or Right at the last, closed the popup by asking for the word
+  it already showed; it now stays open. Keys go to a second popup opened from inside the
+  first, when the recursive lookup mode is "popup". A cursor left behind by playback resumed
+  with a touch is dropped, so the arrows seek again.
 
 ## Dropped (superseded by upstream)
 
