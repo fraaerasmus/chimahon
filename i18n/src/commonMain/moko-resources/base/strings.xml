@@ -1846,9 +1846,6 @@
     <string name="key_slot_keys">Keys</string>
     <string name="key_slot_no_keys">No keys yet</string>
     <string name="key_slot_add_key">Add a key</string>
-    <string name="key_slot_add_seek">Add a seek</string>
-    <string name="key_slot_add_volume">Add a volume change</string>
-    <string name="key_slot_add_mpv">Add an mpv command</string>
     <string name="key_slot_remove_key">Remove %1$s</string>
     <string name="key_binding_key_listening">Press a key or button</string>
     <string name="key_binding_key_listening_summary">For a combination, hold one and press another.</string>
@@ -1859,15 +1856,14 @@
     <string name="key_binding_seconds_summary">A whole number. Negative goes back.</string>
     <string name="key_binding_volume_steps">Volume steps</string>
     <string name="key_binding_volume_steps_summary">A whole number of the phone\'s volume steps. Negative turns it down.</string>
+    <string name="key_binding_brightness_steps">Brightness steps</string>
+    <string name="key_binding_brightness_steps_summary">A whole number of 5% steps. Negative dims.</string>
     <string name="key_binding_mpv_command">mpv command</string>
     <string name="key_binding_mpv_command_summary">As in input.conf, for example: cycle mute</string>
     <string name="key_action_play_pause">Play or pause</string>
     <string name="key_action_seek_by">Seek</string>
-    <string name="key_action_seek_forward">Seek forward %1$s s</string>
-    <string name="key_action_seek_back">Seek back %1$s s</string>
     <string name="key_action_volume">Volume</string>
-    <string name="key_action_volume_up_by">Volume up by %1$s</string>
-    <string name="key_action_volume_down_by">Volume down by %1$s</string>
+    <string name="key_action_brightness">Brightness</string>
     <string name="key_action_previous_subtitle">Previous subtitle</string>
     <string name="key_action_next_subtitle">Next subtitle</string>
     <string name="key_action_replay_subtitle">Replay subtitle</string>
@@ -1887,5 +1883,4 @@
     <string name="key_action_close_lookup">Close the lookup</string>
     <string name="key_action_back">Back</string>
     <string name="key_action_mpv_command">mpv command</string>
-    <string name="key_action_mpv_command_value">mpv: %1$s</string>
 </resources>

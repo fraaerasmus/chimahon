@@ -121,6 +121,8 @@ class KeyBindingTest {
         assertEquals(false, KeyAction.SeekBy.accepts("soon"))
         assertEquals(true, KeyAction.VolumeBy.accepts("2"))
         assertEquals(false, KeyAction.VolumeBy.accepts("0"))
+        assertEquals(true, KeyAction.BrightnessBy.accepts("-1"))
+        assertEquals(false, KeyAction.BrightnessBy.accepts(""))
         assertEquals(true, KeyAction.MpvCommand.accepts("cycle sub"))
         assertEquals(false, KeyAction.MpvCommand.accepts("  "))
         assertEquals(true, KeyAction.PlayPause.accepts(""))

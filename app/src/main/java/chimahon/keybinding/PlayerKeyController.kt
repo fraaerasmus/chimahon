@@ -92,6 +92,11 @@ class PlayerKeyController(
                 viewModel.seekBy(it, viewModel.gesturePreferences.playerSmoothSeek().get())
             }
             KeyAction.VolumeBy -> binding.argument.toIntOrNull()?.let(::changeVolume)
+            KeyAction.BrightnessBy -> binding.argument.toIntOrNull()?.let { steps ->
+                // The same scale as the swipe: 0 to 1 for the window, in steps of 5%.
+                viewModel.changeBrightnessTo(viewModel.currentBrightness.value + steps * 0.05f)
+                viewModel.displayBrightnessSlider()
+            }
             KeyAction.PreviousSubtitle -> viewModel.seekToAdjacentSubtitle(forward = false)
             KeyAction.NextSubtitle -> viewModel.seekToAdjacentSubtitle(forward = true)
             KeyAction.ReplaySubtitle -> viewModel.replayCurrentSubtitle()

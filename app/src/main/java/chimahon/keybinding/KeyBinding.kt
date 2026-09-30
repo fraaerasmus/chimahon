@@ -21,6 +21,7 @@ enum class KeyAction(
     PlayPause(KeyContext.Player),
     SeekBy(KeyContext.Player, repeatable = true, hasArgument = true),
     VolumeBy(KeyContext.Player, repeatable = true, hasArgument = true),
+    BrightnessBy(KeyContext.Player, repeatable = true, hasArgument = true),
     PreviousSubtitle(KeyContext.Player),
     NextSubtitle(KeyContext.Player),
     ReplaySubtitle(KeyContext.Player),
@@ -45,7 +46,7 @@ enum class KeyAction(
 
     /** Whether [argument] is one this action can run with. */
     fun accepts(argument: String): Boolean = when (this) {
-        SeekBy, VolumeBy -> argument.toIntOrNull().let { it != null && it != 0 }
+        SeekBy, VolumeBy, BrightnessBy -> argument.toIntOrNull().let { it != null && it != 0 }
         MpvCommand -> argument.isNotBlank()
         else -> true
     }

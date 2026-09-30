@@ -119,29 +119,13 @@ object KeyBindingsScreen : Screen() {
                         ),
                     )
                 }
-                keySlots(bindings).forEach { (group, slots) ->
+                keySlots().forEach { (group, slots) ->
                     item(key = group.name) { GroupHeader(group) }
-                    items(slots, key = { "${it.context}-${it.action}-${it.argument}" }) { slot ->
+                    items(slots, key = { "${it.context}-${it.action}" }) { slot ->
                         SlotRow(
                             slot = slot,
                             keys = bindings.getValue(slot.context).keysOf(slot),
                             onClick = { dialog = Dialog.Keys(slot) },
-                            modifier = Modifier.animateItem(),
-                        )
-                    }
-                    // An action with an argument has no row until it has a key, so it is added here.
-                    val added = when (group) {
-                        KeyGroup.Playback -> listOf(
-                            KeyAction.SeekBy to MR.strings.key_slot_add_seek,
-                            KeyAction.VolumeBy to MR.strings.key_slot_add_volume,
-                        )
-                        KeyGroup.Other -> listOf(KeyAction.MpvCommand to MR.strings.key_slot_add_mpv)
-                        else -> emptyList()
-                    }
-                    items(added, key = { "${group.name}-add-${it.first}" }) { (action, titleRes) ->
-                        AddRow(
-                            title = stringResource(titleRes),
-                            onClick = { dialog = Dialog.Keys(KeySlot(KeyContext.Player, action)) },
                         )
                     }
                 }
@@ -214,7 +198,6 @@ private fun SlotRow(
     slot: KeySlot,
     keys: List<KeyBinding>,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     ListItem(
         headlineContent = { Text(text = slotLabel(slot)) },
@@ -231,32 +214,20 @@ private fun SlotRow(
                     verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
                     modifier = Modifier.widthIn(max = 200.dp),
                 ) {
-                    keys.forEach { KeyCap(it.trigger, it.longPress) }
+                    keys.forEach { KeyCap(it.trigger, it.longPress, argumentLabel(slot.action, it.argument)) }
                 }
             }
         },
-        modifier = modifier.clickable(onClick = onClick),
-    )
-}
-
-@Composable
-private fun AddRow(title: String, onClick: () -> Unit) {
-    ListItem(
-        leadingContent = {
-            Icon(
-                imageVector = Icons.Outlined.Add,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        },
-        headlineContent = { Text(text = title, color = MaterialTheme.colorScheme.primary) },
         modifier = Modifier.clickable(onClick = onClick),
     )
 }
 
-/** A key drawn as the cap of a key. A gamepad button carries a gamepad, to tell A from the A key. */
+/**
+ * A key drawn as the cap of a key, with what it passes its action after it. A gamepad button
+ * carries a gamepad, to tell A from the A key.
+ */
 @Composable
-private fun KeyCap(trigger: KeyTrigger, longPress: Boolean) {
+private fun KeyCap(trigger: KeyTrigger, longPress: Boolean, argument: String? = null) {
     Surface(
         shape = RoundedCornerShape(6.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -278,6 +249,13 @@ private fun KeyCap(trigger: KeyTrigger, longPress: Boolean) {
                 )
             }
             Text(text = keysLabel(trigger, longPress), style = MaterialTheme.typography.labelLarge)
+            if (!argument.isNullOrEmpty()) {
+                Text(
+                    text = argument,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                )
+            }
         }
     }
 }
@@ -294,11 +272,10 @@ private fun KeySlotDialog(
     onSave: (List<KeyBinding>) -> Unit,
 ) {
     var keys by remember { mutableStateOf(bindings.keysOf(slot)) }
-    var argument by remember { mutableStateOf(slot.argument) }
-    val argumentUsable = slot.action.accepts(argument.trim())
+    val keysUsable = keys.all { slot.action.accepts(it.argument.trim()) }
 
-    // A row with no key yet starts out waiting for one, unless its argument has to come first.
-    var listening by remember { mutableStateOf(keys.isEmpty() && argumentUsable) }
+    // A row with no key yet starts out waiting for one.
+    var listening by remember { mutableStateOf(keys.isEmpty()) }
     var capture by remember { mutableStateOf(TriggerCapture()) }
     val focusRequester = remember { FocusRequester() }
     val otherRows = remember(bindings, slot) { bindings.filterNot(slot::holds) }
@@ -307,9 +284,9 @@ private fun KeySlotDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = !listening && (keys.isEmpty() || argumentUsable),
+                enabled = !listening && keysUsable,
                 onClick = {
-                    onSave(bindings.withSlot(slot, keys, argument.trim()))
+                    onSave(bindings.withSlot(slot, keys.map { it.copy(argument = it.argument.trim()) }))
                     onDismissRequest()
                 },
             ) {
@@ -323,7 +300,7 @@ private fun KeySlotDialog(
         },
         title = {
             Column {
-                Text(text = slotLabel(slot.copy(argument = argument.trim())))
+                Text(text = slotLabel(slot))
                 Text(
                     text = stringResource(slot.context.titleRes),
                     style = MaterialTheme.typography.bodyMedium,
@@ -336,29 +313,19 @@ private fun KeySlotDialog(
                 verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             ) {
-                if (slot.action.hasArgument) {
-                    val (labelRes, summaryRes) = when (slot.action) {
-                        KeyAction.SeekBy -> MR.strings.key_binding_seconds to MR.strings.key_binding_seconds_summary
-                        KeyAction.VolumeBy ->
-                            MR.strings.key_binding_volume_steps to MR.strings.key_binding_volume_steps_summary
-                        else -> MR.strings.key_binding_mpv_command to MR.strings.key_binding_mpv_command_summary
-                    }
-                    OutlinedTextField(
-                        value = argument,
-                        onValueChange = { argument = it },
-                        label = { Text(text = stringResource(labelRes)) },
-                        supportingText = { Text(text = stringResource(summaryRes)) },
-                        isError = argument.isNotEmpty() && !argumentUsable,
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
                 Text(
                     text = stringResource(MR.strings.key_slot_keys),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // Each key carries its own argument, so the hint for it is given once, up here.
+                if (slot.action.hasArgument) {
+                    Text(
+                        text = stringResource(slot.action.argumentSummaryRes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 if (keys.isEmpty() && !listening) {
                     Text(
                         text = stringResource(MR.strings.key_slot_no_keys),
@@ -369,10 +336,14 @@ private fun KeySlotDialog(
                     val takenFrom = otherRows.firstOrNull { it.sameTrigger(key) }
                     KeyRow(
                         key = key,
+                        action = slot.action,
                         takenFrom = takenFrom?.let { bindingLabel(it, slot.context) },
                         onLongPressChange = { longPress ->
                             val changed = key.copy(longPress = longPress)
                             keys = keys.filterNot { it.sameTrigger(changed) }.map { if (it == key) changed else it }
+                        },
+                        onArgumentChange = { argument ->
+                            keys = keys.map { if (it == key) it.copy(argument = argument) else it }
                         },
                         onRemove = { keys = keys - key },
                     )
@@ -437,7 +408,6 @@ private fun KeySlotDialog(
                     }
                 } else {
                     OutlinedButton(
-                        enabled = argumentUsable,
                         onClick = {
                             capture = TriggerCapture()
                             listening = true
@@ -462,9 +432,11 @@ private fun KeySlotDialog(
 @Composable
 private fun KeyRow(
     key: KeyBinding,
+    action: KeyAction,
     /** What the key does now, when that is something other than this row. */
     takenFrom: String?,
     onLongPressChange: (Boolean) -> Unit,
+    onArgumentChange: (String) -> Unit,
     onRemove: () -> Unit,
 ) {
     Column {
@@ -489,6 +461,22 @@ private fun KeyRow(
                 )
             }
         }
+        if (action.hasArgument) {
+            val usable = action.accepts(key.argument.trim())
+            OutlinedTextField(
+                value = key.argument,
+                onValueChange = onArgumentChange,
+                label = { Text(text = stringResource(action.argumentLabelRes)) },
+                supportingText = if (key.argument.isBlank()) {
+                    { Text(text = stringResource(MR.strings.information_required_plain)) }
+                } else {
+                    null
+                },
+                isError = key.argument.isNotBlank() && !usable,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
         if (takenFrom != null) {
             Text(
                 text = stringResource(MR.strings.key_binding_key_taken, takenFrom),
@@ -506,24 +494,11 @@ private fun keysLabel(trigger: KeyTrigger, longPress: Boolean): String {
 }
 
 @Composable
-private fun slotLabel(slot: KeySlot): String {
-    val amount = slot.argument.toIntOrNull()
-    return when {
-        slot.action == KeyAction.SeekBy && amount != null && amount < 0 ->
-            stringResource(MR.strings.key_action_seek_back, -amount)
-        slot.action == KeyAction.SeekBy && amount != null && amount > 0 ->
-            stringResource(MR.strings.key_action_seek_forward, amount)
-        slot.action == KeyAction.VolumeBy && amount != null && amount < 0 ->
-            stringResource(MR.strings.key_action_volume_down_by, -amount)
-        slot.action == KeyAction.VolumeBy && amount != null && amount > 0 ->
-            stringResource(MR.strings.key_action_volume_up_by, amount)
-        slot.action == KeyAction.MpvCommand && slot.argument.isNotBlank() ->
-            stringResource(MR.strings.key_action_mpv_command_value, slot.argument)
-        // Back closes whatever is open, which while looking a word up is the lookup.
-        slot.action == KeyAction.Back && slot.context == KeyContext.PlayerLookup ->
-            stringResource(MR.strings.key_action_close_lookup)
-        else -> stringResource(slot.action.titleRes)
-    }
+private fun slotLabel(slot: KeySlot): String = when {
+    // Back closes whatever is open, which while looking a word up is the lookup.
+    slot.action == KeyAction.Back && slot.context == KeyContext.PlayerLookup ->
+        stringResource(MR.strings.key_action_close_lookup)
+    else -> stringResource(slot.action.titleRes)
 }
 
 /** What [binding] does, for saying which row a key is taken from. */
@@ -531,14 +506,33 @@ private fun slotLabel(slot: KeySlot): String {
 private fun bindingLabel(binding: KeyBinding, context: KeyContext): String {
     // An action from a newer version has no name here, so its raw one is shown.
     val action = KeyAction.fromName(binding.action) ?: return binding.action
-    return slotLabel(KeySlot(context, action, binding.argument))
+    val label = slotLabel(KeySlot(context, action))
+    val argument = argumentLabel(action, binding.argument)
+    return if (argument.isNullOrEmpty()) label else "$label $argument"
 }
+
+private val KeyAction.argumentLabelRes: StringResource
+    get() = when (this) {
+        KeyAction.SeekBy -> MR.strings.key_binding_seconds
+        KeyAction.VolumeBy -> MR.strings.key_binding_volume_steps
+        KeyAction.BrightnessBy -> MR.strings.key_binding_brightness_steps
+        else -> MR.strings.key_binding_mpv_command
+    }
+
+private val KeyAction.argumentSummaryRes: StringResource
+    get() = when (this) {
+        KeyAction.SeekBy -> MR.strings.key_binding_seconds_summary
+        KeyAction.VolumeBy -> MR.strings.key_binding_volume_steps_summary
+        KeyAction.BrightnessBy -> MR.strings.key_binding_brightness_steps_summary
+        else -> MR.strings.key_binding_mpv_command_summary
+    }
 
 private val KeyAction.titleRes: StringResource
     get() = when (this) {
         KeyAction.PlayPause -> MR.strings.key_action_play_pause
         KeyAction.SeekBy -> MR.strings.key_action_seek_by
         KeyAction.VolumeBy -> MR.strings.key_action_volume
+        KeyAction.BrightnessBy -> MR.strings.key_action_brightness
         KeyAction.PreviousSubtitle -> MR.strings.key_action_previous_subtitle
         KeyAction.NextSubtitle -> MR.strings.key_action_next_subtitle
         KeyAction.ReplaySubtitle -> MR.strings.key_action_replay_subtitle
