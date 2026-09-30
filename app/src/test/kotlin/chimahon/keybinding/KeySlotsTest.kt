@@ -27,8 +27,8 @@ class KeySlotsTest {
                 KeySlot(KeyContext.Player, KeyAction.PlayPause),
                 KeySlot(KeyContext.Player, KeyAction.SeekBy, "-5"),
                 KeySlot(KeyContext.Player, KeyAction.SeekBy, "5"),
-                KeySlot(KeyContext.Player, KeyAction.VolumeUp),
-                KeySlot(KeyContext.Player, KeyAction.VolumeDown),
+                KeySlot(KeyContext.Player, KeyAction.VolumeBy, "-1"),
+                KeySlot(KeyContext.Player, KeyAction.VolumeBy, "1"),
             ),
             slots,
         )

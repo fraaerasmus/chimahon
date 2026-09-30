@@ -33,6 +33,21 @@ class KeyBindingTest {
     }
 
     @Test
+    fun `volume keys saved before volume took a size read as one step`() {
+        val decoded = decodeKeyBindings(
+            """[{"keyCode":19,"action":"VolumeUp"},{"keyCode":20,"action":"VolumeDown"}]""",
+        )
+
+        assertEquals(
+            listOf(
+                KeyBinding(keyCode = 19, action = "VolumeBy", argument = "1"),
+                KeyBinding(keyCode = 20, action = "VolumeBy", argument = "-1"),
+            ),
+            decoded,
+        )
+    }
+
+    @Test
     fun `an action from a newer version is kept but matches nothing`() {
         val decoded = decodeKeyBindings("""[{"keyCode":62,"action":"FlyToTheMoon"}]""")
 
@@ -104,6 +119,8 @@ class KeyBindingTest {
         assertEquals(true, KeyAction.SeekBy.accepts("-5"))
         assertEquals(false, KeyAction.SeekBy.accepts("0"))
         assertEquals(false, KeyAction.SeekBy.accepts("soon"))
+        assertEquals(true, KeyAction.VolumeBy.accepts("2"))
+        assertEquals(false, KeyAction.VolumeBy.accepts("0"))
         assertEquals(true, KeyAction.MpvCommand.accepts("cycle sub"))
         assertEquals(false, KeyAction.MpvCommand.accepts("  "))
         assertEquals(true, KeyAction.PlayPause.accepts(""))

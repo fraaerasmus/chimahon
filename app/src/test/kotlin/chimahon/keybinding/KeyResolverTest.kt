@@ -106,7 +106,7 @@ class KeyResolverTest {
 
     @Test
     fun `the binding caught on the way down governs repeats when the set changes`() {
-        val lookupSet = listOf(seek.copy(action = KeyAction.VolumeUp.name, argument = ""))
+        val lookupSet = listOf(seek.copy(action = KeyAction.NextSubtitle.name, argument = ""))
 
         assertEquals(KeyResult.Consumed(seek), down(KeyEvent.KEYCODE_DPAD_RIGHT))
         assertEquals(KeyResult.Consumed(seek), down(KeyEvent.KEYCODE_DPAD_RIGHT, repeat = 1, bound = lookupSet))

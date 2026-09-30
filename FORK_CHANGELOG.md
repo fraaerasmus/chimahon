@@ -236,6 +236,10 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   it already showed; it now stays open. Keys go to a second popup opened from inside the
   first, when the recursive lookup mode is "popup". A cursor left behind by playback resumed
   with a touch is dropped, so the arrows seek again.
+- Volume keys take a size (2026-09-29): a key bound to the volume now moves it by a chosen
+  number of the phone's volume steps, the way a seek takes seconds. "Volume up" and "Volume
+  down" became one "Volume" action with a step count, negative for down; bindings saved with
+  the old two read as one step each. Playback gains "Add a volume change" next to "Add a seek".
 
 ## Dropped (superseded by upstream)
 

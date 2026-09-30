@@ -8,6 +8,8 @@ import eu.kanade.tachiyomi.ui.player.Sheets
 import `is`.xyz.mpv.MPVLib
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import kotlin.math.absoluteValue
+import kotlin.math.sign
 
 enum class PlayerKeyGate { All, BackOnly, None }
 
@@ -89,8 +91,7 @@ class PlayerKeyController(
             KeyAction.SeekBy -> binding.argument.toIntOrNull()?.let {
                 viewModel.seekBy(it, viewModel.gesturePreferences.playerSmoothSeek().get())
             }
-            KeyAction.VolumeUp -> changeVolume(1)
-            KeyAction.VolumeDown -> changeVolume(-1)
+            KeyAction.VolumeBy -> binding.argument.toIntOrNull()?.let(::changeVolume)
             KeyAction.PreviousSubtitle -> viewModel.seekToAdjacentSubtitle(forward = false)
             KeyAction.NextSubtitle -> viewModel.seekToAdjacentSubtitle(forward = true)
             KeyAction.ReplaySubtitle -> viewModel.replayCurrentSubtitle()
@@ -105,8 +106,9 @@ class PlayerKeyController(
         }
     }
 
-    private fun changeVolume(by: Int) {
-        viewModel.changeVolumeBy(by)
+    private fun changeVolume(steps: Int) {
+        // The player moves one step at a time, keeping its boost past full volume in order.
+        repeat(steps.absoluteValue) { viewModel.changeVolumeBy(steps.sign) }
         viewModel.displayVolumeSlider()
     }
 }

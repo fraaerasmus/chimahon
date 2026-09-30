@@ -129,19 +129,20 @@ object KeyBindingsScreen : Screen() {
                             modifier = Modifier.animateItem(),
                         )
                     }
-                    // A seek or an mpv command has no row until it has a key, so it is added here.
+                    // An action with an argument has no row until it has a key, so it is added here.
                     val added = when (group) {
-                        KeyGroup.Playback -> KeyAction.SeekBy to MR.strings.key_slot_add_seek
-                        KeyGroup.Other -> KeyAction.MpvCommand to MR.strings.key_slot_add_mpv
-                        else -> null
+                        KeyGroup.Playback -> listOf(
+                            KeyAction.SeekBy to MR.strings.key_slot_add_seek,
+                            KeyAction.VolumeBy to MR.strings.key_slot_add_volume,
+                        )
+                        KeyGroup.Other -> listOf(KeyAction.MpvCommand to MR.strings.key_slot_add_mpv)
+                        else -> emptyList()
                     }
-                    if (added != null) {
-                        item(key = "${group.name}-add") {
-                            AddRow(
-                                title = stringResource(added.second),
-                                onClick = { dialog = Dialog.Keys(KeySlot(KeyContext.Player, added.first)) },
-                            )
-                        }
+                    items(added, key = { "${group.name}-add-${it.first}" }) { (action, titleRes) ->
+                        AddRow(
+                            title = stringResource(titleRes),
+                            onClick = { dialog = Dialog.Keys(KeySlot(KeyContext.Player, action)) },
+                        )
                     }
                 }
             }
@@ -336,28 +337,17 @@ private fun KeySlotDialog(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             ) {
                 if (slot.action.hasArgument) {
-                    val isSeek = slot.action == KeyAction.SeekBy
+                    val (labelRes, summaryRes) = when (slot.action) {
+                        KeyAction.SeekBy -> MR.strings.key_binding_seconds to MR.strings.key_binding_seconds_summary
+                        KeyAction.VolumeBy ->
+                            MR.strings.key_binding_volume_steps to MR.strings.key_binding_volume_steps_summary
+                        else -> MR.strings.key_binding_mpv_command to MR.strings.key_binding_mpv_command_summary
+                    }
                     OutlinedTextField(
                         value = argument,
                         onValueChange = { argument = it },
-                        label = {
-                            Text(
-                                text = stringResource(
-                                    if (isSeek) MR.strings.key_binding_seconds else MR.strings.key_binding_mpv_command,
-                                ),
-                            )
-                        },
-                        supportingText = {
-                            Text(
-                                text = stringResource(
-                                    if (isSeek) {
-                                        MR.strings.key_binding_seconds_summary
-                                    } else {
-                                        MR.strings.key_binding_mpv_command_summary
-                                    },
-                                ),
-                            )
-                        },
+                        label = { Text(text = stringResource(labelRes)) },
+                        supportingText = { Text(text = stringResource(summaryRes)) },
                         isError = argument.isNotEmpty() && !argumentUsable,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -517,12 +507,16 @@ private fun keysLabel(trigger: KeyTrigger, longPress: Boolean): String {
 
 @Composable
 private fun slotLabel(slot: KeySlot): String {
-    val seconds = slot.argument.toIntOrNull()
+    val amount = slot.argument.toIntOrNull()
     return when {
-        slot.action == KeyAction.SeekBy && seconds != null && seconds < 0 ->
-            stringResource(MR.strings.key_action_seek_back, -seconds)
-        slot.action == KeyAction.SeekBy && seconds != null && seconds > 0 ->
-            stringResource(MR.strings.key_action_seek_forward, seconds)
+        slot.action == KeyAction.SeekBy && amount != null && amount < 0 ->
+            stringResource(MR.strings.key_action_seek_back, -amount)
+        slot.action == KeyAction.SeekBy && amount != null && amount > 0 ->
+            stringResource(MR.strings.key_action_seek_forward, amount)
+        slot.action == KeyAction.VolumeBy && amount != null && amount < 0 ->
+            stringResource(MR.strings.key_action_volume_down_by, -amount)
+        slot.action == KeyAction.VolumeBy && amount != null && amount > 0 ->
+            stringResource(MR.strings.key_action_volume_up_by, amount)
         slot.action == KeyAction.MpvCommand && slot.argument.isNotBlank() ->
             stringResource(MR.strings.key_action_mpv_command_value, slot.argument)
         // Back closes whatever is open, which while looking a word up is the lookup.
@@ -544,8 +538,7 @@ private val KeyAction.titleRes: StringResource
     get() = when (this) {
         KeyAction.PlayPause -> MR.strings.key_action_play_pause
         KeyAction.SeekBy -> MR.strings.key_action_seek_by
-        KeyAction.VolumeUp -> MR.strings.key_action_volume_up
-        KeyAction.VolumeDown -> MR.strings.key_action_volume_down
+        KeyAction.VolumeBy -> MR.strings.key_action_volume
         KeyAction.PreviousSubtitle -> MR.strings.key_action_previous_subtitle
         KeyAction.NextSubtitle -> MR.strings.key_action_next_subtitle
         KeyAction.ReplaySubtitle -> MR.strings.key_action_replay_subtitle

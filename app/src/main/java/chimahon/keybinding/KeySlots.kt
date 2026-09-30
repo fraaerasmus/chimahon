@@ -25,7 +25,8 @@ fun List<KeyBinding>.withSlot(slot: KeySlot, keys: List<KeyBinding>, argument: S
 
 /**
  * The rows to show for [bindings]. An action without an argument always has its row, so one with
- * no key yet can be given one. A seek or an mpv command has a row for each argument in use.
+ * no key yet can be given one. A seek, a volume step or an mpv command has a row for each
+ * argument in use.
  */
 fun keySlots(bindings: Map<KeyContext, List<KeyBinding>>): Map<KeyGroup, List<KeySlot>> {
     fun rows(context: KeyContext, vararg actions: KeyAction) = actions.map { KeySlot(context, it) }
@@ -41,7 +42,7 @@ fun keySlots(bindings: Map<KeyContext, List<KeyBinding>>): Map<KeyGroup, List<Ke
     return mapOf(
         KeyGroup.Playback to rows(player, KeyAction.PlayPause) +
             rowsInUse(player, KeyAction.SeekBy).sortedBy { it.argument.toIntOrNull() ?: 0 } +
-            rows(player, KeyAction.VolumeUp, KeyAction.VolumeDown),
+            rowsInUse(player, KeyAction.VolumeBy).sortedBy { it.argument.toIntOrNull() ?: 0 },
         KeyGroup.Subtitles to rows(
             player,
             KeyAction.PreviousSubtitle,

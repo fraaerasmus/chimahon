@@ -20,8 +20,7 @@ enum class KeyAction(
 ) {
     PlayPause(KeyContext.Player),
     SeekBy(KeyContext.Player, repeatable = true, hasArgument = true),
-    VolumeUp(KeyContext.Player, repeatable = true),
-    VolumeDown(KeyContext.Player, repeatable = true),
+    VolumeBy(KeyContext.Player, repeatable = true, hasArgument = true),
     PreviousSubtitle(KeyContext.Player),
     NextSubtitle(KeyContext.Player),
     ReplaySubtitle(KeyContext.Player),
@@ -46,7 +45,7 @@ enum class KeyAction(
 
     /** Whether [argument] is one this action can run with. */
     fun accepts(argument: String): Boolean = when (this) {
-        SeekBy -> argument.toIntOrNull().let { it != null && it != 0 }
+        SeekBy, VolumeBy -> argument.toIntOrNull().let { it != null && it != 0 }
         MpvCommand -> argument.isNotBlank()
         else -> true
     }
@@ -99,7 +98,14 @@ private val json = Json { ignoreUnknownKeys = true }
 
 fun encodeKeyBindings(bindings: List<KeyBinding>): String = json.encodeToString(bindings)
 
-fun decodeKeyBindings(text: String): List<KeyBinding> = json.decodeFromString(text)
+fun decodeKeyBindings(text: String): List<KeyBinding> = json.decodeFromString<List<KeyBinding>>(text).map {
+    // Volume up and down were two actions before a press could take a number of steps.
+    when (it.action) {
+        "VolumeUp" -> it.copy(action = KeyAction.VolumeBy.name, argument = "1")
+        "VolumeDown" -> it.copy(action = KeyAction.VolumeBy.name, argument = "-1")
+        else -> it
+    }
+}
 
 // KeyEvent.isModifierKey() is a method on the Android stub, which unit tests cannot call.
 internal val MODIFIER_KEYS = setOf(
