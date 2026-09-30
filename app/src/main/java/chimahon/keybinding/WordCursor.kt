@@ -24,6 +24,12 @@ data class WordCursor(
         fun start(text: String, words: List<CursorWord>, wasPaused: Boolean): WordCursor? {
             return if (words.isEmpty()) null else WordCursor(text, words, index = 0, wasPaused = wasPaused)
         }
+
+        /** A cursor on the word that holds [offset], for a popup that was opened by a tap there. */
+        fun at(text: String, words: List<CursorWord>, offset: Int, wasPaused: Boolean): WordCursor? {
+            val index = words.indexOfLast { it.start <= offset }.coerceAtLeast(0)
+            return start(text, words, wasPaused)?.copy(index = index)
+        }
     }
 }
 

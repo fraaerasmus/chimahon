@@ -39,10 +39,26 @@ class PlayerWordCursor(
     val popupScripts = _popupScripts.asSharedFlow()
 
     private var subtitleText = ""
-    private var popupOpen = false
+
+    /** Where in the subtitle the open popup looks up, or null with no popup open. */
+    private var popupOffset: Int? = null
+
+    /** Whether the player was paused before a tap opened the popup. */
+    private var popupWasPaused = false
+
+    init {
+        // A cursor is for a line that is standing still. Playback started by a touch drops it, or
+        // its keys would go on moving a highlight instead of seeking. With the popup open the
+        // cursor stays, as adding a card can run the player for a moment to record it.
+        viewModel.viewModelScope.launch {
+            viewModel.paused.collect { paused ->
+                if (!paused && popupOffset == null) _cursor.value = null
+            }
+        }
+    }
 
     /** True while keys belong to the lookup and not to the player. */
-    val isActive get() = _cursor.value != null || popupOpen
+    val isActive get() = _cursor.value != null || popupOffset != null
 
     /** Pauses and puts the cursor on the first word of the subtitle on screen. */
     fun start() {
@@ -51,22 +67,43 @@ class PlayerWordCursor(
         val wasPaused = viewModel.paused.value
         viewModel.pause()
         viewModel.viewModelScope.launch {
-            val words = withContext(Dispatchers.IO) { cursorWords(text, profile().languageCode, ::measure) }
-            val started = WordCursor.start(text, words, wasPaused).takeIf { subtitleText == text }
+            val started = WordCursor.start(text, words(text), wasPaused).takeIf { subtitleText == text }
             if (started == null && !wasPaused) viewModel.unpause()
             _cursor.value = started
         }
     }
 
     fun move(by: Int) {
-        val moved = _cursor.value?.moved(by) ?: return
+        val cursor = _cursor.value
+        if (cursor != null) {
+            move(cursor, by)
+            return
+        }
+        // The popup was opened by a tap, so there is no cursor yet. It starts on the tapped word.
+        val offset = popupOffset ?: return
+        val text = subtitleText
+        val wasPaused = popupWasPaused
+        viewModel.viewModelScope.launch {
+            val words = words(text)
+            if (subtitleText != text || popupOffset == null || _cursor.value != null) return@launch
+            WordCursor.at(text, words, offset, wasPaused)?.let { move(it, by) }
+        }
+    }
+
+    private fun move(from: WordCursor, by: Int) {
+        val moved = from.moved(by)
         _cursor.value = moved
-        if (popupOpen) openAt.value = moved.word.start
+        // At either end the word stays the same, and asking for it again would close the popup.
+        if (popupOffset != null && moved.index != from.index) openAt.value = moved.word.start
+    }
+
+    private suspend fun words(text: String) = withContext(Dispatchers.IO) {
+        cursorWords(text, profile().languageCode, ::measure)
     }
 
     fun openPopup() {
         // Asking for the word the popup already shows would close it, as a second tap does.
-        if (popupOpen) return
+        if (popupOffset != null) return
         openAt.value = _cursor.value?.word?.start
     }
 
@@ -78,7 +115,7 @@ class PlayerWordCursor(
     }
 
     fun runInPopup(script: String) {
-        if (popupOpen) _popupScripts.tryEmit(script)
+        if (popupOffset != null) _popupScripts.tryEmit(script)
     }
 
     /** Called by the subtitle layer with the line it shows. A cursor on another line is dropped. */
@@ -87,10 +124,15 @@ class PlayerWordCursor(
         if (_cursor.value?.text != text) _cursor.value = null
     }
 
-    /** Called by the player controls. However the popup was closed, the cursor goes with it. */
-    fun onPopupOpen(open: Boolean) {
-        val closed = popupOpen && !open
-        popupOpen = open
+    /**
+     * Called by the player controls with where the popup looks up, or null once it is closed, and
+     * whether the player was paused before it opened. However it was closed, the cursor goes too.
+     */
+    fun onPopup(offset: Int?, wasPaused: Boolean) {
+        val closed = popupOffset != null && offset == null
+        popupOffset = offset
+        // With a cursor the player is paused by the cursor, which says nothing about before.
+        if (_cursor.value == null) popupWasPaused = wasPaused
         if (closed) end()
     }
 

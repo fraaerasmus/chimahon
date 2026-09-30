@@ -10,6 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import chimahon.DictionaryRepository
 import chimahon.MediaInfo
 import chimahon.anki.AnkiMediaRequest
@@ -86,9 +87,14 @@ internal fun PlayerSubtitleLookupPopup(
     BackHandler(enabled = request != null, onBack = onDismiss)
 
     // Chimahon -->
-    // Keys bound to the popup act on its page.
+    // Keys bound to the popup act on its page. A lookup inside the popup can open a second popup
+    // over it, which takes the focus, and the keys are then meant for that one.
+    val rootView = LocalView.current.rootView
     LaunchedEffect(webView) {
-        viewModel.wordCursor.popupScripts.collect { webView.evaluateJavascript(it, null) }
+        viewModel.wordCursor.popupScripts.collect { script ->
+            val focused = (rootView.findFocus() as? WebView)?.takeIf { it.isShown }
+            (focused ?: webView).evaluateJavascript(script, null)
+        }
     }
     // Chimahon <--
 

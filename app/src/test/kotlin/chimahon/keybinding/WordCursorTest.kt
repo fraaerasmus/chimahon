@@ -70,4 +70,25 @@ class WordCursorTest {
         assertEquals(CursorWord(1, 1), cursor.moved(1).word)
         assertEquals(CursorWord(2, 2), cursor.moved(1).moved(1).moved(1).word)
     }
+
+    @Test
+    fun `a cursor picked up from a tapped popup sits on the word the popup shows`() {
+        val text = "猫が好きです"
+        val words = cursorWords(text, "ja", dictionary("猫", "が", "好き", "です"))
+
+        assertEquals(CursorWord(2, 2), WordCursor.at(text, words, offset = 2, wasPaused = false)!!.word)
+        // A tap on the second character of a word looks up from there, inside the cursor's word.
+        assertEquals(CursorWord(2, 2), WordCursor.at(text, words, offset = 3, wasPaused = false)!!.word)
+        assertEquals(CursorWord(0, 1), WordCursor.at(text, words, offset = 0, wasPaused = false)!!.word)
+        assertNull(WordCursor.at(text, emptyList(), offset = 0, wasPaused = false))
+    }
+
+    @Test
+    fun `a cursor picked up from a popup remembers whether the player was paused`() {
+        val text = "猫"
+        val words = listOf(CursorWord(0, 1))
+
+        assertEquals(true, WordCursor.at(text, words, offset = 0, wasPaused = true)!!.wasPaused)
+        assertEquals(false, WordCursor.at(text, words, offset = 0, wasPaused = false)!!.wasPaused)
+    }
 }

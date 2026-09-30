@@ -199,8 +199,8 @@ fun PlayerControls(
     // Chimahon -->
     // Looking a word up with keys: the cursor has to know when the popup opens and closes.
     val wordCursor by viewModel.wordCursor.cursor.collectAsState()
-    LaunchedEffect(subtitleLookupRequest != null) {
-        viewModel.wordCursor.onPopupOpen(subtitleLookupRequest != null)
+    LaunchedEffect(subtitleLookupRequest?.charOffset) {
+        viewModel.wordCursor.onPopup(subtitleLookupRequest?.charOffset, wasPlayerAlreadyPause)
     }
     BackHandler(enabled = wordCursor != null && subtitleLookupRequest == null) {
         viewModel.wordCursor.end()
