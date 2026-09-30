@@ -6,24 +6,30 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,18 +45,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
-import eu.kanade.presentation.player.components.ExposedTextDropDownMenu
 import eu.kanade.presentation.util.LocalBackPress
 import eu.kanade.presentation.util.Screen
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
@@ -61,12 +64,14 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.time.Duration.Companion.seconds
 
-/** The player's key bindings: which key or gamepad button does what. */
+/**
+ * The player's key bindings, listed by what can be done. Each row is an action with the keys that
+ * do it, and tapping one opens its keys.
+ */
 object KeyBindingsScreen : Screen() {
 
     private sealed interface Dialog {
-        /** [binding] is the one being edited, or null for a new one. */
-        data class Edit(val context: KeyContext, val binding: KeyBinding?) : Dialog
+        data class Keys(val slot: KeySlot) : Dialog
         data object Reset : Dialog
     }
 
@@ -114,58 +119,29 @@ object KeyBindingsScreen : Screen() {
                         ),
                     )
                 }
-                KeyContext.entries.forEach { context ->
-                    val contextBindings = bindings.getValue(context)
-                    item(key = context.prefKey) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = MaterialTheme.padding.medium, end = MaterialTheme.padding.small),
-                        ) {
-                            Text(
-                                text = stringResource(context.titleRes),
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(onClick = { dialog = Dialog.Edit(context, null) }) {
-                                Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
-                                Text(text = stringResource(MR.strings.action_add))
-                            }
-                        }
-                    }
-                    if (contextBindings.isEmpty()) {
-                        item(key = "${context.prefKey}-empty") {
-                            Text(
-                                text = stringResource(MR.strings.key_bindings_empty),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(MaterialTheme.padding.medium),
-                            )
-                        }
-                    }
-                    items(
-                        items = contextBindings,
-                        key = { "${context.prefKey}-${it.trigger}-${it.longPress}" },
-                    ) { binding ->
-                        val keys = bindingKeysLabel(binding.trigger, binding.longPress)
-                        ListItem(
-                            headlineContent = { Text(text = keys) },
-                            supportingContent = { Text(text = actionLabel(binding)) },
-                            trailingContent = {
-                                IconButton(
-                                    onClick = { preferences.getValue(context).set(contextBindings - binding) },
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Delete,
-                                        contentDescription = stringResource(MR.strings.key_binding_delete, keys),
-                                    )
-                                }
-                            },
-                            modifier = Modifier
-                                .animateItem()
-                                .clickable { dialog = Dialog.Edit(context, binding) },
+                keySlots(bindings).forEach { (group, slots) ->
+                    item(key = group.name) { GroupHeader(group) }
+                    items(slots, key = { "${it.context}-${it.action}-${it.argument}" }) { slot ->
+                        SlotRow(
+                            slot = slot,
+                            keys = bindings.getValue(slot.context).keysOf(slot),
+                            onClick = { dialog = Dialog.Keys(slot) },
+                            modifier = Modifier.animateItem(),
                         )
+                    }
+                    // A seek or an mpv command has no row until it has a key, so it is added here.
+                    val added = when (group) {
+                        KeyGroup.Playback -> KeyAction.SeekBy to MR.strings.key_slot_add_seek
+                        KeyGroup.Other -> KeyAction.MpvCommand to MR.strings.key_slot_add_mpv
+                        else -> null
+                    }
+                    if (added != null) {
+                        item(key = "${group.name}-add") {
+                            AddRow(
+                                title = stringResource(added.second),
+                                onClick = { dialog = Dialog.Keys(KeySlot(KeyContext.Player, added.first)) },
+                            )
+                        }
                     }
                 }
             }
@@ -173,16 +149,15 @@ object KeyBindingsScreen : Screen() {
 
         when (val shown = dialog) {
             null -> {}
-            is Dialog.Edit -> KeyBindingDialog(
-                context = shown.context,
-                initial = shown.binding,
-                bindings = bindings.getValue(shown.context),
-                onDismissRequest = { dialog = null },
-                onSave = {
-                    val edited = bindings.getValue(shown.context).withBinding(it, replaced = shown.binding)
-                    preferences.getValue(shown.context).set(edited)
-                },
-            )
+            is Dialog.Keys -> {
+                val preference = preferences.getValue(shown.slot.context)
+                KeySlotDialog(
+                    slot = shown.slot,
+                    bindings = bindings.getValue(shown.slot.context),
+                    onDismissRequest = { dialog = null },
+                    onSave = preference::set,
+                )
+            }
             Dialog.Reset -> AlertDialog(
                 onDismissRequest = { dialog = null },
                 confirmButton = {
@@ -208,44 +183,132 @@ object KeyBindingsScreen : Screen() {
 }
 
 @Composable
-private fun KeyBindingDialog(
-    context: KeyContext,
-    initial: KeyBinding?,
+private fun GroupHeader(group: KeyGroup) {
+    Column(
+        modifier = Modifier.padding(
+            start = MaterialTheme.padding.medium,
+            end = MaterialTheme.padding.medium,
+            top = MaterialTheme.padding.medium,
+            bottom = MaterialTheme.padding.extraSmall,
+        ),
+    ) {
+        Text(
+            text = stringResource(group.titleRes),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        // The arrows are listed under playback and again here. This says why that is no clash.
+        if (group == KeyGroup.WordLookup) {
+            Text(
+                text = stringResource(MR.strings.key_group_lookup_summary),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SlotRow(
+    slot: KeySlot,
+    keys: List<KeyBinding>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    ListItem(
+        headlineContent = { Text(text = slotLabel(slot)) },
+        trailingContent = {
+            if (keys.isEmpty()) {
+                Text(
+                    text = stringResource(MR.strings.key_slot_not_set),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+                    modifier = Modifier.widthIn(max = 200.dp),
+                ) {
+                    keys.forEach { KeyCap(it.trigger, it.longPress) }
+                }
+            }
+        },
+        modifier = modifier.clickable(onClick = onClick),
+    )
+}
+
+@Composable
+private fun AddRow(title: String, onClick: () -> Unit) {
+    ListItem(
+        leadingContent = {
+            Icon(
+                imageVector = Icons.Outlined.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
+        headlineContent = { Text(text = title, color = MaterialTheme.colorScheme.primary) },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
+}
+
+/** A key drawn as the cap of a key. A gamepad button carries a gamepad, to tell A from the A key. */
+@Composable
+private fun KeyCap(trigger: KeyTrigger, longPress: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.extraSmall),
+            modifier = Modifier.padding(horizontal = MaterialTheme.padding.small, vertical = 2.dp),
+        ) {
+            val onGamepad = listOfNotNull(trigger.keyCode, trigger.chordKeyCode)
+                .any { isGamepadButton(KeyEvent.keyCodeToString(it)) }
+            if (onGamepad) {
+                Icon(
+                    imageVector = Icons.Outlined.SportsEsports,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+            Text(text = keysLabel(trigger, longPress), style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/**
+ * The keys of one row. Nothing is saved until Save, so a key taken from another row by mistake is
+ * undone with Cancel.
+ */
+@Composable
+private fun KeySlotDialog(
+    slot: KeySlot,
     bindings: List<KeyBinding>,
     onDismissRequest: () -> Unit,
-    onSave: (KeyBinding) -> Unit,
+    onSave: (List<KeyBinding>) -> Unit,
 ) {
-    var trigger by remember { mutableStateOf(initial?.trigger) }
-    var longPress by remember { mutableStateOf(initial?.longPress ?: false) }
-    val actions = remember(context) { KeyAction.entries.filter { it.isFor(context) } }
-    var action by remember { mutableStateOf(initial?.let { KeyAction.fromName(it.action) } ?: actions.first()) }
-    var argument by remember { mutableStateOf(initial?.argument.orEmpty()) }
+    var keys by remember { mutableStateOf(bindings.keysOf(slot)) }
+    var argument by remember { mutableStateOf(slot.argument) }
+    val argumentUsable = slot.action.accepts(argument.trim())
 
-    // A new binding starts out waiting for its key.
-    var listening by remember { mutableStateOf(initial == null) }
+    // A row with no key yet starts out waiting for one, unless its argument has to come first.
+    var listening by remember { mutableStateOf(keys.isEmpty() && argumentUsable) }
     var capture by remember { mutableStateOf(TriggerCapture()) }
     val focusRequester = remember { FocusRequester() }
-
-    val isCombination = trigger?.chordKeyCode != null
-    val candidate = trigger?.let {
-        KeyBinding(
-            keyCode = it.keyCode,
-            modifiers = it.modifiers,
-            chordKeyCode = it.chordKeyCode,
-            longPress = longPress && !isCombination,
-            action = action.name,
-            argument = if (action.hasArgument) argument.trim() else "",
-        )
-    }
-    val taken = candidate?.let { new -> bindings.firstOrNull { it != initial && it.sameTrigger(new) } }
+    val otherRows = remember(bindings, slot) { bindings.filterNot(slot::holds) }
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
         confirmButton = {
             TextButton(
-                enabled = candidate != null && !listening && action.accepts(candidate.argument),
+                enabled = !listening && (keys.isEmpty() || argumentUsable),
                 onClick = {
-                    onSave(candidate!!)
+                    onSave(bindings.withSlot(slot, keys, argument.trim()))
                     onDismissRequest()
                 },
             ) {
@@ -259,13 +322,9 @@ private fun KeyBindingDialog(
         },
         title = {
             Column {
+                Text(text = slotLabel(slot.copy(argument = argument.trim())))
                 Text(
-                    text = stringResource(
-                        if (initial == null) MR.strings.key_binding_add else MR.strings.key_binding_edit,
-                    ),
-                )
-                Text(
-                    text = stringResource(context.titleRes),
+                    text = stringResource(slot.context.titleRes),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -273,107 +332,11 @@ private fun KeyBindingDialog(
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.medium),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
                 modifier = Modifier.verticalScroll(rememberScrollState()),
             ) {
-                Surface(
-                    shape = MaterialTheme.shapes.small,
-                    border = BorderStroke(
-                        width = if (listening) 2.dp else 1.dp,
-                        color = if (listening) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.outline
-                        },
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .onPreviewKeyEvent { event ->
-                            val key = event.nativeKeyEvent
-                            // Back has to keep closing the dialog.
-                            if (!listening || key.keyCode == KeyEvent.KEYCODE_BACK) return@onPreviewKeyEvent false
-                            if (key.action == KeyEvent.ACTION_DOWN || key.action == KeyEvent.ACTION_UP) {
-                                val done = capture.onKey(key.keyCode, key.metaState, key.action == KeyEvent.ACTION_DOWN)
-                                capture.trigger?.let { trigger = it }
-                                if (done) listening = false
-                            }
-                            true
-                        }
-                        .focusable()
-                        .clickable {
-                            capture = TriggerCapture()
-                            listening = true
-                            focusRequester.requestFocus()
-                        },
-                ) {
-                    Column(modifier = Modifier.padding(MaterialTheme.padding.medium)) {
-                        Text(
-                            text = stringResource(MR.strings.key_binding_key),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = trigger?.let { bindingKeysLabel(it, longPress = false) }
-                                ?: stringResource(MR.strings.key_binding_key_listening),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = when {
-                                listening && trigger != null -> stringResource(MR.strings.key_binding_key_listening)
-                                listening -> stringResource(MR.strings.key_binding_key_listening_summary)
-                                taken != null -> stringResource(MR.strings.key_binding_key_taken, actionLabel(taken))
-                                else -> stringResource(MR.strings.key_binding_key_change)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (!listening && taken != null) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(MaterialTheme.padding.small),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .toggleable(
-                            value = longPress && !isCombination,
-                            enabled = !isCombination,
-                            role = Role.Checkbox,
-                            onValueChange = { longPress = it },
-                        ),
-                ) {
-                    Checkbox(
-                        checked = longPress && !isCombination,
-                        onCheckedChange = null,
-                        enabled = !isCombination,
-                    )
-                    Column {
-                        Text(text = stringResource(MR.strings.key_binding_long_press))
-                        if (isCombination) {
-                            Text(
-                                text = stringResource(MR.strings.key_binding_long_press_combination),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-
-                val actionNames = actions.map { stringResource(it.titleRes) }
-                ExposedTextDropDownMenu(
-                    selectedValue = stringResource(action.titleRes),
-                    options = actionNames.toImmutableList(),
-                    label = stringResource(MR.strings.key_binding_action),
-                    onValueChangedEvent = { action = actions[actionNames.indexOf(it)] },
-                )
-
-                if (action.hasArgument) {
-                    val isSeek = action == KeyAction.SeekBy
+                if (slot.action.hasArgument) {
+                    val isSeek = slot.action == KeyAction.SeekBy
                     OutlinedTextField(
                         value = argument,
                         onValueChange = { argument = it },
@@ -395,16 +358,110 @@ private fun KeyBindingDialog(
                                 ),
                             )
                         },
-                        isError = argument.isNotEmpty() && !action.accepts(argument.trim()),
+                        isError = argument.isNotEmpty() && !argumentUsable,
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                }
+
+                Text(
+                    text = stringResource(MR.strings.key_slot_keys),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (keys.isEmpty() && !listening) {
+                    Text(
+                        text = stringResource(MR.strings.key_slot_no_keys),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                keys.forEach { key ->
+                    val takenFrom = otherRows.firstOrNull { it.sameTrigger(key) }
+                    KeyRow(
+                        key = key,
+                        takenFrom = takenFrom?.let { bindingLabel(it, slot.context) },
+                        onLongPressChange = { longPress ->
+                            val changed = key.copy(longPress = longPress)
+                            keys = keys.filterNot { it.sameTrigger(changed) }.map { if (it == key) changed else it }
+                        },
+                        onRemove = { keys = keys - key },
+                    )
+                }
+
+                if (listening) {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
+                            .onPreviewKeyEvent { event ->
+                                val pressed = event.nativeKeyEvent
+                                // Back has to keep closing the dialog.
+                                if (pressed.keyCode == KeyEvent.KEYCODE_BACK) return@onPreviewKeyEvent false
+                                val isDown = pressed.action == KeyEvent.ACTION_DOWN
+                                if (isDown || pressed.action == KeyEvent.ACTION_UP) {
+                                    val caught = capture.onKey(pressed.keyCode, pressed.metaState, isDown)
+                                    val trigger = capture.trigger
+                                    if (caught && trigger != null) {
+                                        val key = KeyBinding(
+                                            keyCode = trigger.keyCode,
+                                            modifiers = trigger.modifiers,
+                                            chordKeyCode = trigger.chordKeyCode,
+                                            action = slot.action.name,
+                                        )
+                                        if (keys.none { it.sameTrigger(key) }) keys = keys + key
+                                        listening = false
+                                    }
+                                }
+                                true
+                            }
+                            .focusable(),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(start = MaterialTheme.padding.medium),
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = MaterialTheme.padding.medium),
+                            ) {
+                                Text(
+                                    text = stringResource(MR.strings.key_binding_key_listening),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    text = stringResource(MR.strings.key_binding_key_listening_summary),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            IconButton(onClick = { listening = false }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Close,
+                                    contentDescription = stringResource(MR.strings.action_cancel),
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedButton(
+                        enabled = argumentUsable,
+                        onClick = {
+                            capture = TriggerCapture()
+                            listening = true
+                        },
+                    ) {
+                        Icon(imageVector = Icons.Outlined.Add, contentDescription = null)
+                        Text(text = stringResource(MR.strings.key_slot_add_key))
+                    }
                 }
             }
         },
     )
 
-    LaunchedEffect(focusRequester) {
+    LaunchedEffect(listening) {
         if (!listening) return@LaunchedEffect
         // TODO: https://issuetracker.google.com/issues/204502668
         delay(0.1.seconds)
@@ -413,25 +470,74 @@ private fun KeyBindingDialog(
 }
 
 @Composable
-private fun bindingKeysLabel(trigger: KeyTrigger, longPress: Boolean): String {
+private fun KeyRow(
+    key: KeyBinding,
+    /** What the key does now, when that is something other than this row. */
+    takenFrom: String?,
+    onLongPressChange: (Boolean) -> Unit,
+    onRemove: () -> Unit,
+) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            KeyCap(key.trigger, longPress = false)
+            Spacer(modifier = Modifier.weight(1f))
+            // A combination fires as its second key goes down, so it has no long press to offer.
+            if (key.chordKeyCode == null) {
+                FilterChip(
+                    selected = key.longPress,
+                    onClick = { onLongPressChange(!key.longPress) },
+                    label = { Text(text = stringResource(MR.strings.key_binding_long_press)) },
+                )
+            }
+            IconButton(onClick = onRemove) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = stringResource(
+                        MR.strings.key_slot_remove_key,
+                        keysLabel(key.trigger, longPress = false),
+                    ),
+                )
+            }
+        }
+        if (takenFrom != null) {
+            Text(
+                text = stringResource(MR.strings.key_binding_key_taken, takenFrom),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+}
+
+@Composable
+private fun keysLabel(trigger: KeyTrigger, longPress: Boolean): String {
     val keys = triggerLabel(trigger) { keyLabel(KeyEvent.keyCodeToString(it)) }
     return if (longPress) stringResource(MR.strings.key_binding_hold, keys) else keys
 }
 
 @Composable
-private fun actionLabel(binding: KeyBinding): String {
+private fun slotLabel(slot: KeySlot): String {
+    val seconds = slot.argument.toIntOrNull()
+    return when {
+        slot.action == KeyAction.SeekBy && seconds != null && seconds < 0 ->
+            stringResource(MR.strings.key_action_seek_back, -seconds)
+        slot.action == KeyAction.SeekBy && seconds != null && seconds > 0 ->
+            stringResource(MR.strings.key_action_seek_forward, seconds)
+        slot.action == KeyAction.MpvCommand && slot.argument.isNotBlank() ->
+            stringResource(MR.strings.key_action_mpv_command_value, slot.argument)
+        // Back closes whatever is open, which while looking a word up is the lookup.
+        slot.action == KeyAction.Back && slot.context == KeyContext.PlayerLookup ->
+            stringResource(MR.strings.key_action_close_lookup)
+        else -> stringResource(slot.action.titleRes)
+    }
+}
+
+/** What [binding] does, for saying which row a key is taken from. */
+@Composable
+private fun bindingLabel(binding: KeyBinding, context: KeyContext): String {
     // An action from a newer version has no name here, so its raw one is shown.
     val action = KeyAction.fromName(binding.action) ?: return binding.action
-    val seconds = binding.argument.toIntOrNull()
-    return when {
-        action == KeyAction.SeekBy && seconds != null && seconds < 0 ->
-            stringResource(MR.strings.key_action_seek_back, -seconds)
-        action == KeyAction.SeekBy && seconds != null ->
-            stringResource(MR.strings.key_action_seek_forward, seconds)
-        action == KeyAction.MpvCommand ->
-            stringResource(MR.strings.key_action_mpv_command_value, binding.argument)
-        else -> stringResource(action.titleRes)
-    }
+    return slotLabel(KeySlot(context, action, binding.argument))
 }
 
 private val KeyAction.titleRes: StringResource
@@ -458,6 +564,15 @@ private val KeyAction.titleRes: StringResource
         KeyAction.MineEntry -> MR.strings.key_action_mine_entry
         KeyAction.Back -> MR.strings.key_action_back
         KeyAction.MpvCommand -> MR.strings.key_action_mpv_command
+    }
+
+private val KeyGroup.titleRes: StringResource
+    get() = when (this) {
+        KeyGroup.Playback -> MR.strings.key_group_playback
+        KeyGroup.Subtitles -> MR.strings.key_group_subtitles
+        KeyGroup.WordLookup -> MR.strings.key_group_word_lookup
+        KeyGroup.Popup -> MR.strings.key_group_popup
+        KeyGroup.Other -> MR.strings.key_group_other
     }
 
 private val KeyContext.titleRes: StringResource

@@ -39,12 +39,25 @@ class TriggerCapture {
     }
 }
 
-/** A readable name out of what [KeyEvent.keyCodeToString] gives, such as KEYCODE_DPAD_LEFT. */
+/**
+ * A name short enough for a key cap, out of what [KeyEvent.keyCodeToString] gives, such as
+ * KEYCODE_BUTTON_L1. The four directions are arrows, as a keyboard and a gamepad share them.
+ */
 fun keyLabel(keyCodeName: String): String {
-    return keyCodeName.removePrefix("KEYCODE_").split('_').joinToString(" ") { word ->
-        if (word == "DPAD") "D-pad" else word.lowercase().replaceFirstChar(Char::uppercase)
+    val name = keyCodeName.removePrefix("KEYCODE_")
+    return when (name) {
+        "DPAD_LEFT" -> "←"
+        "DPAD_RIGHT" -> "→"
+        "DPAD_UP" -> "↑"
+        "DPAD_DOWN" -> "↓"
+        else -> name.removePrefix("BUTTON_").split('_').joinToString(" ") { word ->
+            if (word == "DPAD") "D-pad" else word.lowercase().replaceFirstChar(Char::uppercase)
+        }
     }
 }
+
+/** Gamepad A and keyboard A are both named A, so a key cap marks the gamepad one. */
+fun isGamepadButton(keyCodeName: String) = keyCodeName.startsWith("KEYCODE_BUTTON_")
 
 fun triggerLabel(trigger: KeyTrigger, keyName: (Int) -> String): String {
     return listOfNotNull(

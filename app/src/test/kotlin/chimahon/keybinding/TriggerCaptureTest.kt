@@ -60,12 +60,24 @@ class TriggerCaptureTest {
     }
 
     @Test
-    fun `key names read like the key`() {
-        assertEquals("Button A", keyLabel("KEYCODE_BUTTON_A"))
-        assertEquals("Button L1", keyLabel("KEYCODE_BUTTON_L1"))
-        assertEquals("D-pad Left", keyLabel("KEYCODE_DPAD_LEFT"))
+    fun `key names are short enough for a key cap`() {
+        assertEquals("A", keyLabel("KEYCODE_BUTTON_A"))
+        assertEquals("L1", keyLabel("KEYCODE_BUTTON_L1"))
+        assertEquals("Select", keyLabel("KEYCODE_BUTTON_SELECT"))
+        assertEquals("←", keyLabel("KEYCODE_DPAD_LEFT"))
+        assertEquals("↓", keyLabel("KEYCODE_DPAD_DOWN"))
+        assertEquals("D-pad Center", keyLabel("KEYCODE_DPAD_CENTER"))
         assertEquals("Space", keyLabel("KEYCODE_SPACE"))
+        assertEquals("Page Up", keyLabel("KEYCODE_PAGE_UP"))
+        assertEquals("H", keyLabel("KEYCODE_H"))
         assertEquals("1001", keyLabel("1001"))
+    }
+
+    @Test
+    fun `a gamepad button is told from the keyboard key of the same name`() {
+        assertEquals(true, isGamepadButton("KEYCODE_BUTTON_A"))
+        assertEquals(false, isGamepadButton("KEYCODE_A"))
+        assertEquals(false, isGamepadButton("KEYCODE_DPAD_LEFT"))
     }
 
     @Test
