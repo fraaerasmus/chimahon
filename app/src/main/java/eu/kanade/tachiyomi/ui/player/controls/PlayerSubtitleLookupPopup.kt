@@ -104,6 +104,13 @@ internal fun PlayerSubtitleLookupPopup(
             viewModel.createSubtitleAudioMediaRequest(it.cueStartSeconds, it.cueEndSeconds)
         }
     }
+    // Chimahon -->
+    // The player pauses when a lookup opens, so the secondary line on screen then is the one
+    // shown alongside the sentence being mined.
+    val secondarySubtitle = remember(request) {
+        if (request != null) viewModel.secondaryCurrentSubtitleText.value else ""
+    }
+    // Chimahon <--
 
     OcrLookupPopup(
         visible = visible,
@@ -123,6 +130,9 @@ internal fun PlayerSubtitleLookupPopup(
         mediaInfo = MediaInfo(
             mangaTitle = anime?.title.orEmpty(),
             chapterName = episode?.name.orEmpty(),
+            // Chimahon -->
+            secondarySubtitle = secondarySubtitle,
+            // Chimahon <--
         ),
         onRequestScreenshot = {
             viewModel.captureVideoFrameForOcr()

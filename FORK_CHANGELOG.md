@@ -257,6 +257,10 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   frequency. Applies to every language deinflected in Kotlin. The looked-up form's own
   "form of" entry now sits right after its lemma instead of below every shorter match:
   the longest match leads, and the lemma-first rule only orders entries of equal length.
+- Secondary subtitle on Anki cards (2026-10-01): a new `{secondary-subtitle}` marker
+  ("Secondary Subtitle" under Sentence in the Anki field settings) fills a field with the
+  secondary subtitle line that is on screen when a word is looked up in the player. Empty
+  when no secondary line is showing, and outside the player.
 
 ## Dropped (superseded by upstream)
 

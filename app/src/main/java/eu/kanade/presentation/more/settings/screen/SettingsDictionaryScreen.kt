@@ -226,6 +226,9 @@ private val markerSections = listOf(
             Marker.CLOZE_BODY_KANA,
             Marker.CLOZE_SUFFIX,
             Marker.POPUP_SELECTION_TEXT,
+            // Chimahon -->
+            Marker.SECONDARY_SUBTITLE,
+            // Chimahon <--
         ),
     ),
     MarkerSection(
@@ -308,6 +311,9 @@ private val markerDisplayLabels: Map<String, String> = Marker.ALL_WITH_TODO.asso
         Marker.POPUP_SELECTION_TEXT -> "${prefix}Popup Selection"
         Marker.SELECTED_GLOSSARY -> "${prefix}Selected Glossary"
         Marker.SELECTED_GLOSSARY_NO_FALLBACK -> "${prefix}Selected Glossary No Fallback"
+        // Chimahon -->
+        Marker.SECONDARY_SUBTITLE -> "${prefix}Secondary Subtitle"
+        // Chimahon <--
         else -> marker
     }
 }
