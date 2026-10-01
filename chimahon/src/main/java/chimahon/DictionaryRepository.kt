@@ -3,6 +3,7 @@ package chimahon
 import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
+import chimahon.dictionary.DeinflectedLookup
 import chimahon.dictionary.Deinflector
 import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.dictionary.ko.KoreanAnalyzerDeinflector
@@ -107,28 +108,9 @@ class DictionaryRepository(
         deinflector: Deinflector,
         languageCode: String,
     ): List<LookupResult> {
-        val results = mutableListOf<LookupResult>()
-        for (i in query.length downTo 1) {
-            val substring = query.substring(0, i)
-            val candidates = linkedMapOf<String, chimahon.dictionary.DeinflectionResult>()
-            for (preprocessed in deinflector.preProcess(substring).distinct()) {
-                for (deinflected in deinflector.deinflect(preprocessed, languageCode)) {
-                    candidates.putIfAbsent(deinflected.text, deinflected)
-                }
-            }
-            candidates.keys.forEach { candidateText ->
-                HoshiDicts.query(activeSession, candidateText).forEach { termResult ->
-                    results += LookupResult(
-                        matched = substring,
-                        deinflected = candidateText,
-                        process = emptyArray(),
-                        term = termResult,
-                        preprocessorSteps = 0,
-                    )
-                }
-            }
+        return DeinflectedLookup.lookup(query, deinflector, languageCode, 20) { candidate ->
+            HoshiDicts.query(activeSession, candidate).toList()
         }
-        return results.distinctBy { it.term.expression to it.term.reading }.take(20)
     }
 
     @Synchronized

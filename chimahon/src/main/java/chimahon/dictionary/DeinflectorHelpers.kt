@@ -101,24 +101,24 @@ internal class RuleDeinflector(
     private val indexedRules = IndexedRules(rules)
 
     fun deinflect(text: String): List<DeinflectionResult> {
-        val results = mutableListOf(text to emptySet<String>())
+        val results = mutableListOf(DeinflectionResult(text, 0))
         val seen = hashSetOf(resultKey(text, emptySet()))
         var i = 0
 
         while (i < results.size && results.size < maxResults) {
-            val (currentText, currentConditions) = results[i]
-            for (rule in indexedRules.forText(currentText, currentConditions)) {
-                val deinflected = applyRule(currentText, rule) ?: continue
+            val current = results[i]
+            for (rule in indexedRules.forText(current.text, current.conditions)) {
+                val deinflected = applyRule(current.text, rule) ?: continue
                 val key = resultKey(deinflected, rule.conditionsOut)
                 if (!seen.add(key)) continue
 
-                results += deinflected to rule.conditionsOut
+                results += DeinflectionResult(deinflected, 0, rule.conditionsOut, current.steps + 1)
                 if (results.size >= maxResults) break
             }
             i++
         }
 
-        return results.map { (candidate, _) -> DeinflectionResult(candidate, 0) }
+        return results
     }
 }
 
@@ -253,7 +253,7 @@ private class ExactRuleIndex<T : Rule> {
 /** Condition subsumption: maps each condition to its related conditions (both parent and children).
  *  E.g., "n" → ["np", "ns"] means when current conditions include "n", also match rules for "np"/"ns".
  *  "np" → ["n"] means when current conditions include "np", also match rules for "n". */
-private val conditionHierarchy = mapOf(
+internal val conditionHierarchy = mapOf(
     "n" to setOf("np", "ns"),
     "np" to setOf("n"),
     "ns" to setOf("n"),

@@ -250,6 +250,11 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   subtitle track rows, "Word", "Entry" and "Scroll" in the popup. A step of 2 or 3 works
   too. L2 and R2 still step the subtitle tracks forward, and holding them now steps back.
   Keys saved with the old names read as a step of one, so nothing changes until edited.
+- Inflected words find their lemma (2026-10-01): in the popup, a form the rules cannot
+  undo now also shows the word its "form of" entry points at, instead of only that entry.
+  A rule for one part of speech no longer lands on an entry of another, and entries
+  matched at the same length are ordered by fewest rule steps, exact headword, then
+  frequency. Applies to every language deinflected in Kotlin.
 
 ## Dropped (superseded by upstream)
 
