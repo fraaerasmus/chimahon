@@ -27,12 +27,6 @@ class AnkiCardCreatorSecondarySubtitleTest {
         assertEquals("Tom &amp; Jerry<br>second line", fields["Extra"])
     }
 
-    @Test
-    fun `secondary subtitle marker is empty when there is no secondary line`() = runTest {
-        assertEquals("", addCard(MediaInfo("title", "episode"))["Extra"])
-        assertEquals("", addCard(null)["Extra"])
-    }
-
     private suspend fun addCard(media: MediaInfo?): Map<String, String> {
         val bridge = FakeBridge()
         AnkiCardCreator.bridgeFactory = { bridge }

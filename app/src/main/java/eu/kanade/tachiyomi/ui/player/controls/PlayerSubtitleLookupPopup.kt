@@ -105,8 +105,7 @@ internal fun PlayerSubtitleLookupPopup(
         }
     }
     // Chimahon -->
-    // The player pauses when a lookup opens, so the secondary line on screen then is the one
-    // shown alongside the sentence being mined.
+    // The player pauses on lookup, so this is the line shown with the sentence being mined.
     val secondarySubtitle = remember(request) {
         if (request != null) viewModel.secondaryCurrentSubtitleText.value else ""
     }
