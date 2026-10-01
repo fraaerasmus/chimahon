@@ -145,10 +145,8 @@ internal fun orderLookupResultsForDisplay(
         .map { it.withOrderedDictionaries(priorityMap) }
         .withIndex()
         .sortedWith(
-            compareBy<IndexedValue<LookupResult>> {
-                FrenchLookupPolicy.formOfOnlyRank(it.value, profile.languageCode)
-            }
-                .thenByDescending { FrenchLookupPolicy.matchedCodePointCount(it.value) }
+            compareByDescending<IndexedValue<LookupResult>> { FrenchLookupPolicy.matchedCodePointCount(it.value) }
+                .thenBy { FrenchLookupPolicy.formOfOnlyRank(it.value, profile.languageCode) }
                 .thenBy { dictionaryPriority(priorityMap, it.value.term.glossaries.firstOrNull()?.dictName) }
                 .thenBy { it.index },
         )

@@ -37,15 +37,16 @@ class FrenchLookupPolicyTest {
     }
 
     @Test
-    fun `ranks real definitions before form-of-only entries then by longest match`() {
+    fun `ranks by longest match then real definitions before form-of-only entries`() {
         val shortReal = result("homme", matched = "homme", definitionTags = listOf("noun"))
-        val longFormOf = result("détester", matched = "détestait", definitionTags = listOf("non-lemma"))
         val longReal = result("homme politique", matched = "homme politique", definitionTags = listOf("noun"))
+        val formOf = result("détestait", matched = "détestait", definitionTags = listOf("non-lemma"))
+        val lemma = result("détester", matched = "détestait", definitionTags = listOf("verb"))
 
         assertEquals(
-            listOf("homme politique", "homme", "détester"),
+            listOf("homme politique", "détester", "détestait", "homme"),
             FrenchLookupPolicy.mergeResults(
-                results = listOf(shortReal, longFormOf, longReal),
+                results = listOf(shortReal, formOf, lemma, longReal),
                 languageCode = "fr",
                 maxResults = 20,
             ).map { it.term.expression },
@@ -56,11 +57,11 @@ class FrenchLookupPolicyTest {
     fun `mixed glossaries count as a real definition and ordering is stable`() {
         val mixed = result("avait", matched = "avait", definitionTags = listOf("non-lemma", "verb"))
         val real = result("avoir", matched = "avait", definitionTags = listOf("verb"))
-        val formOnly = result("avaient", matched = "avaient", definitionTags = listOf("non-lemma"))
+        val formOnly = result("avais", matched = "avait", definitionTags = listOf("non-lemma"))
 
-        val ordered = FrenchLookupPolicy.mergeResults(listOf(mixed, real, formOnly), "fr", 20)
+        val ordered = FrenchLookupPolicy.mergeResults(listOf(formOnly, mixed, real), "fr", 20)
 
-        assertEquals(listOf("avait", "avoir", "avaient"), ordered.map { it.term.expression })
+        assertEquals(listOf("avait", "avoir", "avais"), ordered.map { it.term.expression })
         assertFalse(FrenchLookupPolicy.isFormOfOnly(mixed))
         assertTrue(FrenchLookupPolicy.isFormOfOnly(formOnly))
     }

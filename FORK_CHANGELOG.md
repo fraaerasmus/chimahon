@@ -254,7 +254,9 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   undo now also shows the word its "form of" entry points at, instead of only that entry.
   A rule for one part of speech no longer lands on an entry of another, and entries
   matched at the same length are ordered by fewest rule steps, exact headword, then
-  frequency. Applies to every language deinflected in Kotlin.
+  frequency. Applies to every language deinflected in Kotlin. The looked-up form's own
+  "form of" entry now sits right after its lemma instead of below every shorter match:
+  the longest match leads, and the lemma-first rule only orders entries of equal length.
 
 ## Dropped (superseded by upstream)
 

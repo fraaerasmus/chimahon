@@ -38,8 +38,8 @@ object FrenchLookupPolicy {
         }
         return results.withIndex()
             .sortedWith(
-                compareBy<IndexedValue<LookupResult>> { if (isFormOfOnly(it.value)) 1 else 0 }
-                    .thenByDescending { matchedCodePointCount(it.value) }
+                compareByDescending<IndexedValue<LookupResult>> { matchedCodePointCount(it.value) }
+                    .thenBy { if (isFormOfOnly(it.value)) 1 else 0 }
                     .thenBy { it.index },
             )
             .map { it.value }
