@@ -260,6 +260,16 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - Secondary subtitle on Anki cards (2026-10-01): a `{secondary-subtitle}` marker fills a
   field with the secondary subtitle line on screen when a word is looked up in the player.
 
+- YouTube videos with dubbed audio tracks have sound (2026-10-04): release builds shrank
+  away a protobuf message NewPipe uses to read each track's language tags, so any video
+  carrying more than one audio track (an original plus YouTube dubs) lost all of its audio
+  streams and played silent. A keep rule for protobuf-javalite messages fixes it. The
+  resolver also now attaches one audio stream per language (original first, dubs marked)
+  and one subtitle format instead of every itag and three formats, and the player selects
+  the first audio track as soon as it opens, so audio no longer starts seconds after the
+  video. Audio with no preferred language takes the source's first track instead of the
+  device language, so an English device gets the original rather than the auto-dub.
+
 ## Dropped (superseded by upstream)
 
 - Player sentence audio mining (2026-07-18, dropped 2026-08-13): upstream v2.3.1/v2.3.2

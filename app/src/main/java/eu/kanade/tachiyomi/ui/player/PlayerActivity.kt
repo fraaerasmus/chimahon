@@ -1957,9 +1957,13 @@ class PlayerActivity : BaseActivity() {
             return
         }
 
-        audioTracks?.forEach { audio ->
-            executeMPVCommand(arrayOf("audio-add", audio.url, "auto", audio.lang))
+        // Chimahon -->
+        // Select the first external audio track as soon as it opens: mpv never picks `auto`
+        // tracks on its own, and onFinishLoadingTracks only runs after every add below returns.
+        audioTracks?.forEachIndexed { index, audio ->
+            executeMPVCommand(arrayOf("audio-add", audio.url, if (index == 0) "select" else "auto", audio.lang))
         }
+        // Chimahon <--
         subtitleTracks?.forEach { sub ->
             executeMPVCommand(arrayOf("sub-add", sub.url, "auto", sub.lang))
         }

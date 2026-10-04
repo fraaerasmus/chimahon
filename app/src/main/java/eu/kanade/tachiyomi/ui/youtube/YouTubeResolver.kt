@@ -16,6 +16,7 @@ import org.schabi.newpipe.extractor.downloader.Downloader
 import org.schabi.newpipe.extractor.downloader.Request
 import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.stream.AudioStream
+import org.schabi.newpipe.extractor.stream.AudioTrackType
 import org.schabi.newpipe.extractor.stream.StreamInfo
 import org.schabi.newpipe.extractor.stream.StreamInfoItem
 import org.schabi.newpipe.extractor.stream.StreamType
@@ -72,13 +73,12 @@ class YouTubeResolver {
                 val extractor = ServiceList.YouTube.getStreamExtractor(linkHandler)
                 extractor.fetchPage()
 
-                val subtitleTracks = listOf(
-                    runCatching { extractor.subtitlesDefault }.getOrDefault(emptyList()),
-                    runCatching { extractor.getSubtitles(MediaFormat.VTT) }.getOrDefault(emptyList()),
-                    runCatching { extractor.getSubtitles(MediaFormat.SRT) }.getOrDefault(emptyList()),
-                    runCatching { extractor.getSubtitles(MediaFormat.TTML) }.getOrDefault(emptyList()),
-                )
-                    .flatten()
+                // Chimahon -->
+                // One format per language: every subtitle is a blocking fetch in the player
+                // before audio can be selected, and mpv rejects the default (TTML) format anyway.
+                val subtitleTracks = runCatching { extractor.getSubtitles(MediaFormat.VTT) }.getOrDefault(emptyList())
+                    .ifEmpty { runCatching { extractor.getSubtitles(MediaFormat.SRT) }.getOrDefault(emptyList()) }
+                    // Chimahon <--
                     .filter { it.content.isNotBlank() }
                     .map { sub ->
                         Track(
@@ -91,27 +91,9 @@ class YouTubeResolver {
                     }
                     .distinctBy { it.url to it.lang }
 
-                val audioTracks = runCatching {
-                    extractor.audioStreams
-                        .filter { it.content.isNotBlank() }
-                        .sortedWith(
-                            compareByDescending<AudioStream> {
-                                it.audioTrackName?.contains("original", ignoreCase = true) == true ||
-                                    it.audioLocale?.displayName?.contains("original", ignoreCase = true) == true ||
-                                    it.quality?.contains("original", ignoreCase = true) == true
-                            }.thenByDescending { it.averageBitrate },
-                        )
-                        .map { audio ->
-                            Track(
-                                url = audio.content,
-                                lang = audio.audioTrackName
-                                    ?: audio.audioLocale?.displayLanguage
-                                    ?: audio.quality
-                                    ?: "Audio",
-                            )
-                        }
-                        .distinctBy { it.url to it.lang }
-                }.getOrDefault(emptyList())
+                // Chimahon -->
+                val audioTracks = runCatching { selectAudioTracks(extractor.audioStreams) }.getOrDefault(emptyList())
+                // Chimahon <--
 
                 val streams = (extractor.videoStreams + extractor.videoOnlyStreams)
                     .filter { it.content.isNotBlank() }
@@ -211,6 +193,31 @@ class YouTubeResolver {
 
         // Chimahon -->
         fun isYouTubeUrl(input: String): Boolean = extractVideoId(input) != null
+
+        /**
+         * One stream per audio track (language), the original first and the best bitrate within
+         * each. The player attaches every entry as a blocking external `audio-add`, so handing
+         * back all five itags of every language delayed audio by seconds on dubbed videos.
+         */
+        internal fun selectAudioTracks(streams: List<AudioStream>): List<Track> =
+            streams
+                .filter { it.content.isNotBlank() && it.isUrl }
+                .groupBy { it.audioTrackId }
+                .values
+                .map { group -> group.maxBy { it.averageBitrate } }
+                .sortedWith(
+                    compareBy<AudioStream> { it.audioTrackType != null && it.audioTrackType != AudioTrackType.ORIGINAL }
+                        .thenByDescending { it.averageBitrate },
+                )
+                .map { audio ->
+                    val name = audio.audioTrackName
+                        ?: audio.audioLocale?.displayLanguage?.takeIf { it.isNotBlank() }
+                        ?: "Audio"
+                    Track(
+                        url = audio.content,
+                        lang = if (audio.audioTrackType == AudioTrackType.DUBBED) "$name (dubbed)" else name,
+                    )
+                }
         // Chimahon <--
 
         suspend fun resolveChannel(channelId: String): YouTubeChannelMetadata = resolveMutex.withLock {
