@@ -274,6 +274,12 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   stream, and on a throttled connection that seek took 57 s in the Opus/WebM stream while
   the same seek in the AAC/MP4 stream took under a second (same video, same phone). On, the
   AAC stream is used unless only the 48 kbps tier exists; off, the best bitrate wins.
+- YouTube captions and dictionary profile (2026-10-04): manually written captions are
+  listed before auto-generated ones, which are now labelled "(auto-generated)", so a
+  preferred subtitle language picks the uploader's captions when they exist. The YouTube
+  settings gain a "Dictionary profile" choice for the whole source (the generic source
+  settings screen that holds this picker is not reachable for the built-in extension); a
+  profile set on a channel still takes priority.
 
 ## Dropped (superseded by upstream)
 

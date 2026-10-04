@@ -36,8 +36,12 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import chimahon.dictionary.DictionaryProfileResolver
+import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import tachiyomi.i18n.ank.AMR
 import tachiyomi.presentation.core.i18n.stringResource
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 class YouTubeSettingsScreen : Screen {
 
@@ -54,6 +58,12 @@ class YouTubeSettingsScreen : Screen {
         var addNewChannelsToLibrary by remember { mutableStateOf(preferences.addNewChannelsToLibrary) }
         // Chimahon -->
         var preferReliableAudio by remember { mutableStateOf(preferences.preferReliableAudio) }
+        val dictionaryPreferences = remember { Injekt.get<DictionaryPreferences>() }
+        val dictionaryProfiles = remember { dictionaryPreferences.profileStore.getProfiles() }
+        val profileOverride = remember {
+            dictionaryPreferences.rawProfileOverride(DictionaryProfileResolver.sourceOverrideKey(YouTubeSource.ID))
+        }
+        var selectedProfileId by remember { mutableStateOf(profileOverride.get()) }
         // Chimahon <--
 
         Scaffold(
@@ -227,6 +237,52 @@ class YouTubeSettingsScreen : Screen {
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = stringResource(AMR.strings.youtube_dictionary_profile),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // "" clears the override: the resolver then falls back to the active profile.
+                val profileOptions = listOf(
+                    "" to stringResource(
+                        AMR.strings.youtube_dictionary_profile_auto,
+                        dictionaryPreferences.profileStore.getActiveProfile().name,
+                    ),
+                ) + dictionaryProfiles.map { it.id to it.name }
+                profileOptions.forEach { (profileId, label) ->
+                    val select = {
+                        selectedProfileId = profileId
+                        if (profileId.isEmpty()) profileOverride.delete() else profileOverride.set(profileId)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = select)
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selectedProfileId == profileId,
+                            onClick = select,
+                        )
+                        Text(
+                            text = label,
+                            modifier = Modifier.padding(start = 12.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+
+                Text(
+                    text = stringResource(AMR.strings.youtube_dictionary_profile_summary),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 // Chimahon <--
 
                 Spacer(modifier = Modifier.height(24.dp))
