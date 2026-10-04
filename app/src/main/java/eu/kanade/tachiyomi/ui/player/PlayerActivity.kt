@@ -1031,6 +1031,12 @@ class PlayerActivity : BaseActivity() {
 
         player.isExiting = false
         player.retryPendingLoad()
+        // Chimahon -->
+        if (pendingFileLoaded) {
+            pendingFileLoaded = false
+            viewModel.viewModelScope.launchIO { fileLoaded() }
+        }
+        // Chimahon <--
         super.onResume()
 
         viewModel.currentVolume.update {
@@ -1173,6 +1179,11 @@ class PlayerActivity : BaseActivity() {
     }
 
     internal fun event(eventId: Int) {
+        // Chimahon -->
+        // Backgrounding sets isExiting, which drops the file-loaded work (track setup included)
+        // for a file mpv keeps playing. Remember it so onResume can run it.
+        if (eventId == MPVLib.mpvEventId.MPV_EVENT_FILE_LOADED) pendingFileLoaded = player.isExiting
+        // Chimahon <--
         if (player.isExiting) return
         when (eventId) {
             MPVLib.mpvEventId.MPV_EVENT_FILE_LOADED -> {
@@ -1898,8 +1909,18 @@ class PlayerActivity : BaseActivity() {
     }
     // KMK <--
 
+    // Chimahon -->
+    @Volatile
+    private var pendingFileLoaded = false
+    // Chimahon <--
+
     private fun fileLoaded() {
-        if (player.isExiting) return
+        // Chimahon -->
+        if (player.isExiting) {
+            pendingFileLoaded = true
+            return
+        }
+        // Chimahon <--
         // Chimahon -->
         // Every load is a new play session on the server: next episode, quality switch
         jellyfinReporter?.stop(atLastReported = true)
@@ -1957,14 +1978,23 @@ class PlayerActivity : BaseActivity() {
             return
         }
 
-        audioTracks?.forEach { audio ->
-            executeMPVCommand(arrayOf("audio-add", audio.url, "auto", audio.lang))
+        // Chimahon -->
+        // Select the first external audio track as soon as it opens: mpv never picks `auto`
+        // tracks on its own, and onFinishLoadingTracks only runs after every add below returns.
+        audioTracks?.forEachIndexed { index, audio ->
+            executeMPVCommand(arrayOf("audio-add", audio.url, if (index == 0) "select" else "auto", audio.lang))
         }
+        // Chimahon <--
         subtitleTracks?.forEach { sub ->
             executeMPVCommand(arrayOf("sub-add", sub.url, "auto", sub.lang))
         }
 
         viewModel.isLoadingTracks.update { _ -> false }
+        // Chimahon -->
+        // This runs on an IO thread while track-list events are handled on main. If main took the
+        // last add's event before the flag above flipped, nothing else would finish the selection.
+        runOnUiThread { viewModel.loadTracks() }
+        // Chimahon <--
     }
 
     private fun setupChapters() {

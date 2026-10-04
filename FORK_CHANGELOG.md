@@ -260,6 +260,18 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - Secondary subtitle on Anki cards (2026-10-01): a `{secondary-subtitle}` marker fills a
   field with the secondary subtitle line on screen when a word is looked up in the player.
 
+- YouTube audio starts with the video (2026-10-04): YouTube serves video-only streams, so
+  audio is attached as external mpv tracks. The resolver used to hand over every itag of
+  every language (ten tracks on a dubbed video) plus each subtitle in three formats, and
+  the player only selected audio after every one of those had been opened in turn, with
+  the video already playing. Now one stream per language (original first, dubs marked)
+  and one subtitle format are attached, the first audio track is selected as soon as it
+  opens, the selection is finished explicitly instead of through a racing track-list
+  event, and a load that completed while the app was in the background sets its tracks
+  up on resume. Audio with no preferred language takes the source's first track instead
+  of the device language, so English devices get the original rather than YouTube's
+  auto-dub.
+
 ## Dropped (superseded by upstream)
 
 - Player sentence audio mining (2026-07-18, dropped 2026-08-13): upstream v2.3.1/v2.3.2
