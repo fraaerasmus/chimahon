@@ -31,6 +31,11 @@ class YouTubeResolver {
         private val resolveMutex = Mutex()
         private val client = OkHttpClient()
 
+        // Chimahon -->
+        /** Sits between YouTube's 48 kbps HE-AAC tier and its 128 kbps AAC tier. */
+        private const val RELIABLE_AUDIO_MIN_BITRATE = 96
+        // Chimahon <--
+
         private fun ensureInitialized() {
             if (initialized) return
             synchronized(initLock) {
@@ -65,8 +70,13 @@ class YouTubeResolver {
         }
 
         // Returns streams + video metadata
-        suspend fun resolveVideo(videoId: String, preferredQuality: String = YouTubePreferences.DEFAULT_QUALITY):
-            YouTubeVideoMetadata = resolveMutex.withLock {
+        suspend fun resolveVideo(
+            videoId: String,
+            preferredQuality: String = YouTubePreferences.DEFAULT_QUALITY,
+            // Chimahon -->
+            preferReliableAudio: Boolean = true,
+            // Chimahon <--
+        ): YouTubeVideoMetadata = resolveMutex.withLock {
             withContext(Dispatchers.IO) {
                 ensureInitialized()
                 val linkHandler = ServiceList.YouTube.getStreamLHFactory().fromId(videoId)
@@ -92,7 +102,7 @@ class YouTubeResolver {
                     .distinctBy { it.url to it.lang }
 
                 // Chimahon -->
-                val audioTracks = runCatching { selectAudioTracks(extractor.audioStreams) }.getOrDefault(emptyList())
+                val audioTracks = runCatching { selectAudioTracks(extractor.audioStreams, preferReliableAudio) }.getOrDefault(emptyList())
                 // Chimahon <--
 
                 val streams = (extractor.videoStreams + extractor.videoOnlyStreams)
@@ -197,18 +207,24 @@ class YouTubeResolver {
         /**
          * One stream per audio track (language), the original first. The player attaches every
          * entry as a blocking external `audio-add`, so handing back all five itags of every
-         * language delayed audio by seconds on dubbed videos. M4A is preferred over Opus/WebM:
-         * resuming mid-video seeks the external audio, and on a throttled connection mpv's
-         * Matroska demuxer took close to a minute to reach the target, while the MP4 demuxer
-         * lands on the fragment directly.
+         * language delayed audio by seconds on dubbed videos.
+         *
+         * With [preferReliableAudio], M4A wins over Opus/WebM as long as it is not the 48 kbps
+         * HE-AAC tier: resuming mid-video seeks the external audio, and on a throttled connection
+         * mpv's Matroska demuxer took close to a minute to reach the target (57 s on the user's
+         * phone) while the MP4 demuxer lands on the fragment directly (0.6 s, same video).
          */
-        internal fun selectAudioTracks(streams: List<AudioStream>): List<Track> =
+        internal fun selectAudioTracks(streams: List<AudioStream>, preferReliableAudio: Boolean = true): List<Track> =
             streams
                 .filter { it.content.isNotBlank() && it.isUrl }
                 .groupBy { it.audioTrackId }
                 .values
                 .map { group ->
-                    group.maxWith(compareBy<AudioStream> { it.format == MediaFormat.M4A }.thenBy { it.averageBitrate })
+                    group.maxWith(
+                        compareBy<AudioStream> {
+                            preferReliableAudio && it.format == MediaFormat.M4A && it.averageBitrate >= RELIABLE_AUDIO_MIN_BITRATE
+                        }.thenBy { it.averageBitrate },
+                    )
                 }
                 .sortedWith(
                     compareBy<AudioStream> { it.audioTrackType != null && it.audioTrackType != AudioTrackType.ORIGINAL }

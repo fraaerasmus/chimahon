@@ -264,13 +264,16 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   away a protobuf message NewPipe uses to read each track's language tags, so any video
   carrying more than one audio track (an original plus YouTube dubs) lost all of its audio
   streams and played silent. A keep rule for protobuf-javalite messages fixes it. The
-  resolver also now attaches one audio stream per language (original first, dubs marked,
-  M4A preferred: resuming mid-video seeks the audio stream, and on a throttled connection
-  the WebM/Opus seek stalled for close to a minute while the MP4 one is immediate) and one
-  subtitle format instead of every itag and three formats, and the player selects
+  resolver also now attaches one audio stream per language (original first, dubs marked)
+  and one subtitle format instead of every itag and three formats, and the player selects
   the first audio track as soon as it opens, so audio no longer starts seconds after the
   video. Audio with no preferred language takes the source's first track instead of the
   device language, so an English device gets the original rather than the auto-dub.
+- YouTube "Prefer reliable playback over highest audio quality" (2026-10-04): on by
+  default in the YouTube settings. Resuming a video part-way seeks the external audio
+  stream, and on a throttled connection that seek took 57 s in the Opus/WebM stream while
+  the same seek in the AAC/MP4 stream took under a second (same video, same phone). On, the
+  AAC stream is used unless only the 48 kbps tier exists; off, the best bitrate wins.
 
 ## Dropped (superseded by upstream)
 

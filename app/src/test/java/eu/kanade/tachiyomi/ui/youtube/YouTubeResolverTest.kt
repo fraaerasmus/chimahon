@@ -58,13 +58,27 @@ class YouTubeResolverTest {
             ),
         )
 
+        // The dub only has the 48 kbps HE-AAC M4A, which is below the floor, so Opus wins there.
         assertEquals(
             listOf(
                 "French (FR) original" to "https://example.invalid/140/fr-FR.4",
-                "English (US) (dubbed)" to "https://example.invalid/139/en-US.10",
+                "English (US) (dubbed)" to "https://example.invalid/251/en-US.10",
             ),
             tracks.map { it.lang to it.url },
         )
+    }
+
+    @Test
+    fun reliableAudioOffPicksBestBitrateRegardlessOfFormat() {
+        val tracks = YouTubeResolver.selectAudioTracks(
+            listOf(
+                stream(140, 128, MediaFormat.M4A),
+                stream(251, 160),
+            ),
+            preferReliableAudio = false,
+        )
+
+        assertEquals(listOf("https://example.invalid/251/x"), tracks.map { it.url })
     }
 
     @Test

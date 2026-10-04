@@ -2508,7 +2508,7 @@ class PlayerViewModel @JvmOverloads constructor(
             try {
                 // Get all stream metadata, then get channel info
                 val prefs = YouTubePreferences(Injekt.get<Application>())
-                val videoMetadata = YouTubeResolver.resolveVideo(YouTubeResolver.getVideoId(videoUrl), prefs.preferredQuality)
+                val videoMetadata = YouTubeResolver.resolveVideo(YouTubeResolver.getVideoId(videoUrl), prefs.preferredQuality, prefs.preferReliableAudio)
 
                 val episode = createYoutubeEpisode(videoMetadata, prefs)
                     ?: throw IllegalStateException("Failed to create youtube episode")

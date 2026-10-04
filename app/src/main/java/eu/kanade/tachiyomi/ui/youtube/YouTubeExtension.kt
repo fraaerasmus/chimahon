@@ -111,7 +111,7 @@ object YouTubeSource : AnimeHttpSource(), AnimeSourceScreenProvider, AlwaysVisib
     override suspend fun getHosterList(episode: SEpisode): List<Hoster> {
         val prefs = YouTubePreferences(Injekt.get<Application>())
         val videoId = episode.url.removePrefix(WATCH_PREFIX)
-        val videoMetadata = YouTubeResolver.resolveVideo(videoId, prefs.preferredQuality)
+        val videoMetadata = YouTubeResolver.resolveVideo(videoId, prefs.preferredQuality, prefs.preferReliableAudio)
         if (videoMetadata.videoStreams.isEmpty())
             return emptyList()
 

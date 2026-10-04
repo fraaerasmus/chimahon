@@ -245,6 +245,8 @@
     <string name="youtube_start_page_home">Home</string>
     <string name="youtube_start_page_history">Watch history</string>
     <string name="youtube_start_page_summary">Used for a new browser session. Minimized sessions resume where you left off.</string>
+    <string name="youtube_prefer_reliable_audio">Prefer reliable playback over highest audio quality</string>
+    <string name="youtube_prefer_reliable_audio_summary">Audio starts faster when resuming on slow connections. Uses AAC instead of Opus.</string>
 
     <string name="season_settings_updated">Updated default season settings</string>
 

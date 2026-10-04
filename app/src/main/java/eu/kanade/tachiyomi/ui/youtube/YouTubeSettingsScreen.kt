@@ -52,6 +52,9 @@ class YouTubeSettingsScreen : Screen {
         var selectedStartPage by remember { mutableStateOf(preferences.preferredStartPage) }
         // Chimahon <--
         var addNewChannelsToLibrary by remember { mutableStateOf(preferences.addNewChannelsToLibrary) }
+        // Chimahon -->
+        var preferReliableAudio by remember { mutableStateOf(preferences.preferReliableAudio) }
+        // Chimahon <--
 
         Scaffold(
             topBar = {
@@ -190,6 +193,41 @@ class YouTubeSettingsScreen : Screen {
                         )
                     }
                 }
+
+                // Chimahon -->
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = preferReliableAudio,
+                            onValueChange = {
+                                preferReliableAudio = it
+                                preferences.preferReliableAudio = it
+                            },
+                        )
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = preferReliableAudio,
+                        onCheckedChange = null,
+                    )
+
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text(
+                            text = stringResource(AMR.strings.youtube_prefer_reliable_audio),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = stringResource(AMR.strings.youtube_prefer_reliable_audio_summary),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                // Chimahon <--
 
                 Spacer(modifier = Modifier.height(24.dp))
 

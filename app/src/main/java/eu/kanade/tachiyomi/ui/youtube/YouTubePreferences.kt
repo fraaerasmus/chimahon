@@ -24,6 +24,10 @@ class YouTubePreferences(context: Context) {
             ?.takeIf { it in START_PAGES }
             ?: DEFAULT_START_PAGE
         set(value) = prefs.edit().putString(KEY_START_PAGE, value).apply()
+
+    var preferReliableAudio: Boolean
+        get() = prefs.getBoolean(KEY_PREFER_RELIABLE_AUDIO, true)
+        set(value) = prefs.edit().putBoolean(KEY_PREFER_RELIABLE_AUDIO, value).apply()
     // Chimahon <--
 
     companion object {
@@ -54,6 +58,7 @@ class YouTubePreferences(context: Context) {
         const val START_PAGE_HOME = "home"
         const val START_PAGE_HISTORY = "history"
         const val DEFAULT_START_PAGE = START_PAGE_HISTORY
+        const val KEY_PREFER_RELIABLE_AUDIO = "prefer_reliable_audio"
 
         val START_PAGES = listOf(
             START_PAGE_HOME,
