@@ -30,7 +30,7 @@ class YouTubeResolverTest {
         .build()
 
     @Test
-    fun singleLanguageVideoYieldsOneBestTrackNamedAudio() {
+    fun singleLanguageVideoYieldsOneM4aTrackNamedAudio() {
         val tracks = YouTubeResolver.selectAudioTracks(
             listOf(
                 stream(139, 48, MediaFormat.M4A),
@@ -42,7 +42,7 @@ class YouTubeResolverTest {
         )
 
         assertEquals(1, tracks.size)
-        assertEquals("https://example.invalid/251/x", tracks.single().url)
+        assertEquals("https://example.invalid/140/x", tracks.single().url)
         assertEquals("Audio", tracks.single().lang)
     }
 
@@ -60,8 +60,8 @@ class YouTubeResolverTest {
 
         assertEquals(
             listOf(
-                "French (FR) original" to "https://example.invalid/251/fr-FR.4",
-                "English (US) (dubbed)" to "https://example.invalid/251/en-US.10",
+                "French (FR) original" to "https://example.invalid/140/fr-FR.4",
+                "English (US) (dubbed)" to "https://example.invalid/139/en-US.10",
             ),
             tracks.map { it.lang to it.url },
         )

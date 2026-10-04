@@ -264,8 +264,10 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   away a protobuf message NewPipe uses to read each track's language tags, so any video
   carrying more than one audio track (an original plus YouTube dubs) lost all of its audio
   streams and played silent. A keep rule for protobuf-javalite messages fixes it. The
-  resolver also now attaches one audio stream per language (original first, dubs marked)
-  and one subtitle format instead of every itag and three formats, and the player selects
+  resolver also now attaches one audio stream per language (original first, dubs marked,
+  M4A preferred: resuming mid-video seeks the audio stream, and on a throttled connection
+  the WebM/Opus seek stalled for close to a minute while the MP4 one is immediate) and one
+  subtitle format instead of every itag and three formats, and the player selects
   the first audio track as soon as it opens, so audio no longer starts seconds after the
   video. Audio with no preferred language takes the source's first track instead of the
   device language, so an English device gets the original rather than the auto-dub.

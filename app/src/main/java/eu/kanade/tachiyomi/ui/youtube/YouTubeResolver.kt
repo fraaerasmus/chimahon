@@ -195,16 +195,21 @@ class YouTubeResolver {
         fun isYouTubeUrl(input: String): Boolean = extractVideoId(input) != null
 
         /**
-         * One stream per audio track (language), the original first and the best bitrate within
-         * each. The player attaches every entry as a blocking external `audio-add`, so handing
-         * back all five itags of every language delayed audio by seconds on dubbed videos.
+         * One stream per audio track (language), the original first. The player attaches every
+         * entry as a blocking external `audio-add`, so handing back all five itags of every
+         * language delayed audio by seconds on dubbed videos. M4A is preferred over Opus/WebM:
+         * resuming mid-video seeks the external audio, and on a throttled connection mpv's
+         * Matroska demuxer took close to a minute to reach the target, while the MP4 demuxer
+         * lands on the fragment directly.
          */
         internal fun selectAudioTracks(streams: List<AudioStream>): List<Track> =
             streams
                 .filter { it.content.isNotBlank() && it.isUrl }
                 .groupBy { it.audioTrackId }
                 .values
-                .map { group -> group.maxBy { it.averageBitrate } }
+                .map { group ->
+                    group.maxWith(compareBy<AudioStream> { it.format == MediaFormat.M4A }.thenBy { it.averageBitrate })
+                }
                 .sortedWith(
                     compareBy<AudioStream> { it.audioTrackType != null && it.audioTrackType != AudioTrackType.ORIGINAL }
                         .thenByDescending { it.averageBitrate },
