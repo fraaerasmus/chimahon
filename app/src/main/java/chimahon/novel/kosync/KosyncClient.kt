@@ -47,6 +47,8 @@ interface KosyncApi {
  */
 class KosyncClient(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val pullConnectTimeoutMillis: Int = PULL_CONNECT_TIMEOUT_MILLIS,
+    private val pullReadTimeoutMillis: Int = PULL_READ_TIMEOUT_MILLIS,
 ) : KosyncApi {
 
     override suspend fun register(credentials: KosyncCredentials) {
@@ -63,8 +65,15 @@ class KosyncClient(
 
     override suspend fun getProgress(credentials: KosyncCredentials, document: String): KosyncRemoteProgress? {
         val encoded = URLEncoder.encode(document, "UTF-8")
-        val body = request(credentials, "GET", "/syncs/progress/$encoded", notFoundIsNull = true)
-            ?: return null
+        // A pull holds a book or chapter back from opening, so it gives up sooner than a push.
+        val body = request(
+            credentials,
+            "GET",
+            "/syncs/progress/$encoded",
+            notFoundIsNull = true,
+            connectTimeoutMillis = pullConnectTimeoutMillis,
+            readTimeoutMillis = pullReadTimeoutMillis,
+        ) ?: return null
         return KosyncRemoteProgress(
             document = body.string("document") ?: document,
             progress = body.string("progress"),
@@ -102,12 +111,14 @@ class KosyncClient(
         path: String,
         payload: JsonObject? = null,
         notFoundIsNull: Boolean = false,
+        connectTimeoutMillis: Int = CONNECT_TIMEOUT_MILLIS,
+        readTimeoutMillis: Int = READ_TIMEOUT_MILLIS,
     ): JsonObject? = withContext(ioDispatcher) {
         val connection = URL(normalizeServerUrl(credentials.serverUrl) + path).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
-            connection.connectTimeout = CONNECT_TIMEOUT_MILLIS
-            connection.readTimeout = READ_TIMEOUT_MILLIS
+            connection.connectTimeout = connectTimeoutMillis
+            connection.readTimeout = readTimeoutMillis
             connection.setRequestProperty("Accept", "application/vnd.koreader.v1+json")
             connection.setRequestProperty("x-auth-user", credentials.username)
             connection.setRequestProperty("x-auth-key", credentials.userKey)
@@ -145,6 +156,11 @@ class KosyncClient(
     companion object {
         private const val CONNECT_TIMEOUT_MILLIS = 10_000
         private const val READ_TIMEOUT_MILLIS = 15_000
+
+        // The socket timeouts are the only bound on a pull: the request blocks its thread, so a
+        // coroutine timeout around it does not return until the socket gives up.
+        private const val PULL_CONNECT_TIMEOUT_MILLIS = 3_000
+        private const val PULL_READ_TIMEOUT_MILLIS = 4_000
         private val json = Json { ignoreUnknownKeys = true }
 
         fun normalizeServerUrl(raw: String): String {
