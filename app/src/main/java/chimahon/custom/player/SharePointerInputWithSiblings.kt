@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.player.controls.components
+package chimahon.custom.player
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEvent

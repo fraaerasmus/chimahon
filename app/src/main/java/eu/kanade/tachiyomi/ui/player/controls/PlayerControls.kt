@@ -17,7 +17,6 @@
 
 package eu.kanade.tachiyomi.ui.player.controls
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -32,9 +31,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,7 +70,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -91,11 +87,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
-import chimahon.keybinding.PlayerWordCursor
+import chimahon.custom.player.sharePointerInputWithSiblings
 import chimahon.keybinding.highlightRequest
 import eu.kanade.presentation.more.settings.screen.player.custombutton.getButtons
 import eu.kanade.presentation.theme.playerRippleConfiguration
-import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.player.CastManager
 import eu.kanade.tachiyomi.ui.player.Dialogs
 import eu.kanade.tachiyomi.ui.player.Panels
@@ -112,7 +107,6 @@ import eu.kanade.tachiyomi.ui.player.controls.components.SeekbarWithTimers
 import eu.kanade.tachiyomi.ui.player.controls.components.TextPlayerUpdate
 import eu.kanade.tachiyomi.ui.player.controls.components.VolumeSlider
 import eu.kanade.tachiyomi.ui.player.controls.components.panels.SubtitlesBorderStyle
-import eu.kanade.tachiyomi.ui.player.controls.components.sharePointerInputWithSiblings
 import eu.kanade.tachiyomi.ui.player.controls.components.sheets.toFixed
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
@@ -120,6 +114,7 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.SubtitleFontResolver
 import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupSelection
+import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupString
 import eu.kanade.tachiyomi.ui.reader.viewer.isLookupStartChar
 import eu.kanade.tachiyomi.util.system.toast
 import `is`.xyz.mpv.MPVLib
@@ -127,7 +122,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.padding
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
@@ -153,7 +147,6 @@ fun PlayerControls(
     val gesturePreferences = remember { Injekt.get<GesturePreferences>() }
     val audioPreferences = remember { Injekt.get<AudioPreferences>() }
     val subtitlePreferences = remember { Injekt.get<SubtitlePreferences>() }
-    val dictionaryPreferences = remember { Injekt.get<DictionaryPreferences>() }
     val interactionSource = remember { MutableInteractionSource() }
     val controlsShown by viewModel.controlsShown.collectAsState()
     val areControlsLocked by viewModel.areControlsLocked.collectAsState()
@@ -174,21 +167,13 @@ fun PlayerControls(
     val subtitlesVisible by viewModel.subtitlesVisible.collectAsState()
     val subtitleCues by viewModel.subtitleHistory.collectAsState()
     val activeSubtitleCueIndex by viewModel.activeSubtitleCueIndex.collectAsState()
-    val currentSource by viewModel.currentSource.collectAsState()
     val primarySubtitleDelaySeconds by viewModel.primarySubtitleDelaySeconds.collectAsState()
     val panel by viewModel.panelShown.collectAsState()
     val activeSubtitleCue = remember(subtitleCues, activeSubtitleCueIndex) {
         subtitleCues.firstOrNull { it.index == activeSubtitleCueIndex }
     }
     // Custom -->
-    val lookupAnime by viewModel.currentAnime.collectAsState()
-    val lookupProfile = remember(lookupAnime?.id, currentSource?.id, currentSource?.lang) {
-        dictionaryPreferences.profileResolver.resolve(
-            animeId = lookupAnime?.id ?: 0L,
-            sourceId = currentSource?.id ?: 0L,
-            sourceLang = currentSource?.lang.orEmpty(),
-        )
-    }
+    val lookupProfile = chimahon.custom.player.rememberPlayerLookupProfile(viewModel)
     // Custom <--
 
     val playerTimeToDisappear by playerPreferences.playerTimeToDisappear().collectAsState()
@@ -202,7 +187,7 @@ fun PlayerControls(
     LaunchedEffect(subtitleLookupRequest?.charOffset) {
         viewModel.wordCursor.onPopup(subtitleLookupRequest?.charOffset, wasPlayerAlreadyPause)
     }
-    BackHandler(enabled = wordCursor != null && subtitleLookupRequest == null) {
+    androidx.activity.compose.BackHandler(enabled = wordCursor != null && subtitleLookupRequest == null) {
         viewModel.wordCursor.end()
     }
     // Custom <--
@@ -303,8 +288,8 @@ fun PlayerControls(
             text = if (subtitlesVisible) currentSubtitleText else "",
             cue = activeSubtitleCue,
             subtitleDelaySeconds = primarySubtitleDelaySeconds,
-            languageCode = lookupProfile.languageCode,
             // Custom -->
+            languageCode = lookupProfile.languageCode,
             // With no popup open, the word under the key cursor is the one highlighted.
             request = subtitleLookupRequest ?: wordCursor?.highlightRequest(),
             wordCursor = viewModel.wordCursor,
@@ -471,8 +456,9 @@ fun PlayerControls(
                     },
                 ) {
                     when (currentPlayerUpdate) {
+                        // is PlayerUpdates.DoubleSpeed -> DoubleSpeedPlayerUpdate()
                         // Custom -->
-                        is PlayerUpdates.DoubleSpeed -> TextPlayerUpdate(stringResource(MR.strings.player_speed, 2f))
+                        is PlayerUpdates.DoubleSpeed -> TextPlayerUpdate(stringResource(tachiyomi.i18n.MR.strings.player_speed, 2f))
                         // Custom <--
                         is PlayerUpdates.AspectRatio -> TextPlayerUpdate(stringResource(aspectRatio.titleRes))
                         is PlayerUpdates.ShowText -> TextPlayerUpdate(
@@ -916,7 +902,7 @@ private fun PlayerSubtitleTextLayer(
     // Null leaves the line without pointer input, so every touch on it reaches the gestures.
     onLookup: ((SubtitleLookupSelection) -> Unit)? = null,
     // Only the line that can be looked up is given the key cursor.
-    wordCursor: PlayerWordCursor? = null,
+    wordCursor: chimahon.keybinding.PlayerWordCursor? = null,
     // Custom <--
     modifier: Modifier = Modifier,
     topAligned: Boolean = false,
@@ -965,24 +951,17 @@ private fun PlayerSubtitleTextLayer(
     // Custom -->
     val currentOnLookup by rememberUpdatedState(onLookup)
     val currentLanguageCode by rememberUpdatedState(languageCode)
-    if (wordCursor != null) {
-        // A key asked for the popup: look the word up as a tap on its first character would.
-        val openAt by wordCursor.openAt.collectAsState()
-        LaunchedEffect(openAt, textLayout, textLayerOrigin) {
-            val offset = openAt?.takeIf { it in subtitleText.indices } ?: return@LaunchedEffect
-            val layout = textLayout ?: return@LaunchedEffect
-            wordCursor.openAt.value = null
-            layout
-                .subtitleLookupSelectionForTap(
-                    subtitleText,
-                    layout.getBoundingBox(offset).center,
-                    cue,
-                    subtitleDelaySeconds,
-                    currentLanguageCode,
-                )
-                ?.offsetBy(textLayerOrigin)
-                ?.let { currentOnLookup?.invoke(it) }
-        }
+    chimahon.keybinding.WordCursorOpenEffect(wordCursor, subtitleText, textLayout, textLayerOrigin) { layout, offset ->
+        layout
+            .subtitleLookupSelectionForTap(
+                subtitleText,
+                layout.getBoundingBox(offset).center,
+                cue,
+                subtitleDelaySeconds,
+                currentLanguageCode,
+            )
+            ?.offsetBy(textLayerOrigin)
+            ?.let { currentOnLookup?.invoke(it) }
     }
     // Custom <--
     val fontSizeSp = (subtitleFontSize * subtitleScale * fontSizeFactor).coerceIn(minFontSize, maxFontSize)
@@ -1082,41 +1061,28 @@ private fun PlayerSubtitleTextLayer(
                     }
                 }
                 // Custom -->
+                // In place of upstream's detectTapGestures block, which claimed every touch on the
+                // line. Only a touch on a word is claimed; the rest is left to the gesture handler.
                 .then(
                     if (onLookup == null) {
                         Modifier
                     } else {
                         // Timing can arrive after the text, or change when an identical line repeats.
-                        Modifier.pointerInput(subtitleText, textLayout, textLayerOrigin, subtitleDelaySeconds, cue) {
-                            awaitEachGesture {
-                                // Claim the touch before the gesture handler sees it, but only on a word.
-                                // Anything else on the line is left unconsumed for it (double tap, swipes).
-                                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                val selection = textLayout
+                        chimahon.custom.player.claimTapWhereHit(
+                            subtitleText, textLayout, textLayerOrigin, subtitleDelaySeconds, cue,
+                            hit = { position ->
+                                textLayout
                                     ?.subtitleLookupSelectionForTap(
                                         subtitleText,
-                                        down.position,
+                                        position,
                                         cue,
                                         subtitleDelaySeconds,
                                         currentLanguageCode,
                                     )
                                     ?.offsetBy(textLayerOrigin)
-                                    ?: return@awaitEachGesture
-                                down.consume()
-                                // Let the down finish its passes, or our own consumption reads as a cancel.
-                                awaitPointerEvent(PointerEventPass.Final)
-
-                                // A release and a long press both open the lookup. A touch that turns into
-                                // a swipe is consumed by the gesture handler and cancels instead.
-                                var cancelled = false
-                                val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                    waitForUpOrCancellation().also { cancelled = it == null }
-                                }
-                                if (cancelled) return@awaitEachGesture
-                                up?.consume()
-                                currentOnLookup?.invoke(selection)
-                            }
-                        }
+                            },
+                            onActivate = { currentOnLookup?.invoke(it) },
+                        )
                     },
                 ),
             // Custom <--
@@ -1168,15 +1134,19 @@ private fun TextLayoutResult.subtitleLookupSelectionForTap(
     position: Offset,
     cue: PlayerViewModel.SubtitleCue?,
     subtitleDelaySeconds: Double,
-    languageCode: String,
+    /* Custom --> */ languageCode: String, /* Custom <-- */
 ): SubtitleLookupSelection? {
     if (text.isBlank()) return null
     val offset = lookupOffsetForPosition(text, position) ?: return null
     if (offset !in text.indices || !isLookupStartChar(text[offset])) return null
+    // Custom -->
+    // In place of upstream's extractOcrLookupString: the selection can start before the tapped
+    // character, at the beginning of its word.
     val lookupSelection = extractOcrLookupSelection(text, offset, languageCode) ?: return null
     val lookupString = lookupSelection.text
     val anchor = lookupAnchorRect(text, lookupSelection.startOffset, lookupString) ?: return null
     val lineIndex = getLineForOffset(lookupSelection.startOffset.coerceIn(0, text.lastIndex))
+    // Custom <--
     val lineStart = getLineStart(lineIndex)
     val lineEnd = getLineEnd(lineIndex, visibleEnd = true).coerceAtLeast(lineStart)
     val lineText = text.substring(lineStart, lineEnd)
@@ -1185,7 +1155,7 @@ private fun TextLayoutResult.subtitleLookupSelectionForTap(
     return SubtitleLookupSelection(
         lookupString = lookupString,
         fullText = text,
-        charOffset = lookupSelection.startOffset,
+        charOffset = /* Custom --> */ lookupSelection.startOffset /* Custom <-- */,
         tapCharOffset = offset,
         lineText = lineText,
         lineIndex = lineIndex,

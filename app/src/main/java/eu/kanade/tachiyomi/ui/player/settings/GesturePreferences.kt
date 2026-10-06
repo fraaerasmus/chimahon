@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
-import eu.kanade.tachiyomi.ui.player.LongPressGesture
+import chimahon.custom.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
-import eu.kanade.tachiyomi.ui.player.VerticalSwipeGesture
+import chimahon.custom.player.VerticalSwipeGesture
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 

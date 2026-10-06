@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.player.controls.components.panels
+package chimahon.custom.player
 
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel.SubtitleCue
 import org.junit.jupiter.api.Assertions.assertEquals

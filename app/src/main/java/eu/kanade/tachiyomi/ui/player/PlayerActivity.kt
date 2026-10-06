@@ -61,7 +61,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.media.AudioAttributesCompat
 import androidx.media.AudioFocusRequestCompat
 import androidx.media.AudioManagerCompat
-import chimahon.keybinding.PlayerKeyController
 import com.hippo.unifile.UniFile
 import eu.kanade.domain.connections.service.ConnectionsPreferences
 import eu.kanade.presentation.theme.TachiyomiTheme
@@ -93,7 +92,6 @@ import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
 import eu.kanade.tachiyomi.ui.player.utils.safeResumePositionMillis
-import eu.kanade.tachiyomi.ui.youtube.YouTubeResolver
 import eu.kanade.tachiyomi.util.system.powerManager
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
@@ -120,7 +118,6 @@ import tachiyomi.i18n.ank.AMR
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -140,8 +137,7 @@ class PlayerActivity : BaseActivity() {
     private var mediaSession: MediaSession? = null
 
     // Custom -->
-    @Volatile
-    private var jellyfinReporter: JellyfinPlaybackReporter? = null
+    private val sessionReporters = chimahon.custom.player.PlayerSessionReporters()
     // Custom <--
     private val gesturePreferences: GesturePreferences by lazy { viewModel.gesturePreferences }
     private val playerPreferences: PlayerPreferences by lazy { viewModel.playerPreferences }
@@ -359,7 +355,7 @@ class PlayerActivity : BaseActivity() {
         // Custom -->
         // YouTube links shared from outside the in-app browser arrive as plain VIEW
         // intents; route them through the resolver too, since mpv can't open watch pages
-        if (data?.toString()?.let { YouTubeResolver.isYouTubeUrl(it) } == true) return true
+        if (data?.toString()?.let { eu.kanade.tachiyomi.ui.youtube.YouTubeResolver.isYouTubeUrl(it) } == true) return true
         // Custom <--
         return false
     }
@@ -566,18 +562,13 @@ class PlayerActivity : BaseActivity() {
         mediaSession?.let {
             it.isActive = false
             // Custom -->
-            it.setPlaybackState(
-                PlaybackState.Builder(it.controller.playbackState)
-                    .setState(PlaybackState.STATE_STOPPED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0f)
-                    .build(),
-            )
+            sessionReporters.publishStopped(it)
             // Custom <--
             it.release()
         }
         // Custom -->
         mediaSession = null
-        jellyfinReporter?.stop()
-        jellyfinReporter = null
+        sessionReporters.release()
         // Custom <--
 
         if (noisyReceiver.initialized) {
@@ -817,15 +808,11 @@ class PlayerActivity : BaseActivity() {
                 val outFile = File("$configDir/$filename")
                 // Note that .available() officially returns an *estimated* number of bytes available
                 // this is only true for generic streams, asset streams return the full file size
-                // Custom -->
-                // A restored or damaged file can match in size while being unreadable (e.g. after a
-                // device migration strips permissions), so also verify a byte can actually be read
-                val isIntact = outFile.length() == ins.available().toLong() &&
-                    runCatching { FileInputStream(outFile).use { it.read() } }.isSuccess
-                if (isIntact) {
+                if (/* Custom --> */ chimahon.custom.player.PlayerAssets.isIntact(outFile, ins) /* Custom <-- */) {
                     logcat(LogPriority.VERBOSE) { "Skipping copy of asset file (exists same size): $filename" }
                     continue
                 }
+                // Custom -->
                 // Delete first: an unreadable file may not be writable either
                 outFile.delete()
                 // Custom <--
@@ -1089,17 +1076,7 @@ class PlayerActivity : BaseActivity() {
     internal fun onObserverEvent(property: String, value: Boolean) {
         // Custom -->
         // Before the isExiting guard: backgrounding sets isExiting, then pauses
-        if (property == "pause") {
-            mediaSession?.let {
-                val state = if (value) PlaybackState.STATE_PAUSED else PlaybackState.STATE_PLAYING
-                it.setPlaybackState(
-                    PlaybackState.Builder(it.controller.playbackState)
-                        .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
-                        .build(),
-                )
-            }
-            jellyfinReporter?.setPaused(value)
-        }
+        if (property == "pause") sessionReporters.onPauseChanged(mediaSession, value)
         // Custom <--
         if (player.isExiting) return
         when (property) {
@@ -1287,21 +1264,7 @@ class PlayerActivity : BaseActivity() {
     }
 
     // Custom -->
-    private val keyController by lazy {
-        PlayerKeyController(
-            viewModel = viewModel,
-            goBack = {
-                // Sheets and popups close through the dispatcher. With none open its own fallback
-                // would skip onBackPressed, which is where leaving into picture in picture lives.
-                if (onBackPressedDispatcher.hasEnabledCallbacks()) {
-                    onBackPressedDispatcher.onBackPressed()
-                } else {
-                    @Suppress("DEPRECATION")
-                    onBackPressed()
-                }
-            },
-        )
-    }
+    private val keyController by lazy { chimahon.keybinding.PlayerKeyController.forActivity(this, viewModel) }
 
     // Bound keys are taken here, ahead of whichever view holds focus. The rest carry on below.
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
@@ -1901,12 +1864,7 @@ class PlayerActivity : BaseActivity() {
     private fun fileLoaded() {
         if (player.isExiting) return
         // Custom -->
-        // Every load is a new play session on the server: next episode, quality switch
-        jellyfinReporter?.stop(atLastReported = true)
-        jellyfinReporter = viewModel.currentVideo.value
-            ?.let { JellyfinPlaybackReporter.parseTarget(it.videoUrl, it.headers) }
-            ?.let { target -> JellyfinPlaybackReporter(target) { viewModel.pos.value } }
-            ?.also { it.start(paused = player.paused == true) }
+        sessionReporters.onFileLoaded(viewModel.currentVideo.value, paused = player.paused == true) { viewModel.pos.value }
         // Custom <--
 
         // KMK -->

@@ -2,10 +2,8 @@ package eu.kanade.tachiyomi.ui.player.controls.components.panels
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,27 +17,16 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -67,7 +54,7 @@ fun SubtitleListPanel(
             cues = cues,
             activeCueIndex = activeCueIndex,
             onSelectCue = onSelectCue,
-            positionSeconds = positionSeconds,
+            /* Custom --> */ positionSeconds = positionSeconds, /* Custom <-- */
             modifier = Modifier.align(Alignment.CenterEnd),
         )
     }
@@ -78,7 +65,7 @@ private fun SubtitleSideList(
     cues: ImmutableList<SubtitleCue>,
     activeCueIndex: Int?,
     onSelectCue: (Int) -> Unit,
-    positionSeconds: () -> Double,
+    /* Custom --> */ positionSeconds: () -> Double, /* Custom <-- */
     modifier: Modifier = Modifier,
 ) {
     val configuration = LocalConfiguration.current
@@ -89,7 +76,7 @@ private fun SubtitleSideList(
         cues = cues,
         activeCueIndex = activeCueIndex,
         onSelectCue = onSelectCue,
-        positionSeconds = positionSeconds,
+        /* Custom --> */ positionSeconds = positionSeconds, /* Custom <-- */
         modifier = modifier
             .padding(end = 8.dp, top = 36.dp, bottom = 36.dp)
             .width(width)
@@ -102,25 +89,14 @@ private fun SubtitleCueLazyList(
     cues: ImmutableList<SubtitleCue>,
     activeCueIndex: Int?,
     onSelectCue: (Int) -> Unit,
-    positionSeconds: () -> Double,
+    /* Custom --> */ positionSeconds: () -> Double, /* Custom <-- */
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     // Custom -->
-    val activePosition = cues.indexOfFirst { it.index == activeCueIndex }
-    var hasFollowed by remember { mutableStateOf(false) }
-
-    // Keyed on the cue itself: once the history is capped, a new line no longer moves the last position.
-    LaunchedEffect(activeCueIndex, activePosition, cues.isEmpty()) {
-        if (cues.isEmpty()) return@LaunchedEffect
-        val target = when {
-            activePosition >= 0 -> activePosition
-            // No line is active between cues. Stay put rather than jumping away and back.
-            hasFollowed -> return@LaunchedEffect
-            else -> fallbackPosition(cues, positionSeconds())
-        }
-        hasFollowed = true
-        listState.animateScrollToCenteredItem(target)
+    // In place of upstream's scroll-to-active effect, which jumped to the last line between cues.
+    chimahon.custom.player.FollowActiveCue(cues, activeCueIndex, positionSeconds) {
+        listState.animateScrollToCenteredItem(it)
     }
     // Custom <--
 
@@ -132,24 +108,27 @@ private fun SubtitleCueLazyList(
     BoxWithConstraints(modifier = modifier) {
         // Custom -->
         // Long press a line to select text and get the system text menu (copy, translate, lookup).
-        SelectionContainer {
-            // Custom <--
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(vertical = 4.dp),
-                contentPadding = PaddingValues(vertical = this@BoxWithConstraints.maxHeight * 0.5f),
-            ) {
-                items(cues, key = { it.index }) { cue ->
-                    SubtitleCueSideRow(
-                        cue = cue,
-                        selected = cue.index == activeCueIndex,
-                        onClick = { onSelectCue(cue.index) },
-                    )
-                }
+        // Wraps the list below without re-indenting it, so upstream's lines stay as they are.
+        androidx.compose.foundation.text.selection.SelectionContainer {
+        // Custom <--
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 4.dp),
+            contentPadding = PaddingValues(vertical = maxHeight * 0.5f),
+        ) {
+            items(cues, key = { it.index }) { cue ->
+                SubtitleCueSideRow(
+                    cue = cue,
+                    selected = cue.index == activeCueIndex,
+                    onClick = { onSelectCue(cue.index) },
+                )
             }
         }
+        // Custom -->
+        }
+        // Custom <--
     }
 }
 
@@ -161,7 +140,8 @@ private suspend fun LazyListState.animateScrollToCenteredItem(index: Int) {
 
     val item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return
     // Custom -->
-    val scrollDelta = centeredScrollDelta(
+    // In place of upstream's centre from the viewport height, which ignored the content padding.
+    val scrollDelta = chimahon.custom.player.centeredScrollDelta(
         itemOffset = item.offset,
         itemSize = item.size,
         viewportStartOffset = layoutInfo.viewportStartOffset,
@@ -174,32 +154,6 @@ private suspend fun LazyListState.animateScrollToCenteredItem(index: Int) {
     }
 }
 
-// Custom -->
-/**
- * How far to scroll so an item sits in the middle of the viewport.
- *
- * Item offsets start where the top content padding ends, so the centre has to come from the viewport
- * offsets, which share that origin. The viewport height does not, and put the item on the bottom edge.
- */
-internal fun centeredScrollDelta(
-    itemOffset: Int,
-    itemSize: Int,
-    viewportStartOffset: Int,
-    viewportEndOffset: Int,
-): Int {
-    val viewportCenter = (viewportStartOffset + viewportEndOffset) / 2
-    val itemCenter = itemOffset + itemSize / 2
-    return itemCenter - viewportCenter
-}
-
-/**
- * Where to open the list while no line is active: the last line that started by [positionSeconds].
- */
-internal fun fallbackPosition(cues: List<SubtitleCue>, positionSeconds: Double): Int {
-    return cues.indexOfLast { it.positionSeconds <= positionSeconds }.coerceAtLeast(0)
-}
-// Custom <--
-
 @Composable
 private fun SubtitleCueSideRow(
     cue: SubtitleCue,
@@ -207,32 +161,13 @@ private fun SubtitleCueSideRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Custom -->
-    val currentOnClick by rememberUpdatedState(onClick)
-    // Custom <--
     Text(
         text = cue.text,
         modifier = modifier
             .fillMaxWidth()
             // Custom -->
-            // Not clickable: it claims the touch and also fires when a long hold is released, so
-            // selecting text would seek. This leaves the touch unconsumed and ignores long holds.
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                        waitForUpOrCancellation()
-                    }
-                    if (up != null) currentOnClick()
-                }
-            }
-            .semantics {
-                role = Role.Button
-                onClick {
-                    currentOnClick()
-                    true
-                }
-            }
+            // In place of `.clickable(onClick = onClick)`, which would seek when a text selection ends.
+            .then(chimahon.custom.player.tapLeavingLongPress(onClick))
             // Custom <--
             .background(activeLineColor(selected), RoundedCornerShape(2.dp))
             .padding(horizontal = 12.dp, vertical = 7.dp),
@@ -276,4 +211,10 @@ private fun activeLineColor(selected: Boolean): Color {
     } else {
         Color.Transparent
     }
+}
+
+private fun activePosition(cues: List<SubtitleCue>, activeCueIndex: Int?): Int {
+    if (cues.isEmpty()) return 0
+    val active = cues.indexOfFirst { it.index == activeCueIndex }
+    return if (active >= 0) active else cues.lastIndex
 }

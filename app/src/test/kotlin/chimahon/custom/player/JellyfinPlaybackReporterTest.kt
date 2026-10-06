@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.player
+package chimahon.custom.player
 
 import okhttp3.Headers
 import org.junit.jupiter.api.Assertions.assertEquals

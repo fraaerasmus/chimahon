@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.player
+package chimahon.custom.player
 
 import eu.kanade.tachiyomi.network.NetworkHelper
 import kotlinx.coroutines.CoroutineScope

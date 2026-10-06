@@ -526,18 +526,7 @@ class PlayerViewModel @JvmOverloads constructor(
                             subTracks.add(track)
                             rememberParsedSubtitleTrack(track)
                         }
-                        "audio" -> {
-                            // Custom -->
-                            audioTracks.add(
-                                VideoTrack(
-                                    id = getTrackMPVId(i),
-                                    name = getTrackTitle(i),
-                                    language = getTrackLanguage(i),
-                                    externalFilename = getTrackExternalFilename(i),
-                                ),
-                            )
-                            // Custom <--
-                        }
+                        "audio" -> audioTracks.add(VideoTrack(getTrackMPVId(i), getTrackTitle(i), getTrackLanguage(i) /* Custom --> */, externalFilename = getTrackExternalFilename(i) /* Custom <-- */))
                         else -> error("Unrecognized track type")
                     }
                 }

@@ -1,6 +1,7 @@
 package chimahon.keybinding
 
 import android.view.KeyEvent
+import androidx.activity.ComponentActivity
 import eu.kanade.tachiyomi.ui.player.Dialogs
 import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
@@ -106,6 +107,23 @@ class PlayerKeyController(
                 if (command.isNotEmpty()) MPVLib.command(command.toTypedArray())
             }
         }
+    }
+
+    companion object {
+        /** The controller for the player activity, with back going where the system back key goes. */
+        fun forActivity(activity: ComponentActivity, viewModel: PlayerViewModel) = PlayerKeyController(
+            viewModel = viewModel,
+            goBack = {
+                // Sheets and popups close through the dispatcher. With none open its own fallback
+                // would skip onBackPressed, which is where leaving into picture in picture lives.
+                if (activity.onBackPressedDispatcher.hasEnabledCallbacks()) {
+                    activity.onBackPressedDispatcher.onBackPressed()
+                } else {
+                    @Suppress("DEPRECATION")
+                    activity.onBackPressed()
+                }
+            },
+        )
     }
 
     private fun changeVolume(steps: Int) {

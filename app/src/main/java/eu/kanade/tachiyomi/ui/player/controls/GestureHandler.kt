@@ -61,12 +61,12 @@ import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.player.components.LeftSideOvalShape
 import eu.kanade.presentation.player.components.RightSideOvalShape
 import eu.kanade.presentation.theme.playerRippleConfiguration
-import eu.kanade.tachiyomi.ui.player.LongPressGesture
+import chimahon.custom.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.Sheets
-import eu.kanade.tachiyomi.ui.player.VerticalSwipeGesture
+import chimahon.custom.player.VerticalSwipeGesture
 import eu.kanade.tachiyomi.ui.player.controls.components.DoubleTapSeekTriangles
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
@@ -86,17 +86,6 @@ import kotlin.math.abs
 
 private const val SUBTITLE_SWIPE_TIME_LIMIT_MILLIS = 500L
 private const val SUBTITLE_SWIPE_DOMINANCE_RATIO = 1.2f
-
-// Custom -->
-private const val HORIZONTAL_SEEK_SECONDS_PER_PIXEL = 0.15f
-
-/**
- * Seconds a horizontal swipe seeks for each pixel travelled, scaled by the user's sensitivity.
- */
-internal fun horizontalSeekSecondsPerPixel(sensitivityPercent: Int): Float {
-    return HORIZONTAL_SEEK_SECONDS_PER_PIXEL * sensitivityPercent / 100f
-}
-// Custom <--
 
 internal enum class SubtitleSwipeAction {
     ToggleVisibility,
@@ -191,7 +180,7 @@ fun GestureHandler(
             .windowInsetsPadding(WindowInsets.safeGestures)
             .pointerInput(Unit) {
                 coroutineScope {
-                    var originalSpeed = viewModel.playbackSpeed.value
+                    /* Custom --> */ var /* Custom <-- */ originalSpeed = viewModel.playbackSpeed.value
                     var pendingSingleTap: Job? = null
                     var lastTapAt = 0L
                     var lastTapX = 0f
@@ -290,8 +279,10 @@ fun GestureHandler(
                         onLongPress = {
                             pendingSingleTap?.cancel()
                             lastTapAt = 0L
-                            if (areControlsLocked) return@detectTapGestures
                             // Custom -->
+                            // In place of `if (areControlsLocked || disableLongPressScr) return`: the
+                            // screenshot switch only applies while long press takes screenshots.
+                            if (areControlsLocked) return@detectTapGestures
                             if (longPressGesture == LongPressGesture.Screenshot && disableLongPressScr) {
                                 return@detectTapGestures
                             }
@@ -321,7 +312,7 @@ fun GestureHandler(
                     )
                 }
             }
-            .pointerInput(areControlsLocked, subtitleSwipeControls, subtitleSwipeDistance, subtitleVerticalSwipe) {
+            .pointerInput(areControlsLocked, subtitleSwipeControls, subtitleSwipeDistance /* Custom --> */, subtitleVerticalSwipe /* Custom <-- */) {
                 if (!subtitleSwipeControls || areControlsLocked) return@pointerInput
                 var startedAt = 0L
                 var totalDragX = 0f
@@ -329,26 +320,14 @@ fun GestureHandler(
                 // Custom -->
                 if (!subtitleVerticalSwipe) {
                     // Vertical swipes belong to volume/brightness, so only claim horizontal drags.
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            startedAt = SystemClock.uptimeMillis()
-                            totalDragX = 0f
-                        },
-                        onDragEnd = {
-                            if (SystemClock.uptimeMillis() - startedAt > SUBTITLE_SWIPE_TIME_LIMIT_MILLIS) {
-                                return@detectHorizontalDragGestures
-                            }
-
-                            when (resolveSubtitleSwipeAction(totalDragX, 0f, subtitleSwipeDistance)) {
+                    with(chimahon.custom.player.CustomGestures) {
+                        detectQuickHorizontalSwipe(SUBTITLE_SWIPE_TIME_LIMIT_MILLIS) { dragX ->
+                            when (resolveSubtitleSwipeAction(dragX, 0f, subtitleSwipeDistance)) {
                                 SubtitleSwipeAction.Previous -> viewModel.seekToAdjacentSubtitle(forward = false)
                                 SubtitleSwipeAction.Next -> viewModel.seekToAdjacentSubtitle(forward = true)
                                 else -> Unit
                             }
-                        },
-                        onDragCancel = { totalDragX = 0f },
-                    ) { change, dragAmount ->
-                        totalDragX += dragAmount
-                        change.consume()
+                        }
                     }
                     return@pointerInput
                 }
@@ -404,14 +383,7 @@ fun GestureHandler(
                 ) { change, dragAmount ->
                     if (position <= 0f && dragAmount < 0) return@detectHorizontalDragGestures
                     if (position >= duration && dragAmount > 0) return@detectHorizontalDragGestures
-                    // Custom -->
-                    calculateNewHorizontalGestureValue(
-                        startingPosition,
-                        startingX,
-                        change.position.x,
-                        horizontalSeekSecondsPerPixel(seekSensitivity),
-                    ).let {
-                        // Custom <--
+                    calculateNewHorizontalGestureValue(startingPosition, startingX, change.position.x, /* Custom --> */ chimahon.custom.player.CustomGestures.horizontalSeekSecondsPerPixel(seekSensitivity) /* Custom <-- */).let {
                         viewModel.gestureSeekAmount.update { _ ->
                             Pair(
                                 startingPosition,
