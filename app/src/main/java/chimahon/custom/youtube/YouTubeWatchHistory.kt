@@ -1,6 +1,5 @@
 package chimahon.custom.youtube
 
-import android.webkit.CookieManager
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.data.database.models.Episode
 import eu.kanade.tachiyomi.network.NetworkHelper
@@ -44,7 +43,7 @@ import kotlin.random.Random
  */
 object YouTubeWatchHistory {
 
-    private const val ORIGIN = "https://www.youtube.com"
+    private const val ORIGIN = YouTubeAccount.ORIGIN
     private const val PLAYER_ENDPOINT = "$ORIGIN/youtubei/v1/player?prettyPrint=false"
     private const val WEB_CLIENT_VERSION = "2.20260101.00.00"
     private const val USER_AGENT =
@@ -80,7 +79,7 @@ object YouTubeWatchHistory {
 
     /** Null when not signed in, or when YouTube returns no tracking URLs for the video. */
     suspend fun open(videoId: String, client: OkHttpClient = Injekt.get<NetworkHelper>().client): Session? {
-        if (sapisid() == null) return null
+        if (!YouTubeAccount.isSignedIn) return null
         return try {
             val body = """{"context":{"client":{"clientName":"WEB","clientVersion":"$WEB_CLIENT_VERSION"}},"videoId":"$videoId"}"""
             val request = signedRequest(PLAYER_ENDPOINT)
@@ -104,18 +103,9 @@ object YouTubeWatchHistory {
             .header("User-Agent", USER_AGENT)
             .header("Origin", ORIGIN)
             .header("X-Origin", ORIGIN)
-        sapisid()?.let { builder.header("Authorization", "SAPISIDHASH ${sapisidHash(it, ORIGIN)}") }
+        YouTubeAccount.sapisid()?.let { builder.header("Authorization", "SAPISIDHASH ${sapisidHash(it, ORIGIN)}") }
         return builder
     }
-
-    private fun sapisid(): String? = runCatching {
-        CookieManager.getInstance().getCookie(ORIGIN)
-            ?.split(';')
-            ?.map { it.trim() }
-            ?.firstOrNull { it.startsWith("SAPISID=") }
-            ?.substringAfter('=')
-            ?.takeIf { it.isNotBlank() }
-    }.getOrNull()
 
     // Pure helpers below are what the unit tests cover.
 

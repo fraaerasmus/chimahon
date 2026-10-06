@@ -1,6 +1,5 @@
 package chimahon.custom.youtube
 
-import android.net.Uri
 import android.webkit.CookieManager
 import android.webkit.WebView
 import androidx.compose.material.icons.Icons
@@ -122,15 +121,9 @@ fun YouTubeBrowserActions(navigation: YouTubeBrowserNavigation) {
 
 /**
  * Which page a fresh browser opens on. Explicit browse targets win; otherwise the retained
- * session is restored, then the configured start page is loaded. A fresh session set to start
- * on Watch history falls back to Home when it turns out nobody is signed in.
- *
- * One instance per WebView.
+ * session is restored, then the configured start page is loaded.
  */
-class YouTubeBrowserStart(private val preferences: YouTubeCustomPreferences) {
-    private var pendingFreshHistoryLoginCheck = false
-    private var clearHistoryOnHomeFinish = false
-
+object YouTubeBrowserStart {
     /** Loads the first page into [view]. [onRestored] runs when a retained session was restored instead. */
     fun loadFirstPage(view: WebView, targetUrl: String?, listingQuery: String?, onRestored: () -> Unit) {
         val retainedSession = YouTubeBrowserSession.consume()
@@ -143,94 +136,24 @@ class YouTubeBrowserStart(private val preferences: YouTubeCustomPreferences) {
                 view.loadUrl(YouTubeSource.baseUrl + YouTubeSource.SUBSCRIPTIONS_SUFFIX)
             restoredState != null -> onRestored()
             retainedSession?.currentUrl != null -> view.loadUrl(retainedSession.currentUrl)
-            preferences.preferredStartPage == YouTubeCustomPreferences.START_PAGE_HISTORY -> {
-                pendingFreshHistoryLoginCheck = true
-                view.loadUrl(YOUTUBE_HISTORY_URL)
+            else -> {
+                val startPage = startPage(YouTubeCustomPreferences.get().preferredStartPage, YouTubeAccount.isSignedIn)
+                val path = if (startPage == YouTubeCustomPreferences.START_PAGE_HISTORY) HISTORY_SUFFIX else ""
+                view.loadUrl(YouTubeSource.baseUrl + path)
             }
-            else -> view.loadUrl(YouTubeSource.baseUrl)
         }
     }
 
     /**
-     * [currentWebView] is the screen's live WebView, to drop a late answer for one that is gone.
-     * [onHistoryCleared] runs after the detour through the history page has been dropped from
-     * the back stack.
+     * The start page to open: the [preferred] one, except that Watch history needs an account.
+     * Signed out it only shows a sign-in prompt, so Home is opened instead.
      */
-    fun onPageFinished(
-        view: WebView?,
-        url: String?,
-        currentWebView: () -> WebView?,
-        onHistoryCleared: () -> Unit,
-    ) {
-        if (clearHistoryOnHomeFinish && isYouTubeHomeUrl(url)) {
-            clearHistoryOnHomeFinish = false
-            view?.clearHistory()
-            onHistoryCleared()
+    internal fun startPage(preferred: String, signedIn: Boolean): String =
+        if (preferred == YouTubeCustomPreferences.START_PAGE_HISTORY && !signedIn) {
+            YouTubeCustomPreferences.START_PAGE_HOME
+        } else {
+            preferred
         }
 
-        if (pendingFreshHistoryLoginCheck && isYouTubeHistoryUrl(url)) {
-            pendingFreshHistoryLoginCheck = false
-            checkYouTubeLoggedIn(view) { isLoggedIn ->
-                val activeView = view
-                if (
-                    isLoggedIn == false &&
-                    activeView != null &&
-                    activeView === currentWebView() &&
-                    isYouTubeHistoryUrl(activeView.url)
-                ) {
-                    clearHistoryOnHomeFinish = true
-                    activeView.loadUrl(YOUTUBE_HOME_URL)
-                }
-            }
-        }
-    }
-
-    private fun isYouTubeHistoryUrl(url: String?): Boolean {
-        val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return false
-        return uri.isYouTubeHost() && uri.path.orEmpty().trimEnd('/') == "/feed/history"
-    }
-
-    private fun isYouTubeHomeUrl(url: String?): Boolean {
-        val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return false
-        return uri.isYouTubeHost() && uri.path.orEmpty().trimEnd('/').isEmpty()
-    }
-
-    private fun Uri.isYouTubeHost(): Boolean {
-        val normalizedHost = host.orEmpty().lowercase()
-        return normalizedHost == "youtube.com" || normalizedHost.endsWith(".youtube.com")
-    }
-
-    private fun checkYouTubeLoggedIn(view: WebView?, onResult: (Boolean?) -> Unit) {
-        if (view == null) {
-            onResult(null)
-            return
-        }
-
-        val script = """
-(function() {
-    try {
-        if (!window.ytcfg || typeof window.ytcfg.get !== 'function') return null;
-        var loggedIn = window.ytcfg.get('LOGGED_IN');
-        if (loggedIn === undefined || loggedIn === null) return null;
-        return loggedIn === true || loggedIn === 'true';
-    } catch (e) {
-        return null;
-    }
-})();
-        """.trimIndent()
-        view.evaluateJavascript(script) { value ->
-            onResult(
-                when (value) {
-                    "true" -> true
-                    "false" -> false
-                    else -> null
-                },
-            )
-        }
-    }
-
-    private companion object {
-        const val YOUTUBE_HOME_URL = "https://m.youtube.com/"
-        const val YOUTUBE_HISTORY_URL = "https://www.youtube.com/feed/history"
-    }
+    private const val HISTORY_SUFFIX = "feed/history"
 }

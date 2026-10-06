@@ -111,11 +111,6 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                             val mainHandler = Handler(Looper.getMainLooper())
                             var lastPlayerLaunchVideoId = ""
                             var lastPlayerLaunchAt = 0L
-                            // Custom -->
-                            val start = chimahon.custom.youtube.YouTubeBrowserStart(
-                                chimahon.custom.youtube.YouTubeCustomPreferences(context.applicationContext),
-                            )
-                            // Custom <--
 
                             fun openInPlayer(url: String) {
                                 val videoId = getDirectYouTubeVideoId(url) ?: return
@@ -230,9 +225,6 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                         isLoading = false
                                         CookieManager.getInstance().flush()
                                         injectInterceptScript(view)
-                                        // Custom -->
-                                        start.onPageFinished(view, url, currentWebView = { webView }) { browser.update(view) }
-                                        // Custom <--
                                     }
                                 }
 
@@ -249,7 +241,9 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                 // Custom -->
                                 // In place of upstream's target / latest / home chain: explicit browse
                                 // targets still win, then the retained session, then the start page.
-                                start.loadFirstPage(this, targetUrl, listingQuery) { browser.update(this) }
+                                chimahon.custom.youtube.YouTubeBrowserStart.loadFirstPage(this, targetUrl, listingQuery) {
+                                    browser.update(this)
+                                }
                                 // Custom <--
                             }
                         },

@@ -44,42 +44,20 @@ fun YouTubeStartPageSettings() {
     Spacer(modifier = Modifier.height(8.dp))
 
     YouTubeCustomPreferences.START_PAGES.forEach { startPage ->
-        val label = when (startPage) {
-            YouTubeCustomPreferences.START_PAGE_HISTORY -> {
-                stringResource(AMR.strings.youtube_start_page_history)
-            }
-            else -> stringResource(AMR.strings.youtube_start_page_home)
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    selectedStartPage = startPage
-                    preferences.preferredStartPage = startPage
-                }
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RadioButton(
-                selected = selectedStartPage == startPage,
-                onClick = {
-                    selectedStartPage = startPage
-                    preferences.preferredStartPage = startPage
-                },
-            )
-            Text(
-                text = label,
-                modifier = Modifier.padding(start = 12.dp),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
+        RadioRow(
+            label = when (startPage) {
+                YouTubeCustomPreferences.START_PAGE_HISTORY -> stringResource(AMR.strings.youtube_start_page_history)
+                else -> stringResource(AMR.strings.youtube_start_page_home)
+            },
+            selected = selectedStartPage == startPage,
+            onSelect = {
+                selectedStartPage = startPage
+                preferences.preferredStartPage = startPage
+            },
+        )
     }
 
-    Text(
-        text = stringResource(AMR.strings.youtube_start_page_summary),
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.bodySmall,
-    )
+    Summary(stringResource(AMR.strings.youtube_start_page_summary))
 
     Spacer(modifier = Modifier.height(24.dp))
 }
@@ -103,69 +81,27 @@ fun YouTubePlaybackAndLookupSettings() {
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = preferReliableAudio,
-                onValueChange = {
-                    preferReliableAudio = it
-                    preferences.preferReliableAudio = it
-                },
-            )
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(
-            checked = preferReliableAudio,
-            onCheckedChange = null,
-        )
-
-        Column(modifier = Modifier.padding(start = 12.dp)) {
-            Text(
-                text = stringResource(AMR.strings.youtube_prefer_reliable_audio),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = stringResource(AMR.strings.youtube_prefer_reliable_audio_summary),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
+    CheckboxRow(
+        title = stringResource(AMR.strings.youtube_prefer_reliable_audio),
+        summary = stringResource(AMR.strings.youtube_prefer_reliable_audio_summary),
+        checked = preferReliableAudio,
+        onCheckedChange = {
+            preferReliableAudio = it
+            preferences.preferReliableAudio = it
+        },
+    )
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = syncWatchHistory,
-                onValueChange = {
-                    syncWatchHistory = it
-                    preferences.syncWatchHistory = it
-                },
-            )
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(
-            checked = syncWatchHistory,
-            onCheckedChange = null,
-        )
-
-        Column(modifier = Modifier.padding(start = 12.dp)) {
-            Text(
-                text = stringResource(AMR.strings.youtube_sync_watch_history),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = stringResource(AMR.strings.youtube_sync_watch_history_summary),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
+    CheckboxRow(
+        title = stringResource(AMR.strings.youtube_sync_watch_history),
+        summary = stringResource(AMR.strings.youtube_sync_watch_history_summary),
+        checked = syncWatchHistory,
+        onCheckedChange = {
+            syncWatchHistory = it
+            preferences.syncWatchHistory = it
+        },
+    )
 
     Spacer(modifier = Modifier.height(16.dp))
 
@@ -184,31 +120,61 @@ fun YouTubePlaybackAndLookupSettings() {
         ),
     ) + dictionaryProfiles.map { it.id to it.name }
     profileOptions.forEach { (profileId, label) ->
-        val select = {
-            selectedProfileId = profileId
-            if (profileId.isEmpty()) profileOverride.delete() else profileOverride.set(profileId)
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = select)
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            RadioButton(
-                selected = selectedProfileId == profileId,
-                onClick = select,
-            )
-            Text(
-                text = label,
-                modifier = Modifier.padding(start = 12.dp),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
+        RadioRow(
+            label = label,
+            selected = selectedProfileId == profileId,
+            onSelect = {
+                selectedProfileId = profileId
+                if (profileId.isEmpty()) profileOverride.delete() else profileOverride.set(profileId)
+            },
+        )
     }
 
+    Summary(stringResource(AMR.strings.youtube_dictionary_profile_summary))
+}
+
+// The rows below match the hand-built ones on upstream's YouTube settings screen, which uses no
+// preference widgets.
+
+@Composable
+private fun RadioRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSelect)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onSelect)
+        Text(
+            text = label,
+            modifier = Modifier.padding(start = 12.dp),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+    }
+}
+
+@Composable
+private fun CheckboxRow(title: String, summary: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, onValueChange = onCheckedChange)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Column(modifier = Modifier.padding(start = 12.dp)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Summary(summary)
+        }
+    }
+}
+
+@Composable
+private fun Summary(text: String) {
     Text(
-        text = stringResource(AMR.strings.youtube_dictionary_profile_summary),
+        text = text,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodySmall,
     )
