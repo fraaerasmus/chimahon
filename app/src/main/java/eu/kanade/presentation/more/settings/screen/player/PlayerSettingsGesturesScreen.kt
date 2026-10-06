@@ -18,12 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.screen.SearchableSettings
-import chimahon.custom.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
-import chimahon.custom.player.VerticalSwipeGesture
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
-import java.text.NumberFormat
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
@@ -36,11 +33,6 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 object PlayerSettingsGesturesScreen : SearchableSettings {
-
-    // Custom -->
-    // The seek sensitivity slider moves in steps of 10%, from 10% to 300%
-    private const val SEEK_SENSITIVITY_STEP = 10
-    // Custom <--
 
     @ReadOnlyComposable
     @Composable
@@ -65,13 +57,6 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val swapVol = gesturePreferences.swapVolumeBrightness()
         val subtitleSwipeControls by gesturePreferences.subtitleSwipeControls().collectAsState()
         val disableLongPressScr = playerPreferences.disableLongPressScreenshot()
-        // Custom -->
-        val longPressGesture = gesturePreferences.longPressGesture()
-        val longPressAction by longPressGesture.collectAsState()
-        val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
-        val slidersAvailable = !subtitleSwipeControls ||
-            subtitleSwipeVertical == VerticalSwipeGesture.VolumeBrightness
-        // Custom <--
 
         return Preference.PreferenceGroup(
             title = stringResource(MR.strings.pref_category_player_sliders),
@@ -79,29 +64,22 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = enableVolumeBrightnessGestures,
                     title = stringResource(MR.strings.enable_volume_brightness_gestures),
-                    /* Custom --> */ enabled = slidersAvailable, /* Custom <-- */
+                    /* Custom --> */ enabled = chimahon.custom.player.CustomGestureSettings.slidersAvailable(subtitleSwipeControls), /* Custom <-- */
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = swapVol,
                     title = stringResource(MR.strings.pref_controls_swap_vol_brightness),
-                    /* Custom --> */ enabled = slidersAvailable, /* Custom <-- */
+                    /* Custom --> */ enabled = chimahon.custom.player.CustomGestureSettings.slidersAvailable(subtitleSwipeControls), /* Custom <-- */
                 ),
                 // Custom -->
-                Preference.PreferenceItem.ListPreference(
-                    preference = longPressGesture,
-                    title = stringResource(MR.strings.pref_long_press_gesture),
-                    entries = listOf(
-                        LongPressGesture.Screenshot,
-                        LongPressGesture.DoubleSpeed,
-                    ).associateWith { stringResource(it.stringRes) }.toPersistentMap(),
-                ),
+                chimahon.custom.player.CustomGestureSettings.longPressAction(),
                 // Custom <--
                 Preference.PreferenceItem.SwitchPreference(
                     preference = disableLongPressScr,
                     title = stringResource(MR.strings.pref_disable_long_press_screenshot),
                     // Custom -->
                     // Only the screenshot action reads this switch.
-                    enabled = longPressAction == LongPressGesture.Screenshot,
+                    enabled = chimahon.custom.player.CustomGestureSettings.longPressTakesScreenshots(),
                     // Custom <--
                 ),
                 Preference.PreferenceItem.SwitchPreference(
@@ -122,12 +100,6 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val defaultSkipIntroLength by gesturePreferences.defaultIntroLength().stateIn(scope).collectAsState()
         val skipLengthPreference = gesturePreferences.skipLengthPreference()
         val playerSmoothSeek = gesturePreferences.playerSmoothSeek()
-        // Custom -->
-        val horizontalSeekEnabled by enableHorizontalSeekGesture.collectAsState()
-        val seekSensitivityPreference = gesturePreferences.horizontalSeekSensitivity()
-        val seekSensitivity by seekSensitivityPreference.collectAsState()
-        val percentFormat = remember { NumberFormat.getPercentInstance() }
-        // Custom <--
 
         var showDialog by rememberSaveable { mutableStateOf(false) }
         if (showDialog) {
@@ -150,15 +122,7 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                     subtitle = stringResource(MR.strings.pref_player_gesture_subtitle_swipe_summary),
                 ),
                 // Custom -->
-                Preference.PreferenceItem.ListPreference(
-                    preference = gesturePreferences.subtitleSwipeVertical(),
-                    title = stringResource(MR.strings.pref_player_gesture_vertical_swipe),
-                    entries = listOf(
-                        VerticalSwipeGesture.SubtitleActions,
-                        VerticalSwipeGesture.VolumeBrightness,
-                    ).associateWith { stringResource(it.stringRes) }.toPersistentMap(),
-                    enabled = subtitleSwipeControlsEnabled,
-                ),
+                chimahon.custom.player.CustomGestureSettings.verticalSwipe(enabled = subtitleSwipeControlsEnabled),
                 // Custom <--
                 Preference.PreferenceItem.SwitchPreference(
                     preference = enableHorizontalSeekGesture,
@@ -167,19 +131,8 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                     enabled = !subtitleSwipeControlsEnabled,
                 ),
                 // Custom -->
-                Preference.PreferenceItem.SliderPreference(
-                    value = seekSensitivity / SEEK_SENSITIVITY_STEP,
-                    title = stringResource(MR.strings.pref_player_gesture_seek_sensitivity),
-                    subtitle = stringResource(
-                        MR.strings.pref_player_gesture_seek_sensitivity_summary,
-                        percentFormat.format(seekSensitivity / 100f),
-                    ),
-                    valueRange = 1..30,
-                    enabled = !subtitleSwipeControlsEnabled && horizontalSeekEnabled,
-                    onValueChanged = {
-                        seekSensitivityPreference.set(it * SEEK_SENSITIVITY_STEP)
-                        true
-                    },
+                chimahon.custom.player.CustomGestureSettings.seekSensitivity(
+                    enabled = !subtitleSwipeControlsEnabled && enableHorizontalSeekGesture.collectAsState().value,
                 ),
                 // Custom <--
                 Preference.PreferenceItem.SwitchPreference(

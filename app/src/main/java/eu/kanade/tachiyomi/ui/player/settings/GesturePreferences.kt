@@ -1,8 +1,6 @@
 package eu.kanade.tachiyomi.ui.player.settings
 
-import chimahon.custom.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.SingleActionGesture
-import chimahon.custom.player.VerticalSwipeGesture
 import tachiyomi.core.common.preference.PreferenceStore
 import tachiyomi.core.common.preference.getEnum
 
@@ -18,15 +16,6 @@ class GesturePreferences(
 
     fun subtitleSwipeControls() = preferenceStore.getBoolean("pref_subtitle_swipe_controls", true)
 
-    // Custom -->
-    fun longPressGesture() = preferenceStore.getEnum("pref_long_press_gesture", LongPressGesture.Screenshot)
-
-    fun subtitleSwipeVertical() = preferenceStore.getEnum(
-        "pref_subtitle_swipe_vertical",
-        VerticalSwipeGesture.SubtitleActions,
-    )
-    // Custom <--
-
     // Seeking
 
     fun gestureHorizontalSeek() = preferenceStore.getBoolean("pref_gesture_horizontal_seek", true)
@@ -34,11 +23,6 @@ class GesturePreferences(
     fun defaultIntroLength() = preferenceStore.getInt("pref_default_intro_length", 85)
     fun skipLengthPreference() = preferenceStore.getInt("pref_skip_length_preference", 10)
     fun playerSmoothSeek() = preferenceStore.getBoolean("pref_player_smooth_seek", false)
-
-    // Custom -->
-    // Percent of the stock distance a horizontal swipe seeks
-    fun horizontalSeekSensitivity() = preferenceStore.getInt("pref_horizontal_seek_sensitivity", 100)
-    // Custom <--
 
     // Double tap
 

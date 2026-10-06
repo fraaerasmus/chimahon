@@ -45,7 +45,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,12 +60,10 @@ import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.player.components.LeftSideOvalShape
 import eu.kanade.presentation.player.components.RightSideOvalShape
 import eu.kanade.presentation.theme.playerRippleConfiguration
-import chimahon.custom.player.LongPressGesture
 import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerUpdates
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.player.Sheets
-import chimahon.custom.player.VerticalSwipeGesture
 import eu.kanade.tachiyomi.ui.player.controls.components.DoubleTapSeekTriangles
 import eu.kanade.tachiyomi.ui.player.settings.AudioPreferences
 import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
@@ -132,11 +129,14 @@ fun GestureHandler(
     val position by viewModel.pos.collectAsState()
     val controlsShown by viewModel.controlsShown.collectAsState()
     // Custom -->
-    // Gestures only count as locked while the user has not allowed them in the locked state.
-    // Kept under the upstream name so every lock check below stays untouched.
+    // In place of `val areControlsLocked by viewModel.areControlsLocked.collectAsState()`: gestures
+    // only count as locked while the user has not allowed them in the locked state. Kept under
+    // the upstream name so every lock check below stays untouched.
+    val customGestures by chimahon.custom.player.rememberCustomGestureConfig()
     val controlsLocked by viewModel.areControlsLocked.collectAsState()
-    val allowGesturesWhenLocked by playerPreferences.allowGesturesWhenLocked().collectAsState()
-    val areControlsLocked by rememberUpdatedState(controlsLocked && !allowGesturesWhenLocked)
+    val areControlsLocked by androidx.compose.runtime.rememberUpdatedState(
+        controlsLocked && !customGestures.allowGesturesWhenLocked,
+    )
     // Custom <--
     val disableLongPressScr by playerPreferences.disableLongPressScreenshot().collectAsState()
     val singleTapToPause by playerPreferences.singleTapToPause().collectAsState()
@@ -160,11 +160,7 @@ fun GestureHandler(
     val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
     val showSeekbar by gesturePreferences.showSeekBar().collectAsState()
     // Custom -->
-    val longPressGesture by gesturePreferences.longPressGesture().collectAsState()
-    val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
-    val subtitleVerticalSwipe = subtitleSwipeControls &&
-        subtitleSwipeVertical == VerticalSwipeGesture.SubtitleActions
-    val seekSensitivity by gesturePreferences.horizontalSeekSensitivity().collectAsState()
+    val subtitleVerticalSwipe = customGestures.subtitleSwipesTakeVertical(subtitleSwipeControls)
     // Custom <--
     var isLongPressing by remember { mutableStateOf(false) }
     val currentVolume by viewModel.currentVolume.collectAsState()
@@ -283,9 +279,7 @@ fun GestureHandler(
                             // In place of `if (areControlsLocked || disableLongPressScr) return`: the
                             // screenshot switch only applies while long press takes screenshots.
                             if (areControlsLocked) return@detectTapGestures
-                            if (longPressGesture == LongPressGesture.Screenshot && disableLongPressScr) {
-                                return@detectTapGestures
-                            }
+                            if (customGestures.longPressIsOff(disableLongPressScr)) return@detectTapGestures
                             // Custom <--
                             if (!isLongPressing) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -293,14 +287,14 @@ fun GestureHandler(
                                     return@detectTapGestures
                                 }
                                 // Custom -->
-                                when (longPressGesture) {
-                                    LongPressGesture.DoubleSpeed -> {
+                                when (customGestures.longPress) {
+                                    chimahon.custom.player.LongPressGesture.DoubleSpeed -> {
                                         originalSpeed = viewModel.playbackSpeed.value
                                         isLongPressing = true
                                         MPVLib.setPropertyDouble("speed", 2.0)
                                         viewModel.playerUpdate.update { PlayerUpdates.DoubleSpeed }
                                     }
-                                    LongPressGesture.Screenshot -> {
+                                    chimahon.custom.player.LongPressGesture.Screenshot -> {
                                         isLongPressing = true
                                         viewModel.pause()
                                         viewModel.sheetShown.update { Sheets.Screenshot }
@@ -383,7 +377,7 @@ fun GestureHandler(
                 ) { change, dragAmount ->
                     if (position <= 0f && dragAmount < 0) return@detectHorizontalDragGestures
                     if (position >= duration && dragAmount > 0) return@detectHorizontalDragGestures
-                    calculateNewHorizontalGestureValue(startingPosition, startingX, change.position.x, /* Custom --> */ chimahon.custom.player.CustomGestures.horizontalSeekSecondsPerPixel(seekSensitivity) /* Custom <-- */).let {
+                    calculateNewHorizontalGestureValue(startingPosition, startingX, change.position.x, /* Custom --> */ customGestures.horizontalSeekSecondsPerPixel /* Custom <-- */).let {
                         viewModel.gestureSeekAmount.update { _ ->
                             Pair(
                                 startingPosition,

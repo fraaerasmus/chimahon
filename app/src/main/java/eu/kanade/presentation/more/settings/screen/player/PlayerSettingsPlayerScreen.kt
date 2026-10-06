@@ -116,10 +116,7 @@ object PlayerSettingsPlayerScreen : SearchableSettings {
                     title = stringResource(MR.strings.pref_controls_allow_gestures_in_panels),
                 ),
                 // Custom -->
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = playerPreferences.allowGesturesWhenLocked(),
-                    title = stringResource(MR.strings.pref_controls_allow_gestures_when_locked),
-                ),
+                chimahon.custom.player.CustomGestureSettings.allowGesturesWhenLocked(),
                 // Custom <--
                 Preference.PreferenceItem.SwitchPreference(
                     preference = showLoading,

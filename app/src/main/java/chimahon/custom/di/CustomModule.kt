@@ -8,6 +8,7 @@ import chimahon.novel.kosync.KosyncSession
 import chimahon.novel.kosync.NovelDbPositionStore
 import chimahon.novel.opds.OpdsCatalogRepository
 import chimahon.custom.kosync.MangaKosyncManager
+import chimahon.custom.player.CustomGesturePreferences
 import eu.kanade.tachiyomi.data.upload.ServerUploadManager
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addSingletonFactory
@@ -26,5 +27,6 @@ object CustomModule {
         addSingletonFactory { ServerUploadManager(app, get(), get()) }
         addSingletonFactory { OpdsCatalogRepository.create(get(), app) }
         addSingletonFactory { KeyBindingPreferences(get()) }
+        addSingletonFactory { CustomGesturePreferences(get()) }
     }
 }
