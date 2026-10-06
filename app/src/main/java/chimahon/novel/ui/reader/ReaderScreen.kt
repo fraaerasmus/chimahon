@@ -228,17 +228,8 @@ fun ReaderScreen(
             // Custom -->
             // Pull the KOReader position before the view model reads the resume rows, so a
             // position pushed from another device is the one the book opens at.
-            val kosyncManager = try {
-                Injekt.get<chimahon.novel.kosync.KosyncManager>()
-            } catch (_: Exception) {
-                null
-            }
-            if (kosyncManager?.isEnabled == true && kosyncManager.loadSettings().autoSyncEnabled) {
+            Injekt.get<chimahon.novel.kosync.KosyncManager>().pullOnOpen(rootUrl, book.title.orEmpty()) {
                 loadingMessage = "Syncing reading progress..."
-                withContext(Dispatchers.IO) {
-                    // A kosync failure must not keep the book from opening.
-                    runCatching { kosyncManager.pull(rootUrl, book.title.orEmpty()) }
-                }
             }
             // Custom <--
 

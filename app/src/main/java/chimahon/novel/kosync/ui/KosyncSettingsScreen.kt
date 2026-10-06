@@ -1,4 +1,4 @@
-package eu.kanade.presentation.more.settings.screen
+package chimahon.novel.kosync.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column

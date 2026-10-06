@@ -6,7 +6,7 @@ import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncSettingsRepository
 import chimahon.novel.kosync.NovelDbPositionStore
 import chimahon.novel.opds.OpdsCatalogRepository
-import eu.kanade.tachiyomi.data.kosync.MangaKosyncManager
+import chimahon.custom.kosync.MangaKosyncManager
 import eu.kanade.tachiyomi.data.upload.ServerUploadManager
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addSingletonFactory

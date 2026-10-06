@@ -1109,7 +1109,7 @@ class ReaderActivity : BaseActivity() {
             viewModel.updateHistory()
         }
         // Custom -->
-        lifecycleScope.launchNonCancellable { viewModel.pushKosyncProgress() }
+        lifecycleScope.launchNonCancellable { viewModel.kosync.push(viewModel.state.value.currentChapter) }
         kosyncPaused = true
         // Custom <--
 
@@ -1130,7 +1130,7 @@ class ReaderActivity : BaseActivity() {
         // Custom -->
         if (kosyncPaused) {
             kosyncPaused = false
-            lifecycleScope.launch { viewModel.pullKosyncPosition()?.let(::moveToPageIndex) }
+            lifecycleScope.launch { viewModel.kosync.pull(viewModel.state.value.currentChapter)?.let(::moveToPageIndex) }
         }
         // Custom <--
 

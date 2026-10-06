@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.data.kosync
+package chimahon.custom.kosync
 
 import android.content.Context
 import chimahon.custom.core.writeTextAtomic

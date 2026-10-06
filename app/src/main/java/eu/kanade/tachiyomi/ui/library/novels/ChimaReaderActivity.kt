@@ -48,7 +48,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
-import java.io.File
 import org.json.JSONArray
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
@@ -64,39 +63,20 @@ import uy.kohesive.injekt.api.get
 class ChimaReaderActivity : NovelReaderActivity() {
 
     // Custom -->
-    private val kosyncManager: chimahon.novel.kosync.KosyncManager? by lazy {
-        runCatching { Injekt.get<chimahon.novel.kosync.KosyncManager>() }.getOrNull()
-    }
-    private var kosyncStoppedOnce = false
+    private val kosync = chimahon.novel.kosync.KosyncReaderLifecycle(
+        activity = this,
+        title = { bookMetadata?.title.orEmpty() },
+        onPulled = { readerViewModel?.jumpToSyncedPosition(it.chapterIndex, it.progress) },
+    )
 
-    private fun kosyncBookDir(): File? = intent.getStringExtra(NovelReaderActivity.EXTRA_BOOK_DIR)?.let(::File)
-
-    /**
-     * Coming back after a stop: another device may have pushed a newer position while this one
-     * was away. The pull writes the DB rows, then the view is moved there. The first open is
-     * covered by the pull in ReaderScreen, which runs before the view model reads its resume rows.
-     */
     override fun onStart() {
         super.onStart()
-        if (!kosyncStoppedOnce) return
-        val kosync = kosyncManager?.takeIf { it.isEnabled && it.loadSettings().autoSyncEnabled } ?: return
-        val bookDir = kosyncBookDir() ?: return
-        val title = bookMetadata?.title.orEmpty()
-        lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { kosync.pull(bookDir, title) }.getOrNull() }
-            val bookmark = (result as? chimahon.novel.kosync.KosyncResult.Pulled)?.bookmark ?: return@launch
-            readerViewModel?.jumpToSyncedPosition(bookmark.chapterIndex, bookmark.progress)
-        }
+        kosync.onStart()
     }
 
-    /** Leaving: the base class has just flushed the chapter rows, so the push sends the final position. */
     override fun onStop() {
         super.onStop()
-        kosyncStoppedOnce = true
-        val kosync = kosyncManager?.takeIf { it.isEnabled && it.loadSettings().pushEnabled } ?: return
-        val bookDir = kosyncBookDir() ?: return
-        val title = bookMetadata?.title.orEmpty()
-        kosyncScope.launch { runCatching { kosync.push(bookDir, title) } }
+        kosync.onStop()
     }
     // Custom <--
 
@@ -605,12 +585,4 @@ class ChimaReaderActivity : NovelReaderActivity() {
             }
         }
     }
-
-    // Custom -->
-    private companion object {
-        /** Outlives the activity so a closing push is not cancelled with it. */
-        val kosyncScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
-    }
-    // Custom <--
-
 }

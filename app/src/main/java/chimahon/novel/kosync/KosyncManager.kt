@@ -56,6 +56,17 @@ class KosyncManager(
     suspend fun push(metadata: BookMetadata): KosyncResult =
         push(bookDirectory(metadata), metadata.title.orEmpty())
 
+    /**
+     * The pull a book opens with. It does nothing unless sync on open is on, calls [onSyncing]
+     * right before it talks to the server, and never throws: a kosync failure must not keep the
+     * book from opening.
+     */
+    suspend fun pullOnOpen(bookDir: File, title: String, onSyncing: () -> Unit) {
+        if (!isEnabled || !loadSettings().autoSyncEnabled) return
+        onSyncing()
+        withContext(ioDispatcher) { runCatching { pull(bookDir, title) } }
+    }
+
     internal suspend fun pull(bookDir: File, title: String): KosyncResult {
         val settings = settingsRepository.currentSettings()
         if (!settings.enabled) return KosyncResult.Skipped

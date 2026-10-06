@@ -825,7 +825,7 @@ object SettingsDataScreen : SearchableSettings {
                         title = "KOReader Sync",
                         subtitle = "Sync novel and manga progress with KOReader devices via a kosync server",
                         onClick = {
-                            navigator.push(KosyncScreen())
+                            navigator.push(chimahon.novel.kosync.ui.KosyncScreen())
                         },
                     ),
                     // Custom <--
