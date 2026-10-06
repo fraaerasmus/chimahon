@@ -238,21 +238,6 @@
     <string name="action_start_download_internally">Use internal downloader</string>
     <string name="action_start_download_externally">Use external downloader</string>
 
-    <!-- YouTube -->
-    <string name="youtube_browser_minimize">Minimize YouTube browser</string>
-    <string name="youtube_browser_exit">Exit YouTube browser</string>
-    <string name="youtube_start_page">Start page</string>
-    <string name="youtube_start_page_home">Home</string>
-    <string name="youtube_start_page_history">Watch history</string>
-    <string name="youtube_start_page_summary">Used for a new browser session. Minimized sessions resume where you left off.</string>
-    <string name="youtube_prefer_reliable_audio">Prefer reliable playback over highest audio quality</string>
-    <string name="youtube_prefer_reliable_audio_summary">Audio starts faster when resuming on slow connections. Uses AAC instead of Opus.</string>
-    <string name="youtube_sync_watch_history">Sync watch history to YouTube</string>
-    <string name="youtube_sync_watch_history_summary">Reports what you watch to your signed-in YouTube account, so its history and recommendations follow it.</string>
-    <string name="youtube_dictionary_profile">Dictionary profile</string>
-    <string name="youtube_dictionary_profile_auto">Automatic (%1$s)</string>
-    <string name="youtube_dictionary_profile_summary">Used for lookups in YouTube videos. A profile set on a channel takes priority.</string>
-
     <string name="season_settings_updated">Updated default season settings</string>
 
     <string name="pref_category_external_downloader">External downloader</string>
