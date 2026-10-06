@@ -15,12 +15,6 @@ import chimahon.ocr.LensClient
 import chimahon.ocr.OcrCacheManager
 import chimahon.novel.data.NovelCategoryStorage
 import chimahon.novel.ui.reader.NovelReaderActivity
-// Custom -->
-import chimahon.novel.kosync.KosyncManager
-import chimahon.novel.kosync.KosyncSettingsRepository
-import chimahon.novel.kosync.NovelDbPositionStore
-import chimahon.novel.opds.OpdsCatalogRepository
-// Custom <--
 import eu.kanade.domain.track.store.DelayedAnimeTrackingStore
 import eu.kanade.domain.track.store.DelayedTrackingStore
 import eu.kanade.tachiyomi.animeextension.AnimeExtensionManager
@@ -40,8 +34,6 @@ import eu.kanade.tachiyomi.data.connections.ConnectionsManager
 import eu.kanade.tachiyomi.data.download.DownloadCache
 import eu.kanade.tachiyomi.data.download.DownloadManager
 import eu.kanade.tachiyomi.data.download.DownloadProvider
-import eu.kanade.tachiyomi.data.kosync.MangaKosyncManager
-import eu.kanade.tachiyomi.data.upload.ServerUploadManager
 import eu.kanade.tachiyomi.data.download.MokuroSidecarCopier
 import eu.kanade.tachiyomi.data.ocr.LocalOcrBridge
 import eu.kanade.tachiyomi.data.ocr.PaddleOcrBridge
@@ -337,11 +329,7 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { eu.kanade.tachiyomi.data.backup.create.creators.NovelExtensionRepoBackupCreator() }
         addSingletonFactory { eu.kanade.tachiyomi.data.backup.restore.restorers.NovelExtensionRepoRestorer() }
         // Custom -->
-        addSingletonFactory { KosyncSettingsRepository(app) }
-        addSingletonFactory { KosyncManager(app, get(), positionStore = NovelDbPositionStore(get(), get(), get())) }
-        addSingletonFactory { MangaKosyncManager(app, get(), get(), get(), get()) }
-        addSingletonFactory { ServerUploadManager(app, get(), get(), get()) }
-        addSingletonFactory { OpdsCatalogRepository(app) }
+        chimahon.custom.di.CustomModule.register(this, app)
         // Custom <--
         addSingletonFactory<WordAudioPreferences> { get<DictionaryPreferences>() }
         addSingletonFactory { WordAudioService(app) }
