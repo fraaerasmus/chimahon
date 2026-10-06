@@ -15,6 +15,10 @@ so it can run before a commit. Exits 1 when something is unfenced.
 Not checked, because a fence cannot be placed there: Kotlin `import` lines (ktlint rejects
 comments in the import list) and blank lines. A hunk that only deletes upstream lines must
 touch a fence, so the deletion is visible next to what replaced it.
+
+Which of two identical lines (a lone `),` or `}`) git reports as added depends on the git
+version. A hunk therefore also passes when moving its edge to an identical neighbouring line
+leaves every added line fenced, so the result is the same on every machine.
 """
 
 import argparse
@@ -45,10 +49,39 @@ def fenced_lines(lines):
     return fenced
 
 
+def equivalent_alignments(lines, start, end):
+    """The added line numbers of a hunk, plus the same hunk with one edge moved.
+
+    When the unchanged line right after the hunk reads the same as a line inside it, the two
+    can swap roles: the inner one is upstream's and the outer one is added. Likewise for the
+    line right before the hunk.
+    """
+    added = set(range(start, end + 1))
+    yield added
+    for neighbour in (end + 1, start - 1):
+        if not 1 <= neighbour <= len(lines):
+            continue
+        for number in range(start, end + 1):
+            if lines[number - 1] == lines[neighbour - 1]:
+                yield (added - {number}) | {neighbour}
+
+
 def unfenced_in(path, base):
     with open(path, encoding="utf-8") as file:
         lines = file.read().splitlines()
     fenced = fenced_lines(lines)
+
+    def unfenced(numbers):
+        found = []
+        for number in sorted(numbers):
+            text = lines[number - 1].strip()
+            if not text or number in fenced:
+                continue
+            if path.endswith((".kt", ".kts")) and text.startswith("import "):
+                continue
+            found.append((number, text))
+        return found
+
     problems = []
     for line in git("diff", "-U0", "--no-renames", base, "--", path).splitlines():
         match = HUNK.match(line)
@@ -59,13 +92,9 @@ def unfenced_in(path, base):
             if start not in fenced and start + 1 not in fenced:
                 problems.append((start, "upstream lines deleted here without a fence"))
             continue
-        for number in range(start, start + count):
-            text = lines[number - 1].strip()
-            if not text or number in fenced:
-                continue
-            if path.endswith((".kt", ".kts")) and text.startswith("import "):
-                continue
-            problems.append((number, text))
+        candidates = [unfenced(numbers) for numbers in equivalent_alignments(lines, start, start + count - 1)]
+        if all(candidates):
+            problems.extend(candidates[0])
     return problems
 
 
