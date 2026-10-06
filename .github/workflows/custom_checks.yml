@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   checks:
-    name: Unit tests
+    name: Fences and unit tests
     runs-on: 'ubuntu-24.04'
 
     steps:
@@ -38,6 +38,12 @@ jobs:
           # A nested hoshidicts submodule is declared with an SSH URL.
           git config --global url."https://github.com/".insteadOf "git@github.com:"
           git submodule update --init --recursive
+
+      - name: Check that fork changes in upstream files are fenced
+        run: |
+          git remote add upstream https://github.com/sohilsayed/chimahon.git
+          git fetch --quiet upstream main
+          python3 .github/scripts/custom_fence_audit.py --base "$(git merge-base HEAD upstream/main)"
 
       - name: Run lookup scanner and renderer tests
         run: node --test chimahon/src/test/js/*.test.mjs

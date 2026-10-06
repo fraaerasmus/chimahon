@@ -311,6 +311,16 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   JavaScript lookup tests on every push to `chimahon-custom`. Before this nothing in CI
   tested a push, and the JavaScript tests ran nowhere. `spotlessCheck` is not part of it
   because it fails on upstream's own code.
+- Fork code moved out of upstream files (2026-10-06): no behaviour change, but the next
+  upstream merge has far less to collide with. Fork lines inside upstream files went from
+  about 2,080 to about 1,000, upstream lines the fork deletes from 338 to 195, and eleven
+  upstream files are identical to upstream again. Every remaining fork line in an upstream
+  file sits inside a `// Custom -->` fence; 435 did not before. Upstream uses
+  `// Chimahon -->` for its own additions, so the fork's fences were renamed to tell the two
+  apart. Fork strings moved from the tail of upstream's `strings.xml`, where every upstream
+  addition conflicted, into `strings_custom.xml`. `FORK_OVERVIEW.md` describes the layout,
+  the techniques and the blocks that replace upstream code, and
+  `.github/scripts/custom_fence_audit.py` checks the fences on every push.
 
 ## Dropped (superseded by upstream)
 

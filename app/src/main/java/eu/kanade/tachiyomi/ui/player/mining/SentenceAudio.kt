@@ -257,7 +257,7 @@ internal object SentenceAudioInputResolver {
         return scheme in transientSchemes || value.startsWith("magnet:", ignoreCase = true) || value.substringBefore('?').endsWith(".torrent", ignoreCase = true)
     }
 
-    private val allowedHttpHeaders = setOf("user-agent", "accept", "accept-encoding", "accept-language", "cache-control", "cookie", "origin", "pragma", "referer") /* Custom --> */ + chimahon.custom.player.PlayerAssets.SELF_HOSTED_AUTH_HEADERS /* Custom <-- */
+    private val allowedHttpHeaders = setOf("user-agent", "accept", "accept-encoding", "accept-language", "cache-control", "cookie", "origin", "pragma", "referer") /* Custom --> */ + chimahon.custom.player.SentenceAudioInput.SELF_HOSTED_AUTH_HEADERS /* Custom <-- */
     private val rejectedValidationQueryNames = setOf("access_token", "api_key", "auth", "authorization", "credential", "credentials", "key", "policy", "token")
     private val signedMediaQueryNames = setOf("signature", "signed", "sig", "lsig")
     private val sensitiveLogQueryNames = setOf("access_token", "api_key", "auth", "authorization", "credential", "credentials", "key", "policy", "signature", "signed", "sig", "lsig", "token")
