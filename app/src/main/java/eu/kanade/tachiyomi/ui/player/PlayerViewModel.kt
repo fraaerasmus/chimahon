@@ -84,6 +84,7 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.youtube.YouTubePreferences
 import eu.kanade.tachiyomi.ui.youtube.YouTubeResolver
+import eu.kanade.tachiyomi.ui.youtube.YouTubeWatchHistorySync
 import eu.kanade.tachiyomi.ui.youtube.allowsExternalSubtitleLookup
 import eu.kanade.tachiyomi.ui.player.utils.AniSkipApi
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
@@ -2032,7 +2033,16 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
+    // Chimahon -->
+    private val youtubeWatchHistory = YouTubeWatchHistorySync(currentEpisode, currentSource, pos, paused) {
+        YouTubePreferences(Injekt.get<Application>()).syncWatchHistory
+    }
+    // Chimahon <--
+
     override fun onCleared() {
+        // Chimahon -->
+        youtubeWatchHistory.stop()
+        // Chimahon <--
         if (currentEpisode.value != null) {
             saveWatchingProgress(currentEpisode.value!!)
             episodeToDownload?.let {

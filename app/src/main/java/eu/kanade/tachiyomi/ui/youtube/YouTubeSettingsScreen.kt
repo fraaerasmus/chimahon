@@ -58,6 +58,7 @@ class YouTubeSettingsScreen : Screen {
         var addNewChannelsToLibrary by remember { mutableStateOf(preferences.addNewChannelsToLibrary) }
         // Chimahon -->
         var preferReliableAudio by remember { mutableStateOf(preferences.preferReliableAudio) }
+        var syncWatchHistory by remember { mutableStateOf(preferences.syncWatchHistory) }
         val dictionaryPreferences = remember { Injekt.get<DictionaryPreferences>() }
         val dictionaryProfiles = remember { dictionaryPreferences.profileStore.getProfiles() }
         val profileOverride = remember {
@@ -232,6 +233,39 @@ class YouTubeSettingsScreen : Screen {
                         )
                         Text(
                             text = stringResource(AMR.strings.youtube_prefer_reliable_audio_summary),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(
+                            value = syncWatchHistory,
+                            onValueChange = {
+                                syncWatchHistory = it
+                                preferences.syncWatchHistory = it
+                            },
+                        )
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = syncWatchHistory,
+                        onCheckedChange = null,
+                    )
+
+                    Column(modifier = Modifier.padding(start = 12.dp)) {
+                        Text(
+                            text = stringResource(AMR.strings.youtube_sync_watch_history),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        Text(
+                            text = stringResource(AMR.strings.youtube_sync_watch_history_summary),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )

@@ -28,6 +28,10 @@ class YouTubePreferences(context: Context) {
     var preferReliableAudio: Boolean
         get() = prefs.getBoolean(KEY_PREFER_RELIABLE_AUDIO, true)
         set(value) = prefs.edit().putBoolean(KEY_PREFER_RELIABLE_AUDIO, value).apply()
+
+    var syncWatchHistory: Boolean
+        get() = prefs.getBoolean(KEY_SYNC_WATCH_HISTORY, false)
+        set(value) = prefs.edit().putBoolean(KEY_SYNC_WATCH_HISTORY, value).apply()
     // Chimahon <--
 
     companion object {
@@ -59,6 +63,7 @@ class YouTubePreferences(context: Context) {
         const val START_PAGE_HISTORY = "history"
         const val DEFAULT_START_PAGE = START_PAGE_HISTORY
         const val KEY_PREFER_RELIABLE_AUDIO = "prefer_reliable_audio"
+        const val KEY_SYNC_WATCH_HISTORY = "sync_watch_history"
 
         val START_PAGES = listOf(
             START_PAGE_HOME,

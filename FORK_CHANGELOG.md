@@ -280,6 +280,12 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   settings gain a "Dictionary profile" choice for the whole source (the generic source
   settings screen that holds this picker is not reachable for the built-in extension); a
   profile set on a channel still takes priority.
+- YouTube watch history sync (2026-10-05, off by default): the in-app browser intercepts
+  every video tap before YouTube sees it, so the signed-in account never learned what was
+  watched and its recommendations had nothing to go on. With "Sync watch history to
+  YouTube" on, the player reports playback the way the official players do (a start ping,
+  then the position every 10 s and on stop) using the browser session's cookies. Best
+  effort against undocumented endpoints; failures are logged and ignored.
 
 ## Dropped (superseded by upstream)
 
