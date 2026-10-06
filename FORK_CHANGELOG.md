@@ -286,6 +286,12 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   YouTube" on, the player reports playback the way the official players do (a start ping,
   then the position every 10 s and on stop) using the browser session's cookies. Best
   effort against undocumented endpoints; failures are logged and ignored.
+- Playback log switch (2026-10-05): Player > Advanced > "Write a playback log" saves mpv's
+  detailed log to the app's external files folder, so a playback problem can be diagnosed
+  without editing mpv.conf. Off by default.
+- YouTube stream selection in its own file (2026-10-05): the rules for which audio and
+  subtitle streams reach the player moved out of the resolver into `YouTubeStreamSelection`,
+  pure functions with their own tests. No behaviour change.
 
 ## Dropped (superseded by upstream)
 

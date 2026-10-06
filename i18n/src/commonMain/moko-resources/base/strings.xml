@@ -1830,6 +1830,8 @@
     <string name="pref_player_gesture_seek_sensitivity">Seek swipe sensitivity</string>
     <string name="pref_player_gesture_seek_sensitivity_summary">%1$s. Higher seeks further for the same swipe.</string>
     <string name="pref_player_key_bindings">Key bindings</string>
+    <string name="pref_mpv_log_file">Write a playback log</string>
+    <string name="pref_mpv_log_file_summary">For troubleshooting. Saves mpv\'s detailed log to %1$s, replaced each time the player opens.</string>
     <string name="pref_player_key_bindings_summary">Gamepad buttons and keyboard keys</string>
     <string name="key_bindings_info">Tap an action to choose its keys. A key with no action goes to mpv, where input.conf can use it.</string>
     <string name="key_bindings_reset">Reset to defaults</string>

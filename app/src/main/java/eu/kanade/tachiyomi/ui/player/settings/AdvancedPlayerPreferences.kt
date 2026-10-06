@@ -9,6 +9,10 @@ class AdvancedPlayerPreferences(
     fun mpvConf() = preferenceStore.getString("pref_mpv_conf", "")
     fun mpvInput() = preferenceStore.getString("pref_mpv_input", "")
 
+    // Chimahon -->
+    fun mpvLogFile() = preferenceStore.getBoolean("pref_mpv_log_file", false)
+    // Chimahon <--
+
     // Non-preference
 
     fun playerStatisticsPage() = preferenceStore.getInt("pref_player_statistics_page", 0)

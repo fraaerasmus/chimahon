@@ -63,6 +63,16 @@ object PlayerSettingsAdvancedScreen : SearchableSettings {
                 fileName = "input.conf",
                 title = stringResource(MR.strings.pref_mpv_input),
             ),
+            // Chimahon -->
+            Preference.PreferenceItem.SwitchPreference(
+                title = stringResource(MR.strings.pref_mpv_log_file),
+                subtitle = stringResource(
+                    MR.strings.pref_mpv_log_file_summary,
+                    eu.kanade.tachiyomi.ui.player.mpvLogFile(context)?.path.orEmpty(),
+                ),
+                preference = advancedPlayerPreferences.mpvLogFile(),
+            ),
+            // Chimahon <--
         )
     }
 }
