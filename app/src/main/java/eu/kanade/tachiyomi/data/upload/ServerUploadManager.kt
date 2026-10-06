@@ -1,10 +1,10 @@
 package eu.kanade.tachiyomi.data.upload
 
 import android.content.Context
+import chimahon.custom.upload.MokuroSidecarFiles
 import com.hippo.unifile.UniFile
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.data.download.DownloadProvider
-import eu.kanade.tachiyomi.data.download.MokuroSidecarCopier
 import eu.kanade.tachiyomi.data.download.model.Download
 import eu.kanade.tachiyomi.source.Source
 import kotlinx.coroutines.flow.Flow
@@ -25,7 +25,6 @@ class ServerUploadManager(
     private val context: Context,
     private val syncPreferences: SyncPreferences,
     private val downloadProvider: DownloadProvider,
-    private val mokuroSidecarCopier: MokuroSidecarCopier,
     private val client: WebDavUploadClient = WebDavUploadClient(syncPreferences),
 ) {
     fun isEnabled(mangaId: Long): Boolean = syncPreferences.serverUploadEnabled(mangaId).get()
@@ -110,11 +109,11 @@ class ServerUploadManager(
     /** Fetches the server's `.mokuro` for the chapter and stores it as the reader's sibling sidecar. */
     suspend fun fetchSidecar(manga: Manga, chapter: Chapter, source: Source): SidecarResult {
         val file = chapterFile(manga, chapter, source) ?: return SidecarResult.SKIPPED
-        if (mokuroSidecarCopier.hasSidecar(file)) return SidecarResult.SKIPPED
+        if (MokuroSidecarFiles.has(file)) return SidecarResult.SKIPPED
         val url = client.fileUrl(ServerUploadNaming.seriesFolder(manga), "${ServerUploadNaming.stem(manga, chapter)}.mokuro")
         val content = client.getText(url) ?: return SidecarResult.NOT_READY
         if (content.isBlank()) return SidecarResult.NOT_READY
-        return if (mokuroSidecarCopier.saveSidecar(file, content)) {
+        return if (MokuroSidecarFiles.save(file, content)) {
             logcat { "ServerUpload: saved OCR sidecar for '${chapter.name}'" }
             SidecarResult.SAVED
         } else {

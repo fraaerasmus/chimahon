@@ -64,10 +64,6 @@ fun MangaToolbar(
     onClickDictionaryProfile: (() -> Unit)?,
     onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
-    // Custom -->
-    serverUploadEnabled: Boolean = false,
-    onToggleServerUpload: (() -> Unit)? = null,
-    // Custom <--
 
     // For action mode
     actionModeCounter: Int,
@@ -298,14 +294,7 @@ fun MangaToolbar(
                         )
                     }
                     // Custom -->
-                    if (onToggleServerUpload != null) {
-                        add(
-                            AppBar.OverflowAction(
-                                title = if (serverUploadEnabled) "Stop uploading to server" else "Upload to server",
-                                onClick = onToggleServerUpload,
-                            ),
-                        )
-                    }
+                    addAll(chimahon.custom.upload.LocalCustomMangaActions.current)
                     // Custom <--
                     if (isDebugBuildType) {
                         add(

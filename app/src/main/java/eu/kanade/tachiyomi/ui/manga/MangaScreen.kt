@@ -262,9 +262,6 @@ class MangaScreen(
 
         // KMK -->
         val coverRatio = remember { mutableFloatStateOf(1f) }
-        // Custom -->
-        val serverUploadEnabled by screenModel.serverUploadEnabled.collectAsState(initial = false)
-        // Custom <--
         val hazeState = remember { HazeState() }
         val fullCoverBackground = MaterialTheme.colorScheme.surfaceTint.blend(MaterialTheme.colorScheme.surface)
 
@@ -275,6 +272,14 @@ class MangaScreen(
 
         var showMangaStats by remember { mutableStateOf(false) }
 
+        // Custom -->
+        // Wraps the call below without re-indenting it, so upstream's lines stay as they are.
+        chimahon.custom.upload.ProvideServerUploadAction(
+            screenModel = screenModel,
+            manga = successState.manga,
+            available = successState.source !is StubSource && successState.mergedData == null,
+        ) {
+        // Custom <--
         MangaScreen(
             state = successState,
             snackbarHostState = screenModel.snackbarHostState,
@@ -479,12 +484,10 @@ class MangaScreen(
                         successState.processedChapters.any { !it.chapter.isOcrReady }
                 },
             // KMK <--
-            // Custom -->
-            serverUploadEnabled = serverUploadEnabled,
-            onToggleServerUpload = { screenModel.toggleServerUpload() }
-                .takeIf { successState.source !is StubSource && successState.mergedData == null },
-            // Custom <--
         )
+        // Custom -->
+        }
+        // Custom <--
 
         var showScanlatorsDialog by remember { mutableStateOf(false) }
 

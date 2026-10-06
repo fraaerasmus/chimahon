@@ -21,7 +21,7 @@ object CustomModule {
         addSingletonFactory { KosyncSettingsRepository(app) }
         addSingletonFactory { KosyncManager(app, get(), positionStore = NovelDbPositionStore(get(), get(), get())) }
         addSingletonFactory { MangaKosyncManager(app, get(), get(), get(), get()) }
-        addSingletonFactory { ServerUploadManager(app, get(), get(), get()) }
+        addSingletonFactory { ServerUploadManager(app, get(), get()) }
         addSingletonFactory { OpdsCatalogRepository(app) }
         addSingletonFactory { KeyBindingPreferences(get()) }
     }
