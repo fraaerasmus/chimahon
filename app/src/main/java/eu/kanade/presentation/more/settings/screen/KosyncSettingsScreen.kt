@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -52,6 +53,7 @@ fun KosyncSettingsScreen() {
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
+    var signedIn by remember { mutableStateOf(repository.hasUserKey()) }
 
     LaunchedEffect(Unit) {
         serverUrl = repository.currentSettings().serverUrl
@@ -80,11 +82,19 @@ fun KosyncSettingsScreen() {
                 .onSuccess {
                     repository.saveLogin(serverUrl, username, password)
                     password = ""
+                    signedIn = true
                     report(if (register) "Account created and signed in." else "Signed in.", false)
                 }
                 .onFailure { report(it.message ?: "Could not reach the server.", true) }
             busy = false
         }
+    }
+
+    fun signOut() {
+        repository.clearLogin()
+        password = ""
+        signedIn = false
+        report("Signed out. This device no longer syncs.", false)
     }
 
     Scaffold(
@@ -138,7 +148,7 @@ fun KosyncSettingsScreen() {
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text(if (repository.hasUserKey()) "Password (stored)" else "Password") },
+                    label = { Text(if (signedIn) "Password (stored)" else "Password") },
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth(),
@@ -150,6 +160,11 @@ fun KosyncSettingsScreen() {
                     }
                     OutlinedButton(onClick = { submit(register = true) }, enabled = !busy) {
                         Text("Register")
+                    }
+                    if (signedIn) {
+                        TextButton(onClick = { signOut() }, enabled = !busy) {
+                            Text("Sign out")
+                        }
                     }
                 }
                 message?.let { text ->
