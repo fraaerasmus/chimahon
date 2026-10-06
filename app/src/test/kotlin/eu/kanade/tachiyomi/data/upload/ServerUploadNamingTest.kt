@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.data.upload
 
+import chimahon.novel.opds.OpdsComicImporter
 import eu.kanade.tachiyomi.ui.browse.source.MangaImportUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -33,11 +34,11 @@ class ServerUploadNamingTest {
     fun `the stem strips back to the series when it comes home through OPDS`() {
         for (chapter in listOf(chapter(12.0, "12"), chapter(12.5, "12.5"), chapter(1044.0, "1044"))) {
             val stem = ServerUploadNaming.stem(berserk, chapter)
-            assertEquals("Berserk", MangaImportUtil.getSeriesTitle(stem))
-            assertEquals(ServerUploadNaming.seriesFolder(berserk), MangaImportUtil.getSafeFolderName(MangaImportUtil.getSeriesTitle(stem)))
+            assertEquals("Berserk", OpdsComicImporter.seriesTitle(stem))
+            assertEquals(ServerUploadNaming.seriesFolder(berserk), MangaImportUtil.getSafeFolderName(OpdsComicImporter.seriesTitle(stem)))
         }
         val japanese = Manga.create().copy(ogTitle = "ベルセルク")
-        assertEquals("ベルセルク", MangaImportUtil.getSeriesTitle(ServerUploadNaming.stem(japanese, chapter(3.0, "3"))))
+        assertEquals("ベルセルク", OpdsComicImporter.seriesTitle(ServerUploadNaming.stem(japanese, chapter(3.0, "3"))))
     }
 
     private fun chapter(number: Double, name: String) = Chapter.create().copy(chapterNumber = number, name = name)

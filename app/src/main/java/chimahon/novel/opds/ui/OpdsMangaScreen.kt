@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.browse.source
+package chimahon.novel.opds.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -14,6 +14,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import chimahon.novel.opds.OpdsBrowser
 import chimahon.novel.opds.OpdsCatalogRepository
+import chimahon.novel.opds.OpdsComicImporter
 import chimahon.novel.opds.OpdsFormat
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.launch
@@ -37,7 +38,7 @@ class OpdsMangaScreen : Screen {
             onImportFile = { file, displayName, entry ->
                 importing = true
                 scope.launch {
-                    runCatching { ImportHandler.importComicFromOpds(context, file, displayName, entry) }
+                    runCatching { OpdsComicImporter.import(file, displayName, entry) }
                         .onSuccess { context.toast("Added ${it.chapterName} to ${it.seriesFolder}") }
                         .onFailure { context.toast("Import failed: ${it.message ?: it::class.java.simpleName}") }
                     importing = false

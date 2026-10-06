@@ -99,7 +99,7 @@ fun LocalMangaImportDialogs(
                 }
             },
             dismissButton = {
-                FlowRow {
+                /* Custom --> */ FlowRow /* Custom <-- */ {
                     TextButton(
                         onClick = {
                             state.showImportDialog = false

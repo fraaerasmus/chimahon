@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -232,7 +231,6 @@ fun Screen.NovelLibraryScreen(
     }
 
     // Custom -->
-    var showImportMenu by remember { mutableStateOf(false) }
     var showOpdsBrowser by remember { mutableStateOf(false) }
     // Custom <--
 
@@ -395,35 +393,10 @@ fun Screen.NovelLibraryScreen(
                 exit = androidx.compose.animation.fadeOut(),
             ) {
                 // Custom -->
-                Box {
-                    FloatingActionButton(
-                        onClick = { showImportMenu = true },
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = stringResource(MR.strings.action_add),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = showImportMenu,
-                        onDismissRequest = { showImportMenu = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Import files") },
-                            onClick = {
-                                showImportMenu = false
-                                epubPicker.launch("application/epub+zip")
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text("OPDS catalog") },
-                            onClick = {
-                                showImportMenu = false
-                                showOpdsBrowser = true
-                            },
-                        )
-                    }
-                }
+                chimahon.novel.opds.ui.NovelImportFab(
+                    onImportFiles = { epubPicker.launch("application/epub+zip") },
+                    onOpds = { showOpdsBrowser = true },
+                )
                 // Custom <--
             }
         },
@@ -491,13 +464,13 @@ fun Screen.NovelLibraryScreen(
 
     // Custom -->
     if (showOpdsBrowser) {
-        val opdsRepository = remember { Injekt.get<chimahon.novel.opds.OpdsCatalogRepository>() }
-        chimahon.novel.opds.OpdsBrowser(
-            repository = opdsRepository,
-            onClose = { showOpdsBrowser = false },
-            onImportFile = { file, _, _ -> screenModel.importDownloadedBook(file) },
+        chimahon.novel.opds.ui.NovelOpdsBrowser(
             importBusy = state.isImporting,
-            modifier = Modifier.fillMaxSize(),
+            onClose = { showOpdsBrowser = false },
+            onImport = { file ->
+                // The importer copies the EPUB, so the download is deleted once it has finished.
+                screenModel.importBooks(listOf(android.net.Uri.fromFile(file))).invokeOnCompletion { file.delete() }
+            },
         )
     }
     // Custom <--

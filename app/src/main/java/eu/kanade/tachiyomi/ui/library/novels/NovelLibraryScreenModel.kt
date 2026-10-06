@@ -257,67 +257,48 @@ class NovelLibraryScreenModel(
         }
     }
 
-    /**
-     * Imports an EPUB downloaded from an OPDS catalog, then deletes the download. The file is
-     * imported byte-for-byte so its KOReader document id matches the same book elsewhere.
-     */
-    // Custom -->
-    /** An EPUB an OPDS catalog handed us; the file is ours to delete once the importer has copied it. */
-    fun importDownloadedBook(file: java.io.File) {
-        screenModelScope.launch {
-            try {
-                importUris(listOf(Uri.fromFile(file)))
-            } finally {
-                file.delete()
+    fun importBooks(uris: List<Uri>) /* Custom --> */: kotlinx.coroutines.Job /* Custom <-- */ {
+        /* Custom --> */ return /* Custom <-- */ screenModelScope.launch {
+            mutableState.update { it.copy(isImporting = true) }
+            val currentCategory = mutableState.value.activeCategory
+            val categoryIds = if (currentCategory != null && !currentCategory.isSystemCategory) {
+                listOf(currentCategory.id)
+            } else {
+                null
             }
-        }
-    }
-    // Custom <--
-
-    fun importBooks(uris: List<Uri>) {
-        screenModelScope.launch { importUris(uris) }
-    }
-
-    private suspend fun importUris(uris: List<Uri>) {
-        mutableState.update { it.copy(isImporting = true) }
-        val currentCategory = mutableState.value.activeCategory
-        val categoryIds = if (currentCategory != null && !currentCategory.isSystemCategory) {
-            listOf(currentCategory.id)
-        } else {
-            null
-        }
-        var imported = 0
-        var errors = 0
-        uris.forEach { uri ->
-            // UniFile-first import target (public localnovel on any
-            // scheme); null root falls back to the private dir inside.
-            val result = BookImporter.importEpub(
-                app,
-                uri,
-                categoryIds,
-                targetRootUni = chimahon.novel.source.LocalNovelFiles.publicRootUni(app),
-            )
-            val metadata = result.metadata
-            if (metadata != null) {
-                imported++
-                runCatching {
-                    val novelId = Injekt.get<RegisterLocalNovelHome>()
-                        .register(metadata.id)
-                    // UI string ids are DB ids stringified ("default" = system 0L).
-                    if (novelId != null && categoryIds != null) {
-                        val longIds = categoryIds
-                            .filter { it.isNotBlank() }
-                            .mapNotNull { if (it == "default") 0L else it.toLongOrNull() }
-                        if (longIds.isNotEmpty()) {
-                            Injekt.get<chimahon.novel.interactor.SetNovelCategories>()
-                                .await(novelId, longIds)
+            var imported = 0
+            var errors = 0
+            uris.forEach { uri ->
+                // UniFile-first import target (public localnovel on any
+                // scheme); null root falls back to the private dir inside.
+                val result = BookImporter.importEpub(
+                    app,
+                    uri,
+                    categoryIds,
+                    targetRootUni = chimahon.novel.source.LocalNovelFiles.publicRootUni(app),
+                )
+                val metadata = result.metadata
+                if (metadata != null) {
+                    imported++
+                    runCatching {
+                        val novelId = Injekt.get<RegisterLocalNovelHome>()
+                            .register(metadata.id)
+                        // UI string ids are DB ids stringified ("default" = system 0L).
+                        if (novelId != null && categoryIds != null) {
+                            val longIds = categoryIds
+                                .filter { it.isNotBlank() }
+                                .mapNotNull { if (it == "default") 0L else it.toLongOrNull() }
+                            if (longIds.isNotEmpty()) {
+                                Injekt.get<chimahon.novel.interactor.SetNovelCategories>()
+                                    .await(novelId, longIds)
+                            }
                         }
                     }
-                }
-            } else errors++
+                } else errors++
+            }
+            loadLibrary()
+            mutableState.update { it.copy(isImporting = false, importResult = Pair(imported, errors)) }
         }
-        loadLibrary()
-        mutableState.update { it.copy(isImporting = false, importResult = Pair(imported, errors)) }
     }
 
     fun resetStatsForSelected() {

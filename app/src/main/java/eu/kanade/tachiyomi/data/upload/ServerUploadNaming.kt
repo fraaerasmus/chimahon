@@ -13,7 +13,7 @@ import kotlin.math.floor
  * name pattern splits `Title - Author` on " - ", which would turn every chapter into a book
  * titled after the series alone. The number is zero-padded to three digits so calibre's title
  * sort keeps chapters in order, and the whole stem strips back to the series through
- * `MangaImportUtil.getSeriesTitle` when the file returns via OPDS.
+ * `OpdsComicImporter.seriesTitle` when the file returns via OPDS.
  */
 object ServerUploadNaming {
     fun seriesFolder(manga: Manga): String = seriesTitle(manga.ogTitle)
