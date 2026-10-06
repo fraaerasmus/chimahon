@@ -130,6 +130,9 @@ import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.ocr.CropPresets
 import chimahon.ocr.OcrBitmapDecoder
 import chimahon.util.ImageEncoder
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
+import tachiyomi.core.common.util.lang.withUIContext
 import logcat.logcat
 import logcat.LogPriority
 import eu.kanade.presentation.reader.stats.MangaStatsSheet

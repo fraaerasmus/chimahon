@@ -150,7 +150,7 @@ internal fun getDictionaryBootstrapHtml(
         </head>
         <body>
           <main id="entries" class="entries"></main>
-          <script>$lookupScannerJs</script>
+          ${/* Custom --> */ "<script>$lookupScannerJs</script>" /* Custom <-- */}
           <script>$js</script>
           <script>$kanjiJs</script>
         </body>
@@ -165,7 +165,7 @@ private fun readTextAsset(context: Context, assetPath: String): String {
 }
 
 private val dictionaryBaseCss = java.util.concurrent.ConcurrentHashMap<Unit, String>()
-private val dictionaryLookupScannerJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
+/* Custom --> */ private val dictionaryLookupScannerJs = java.util.concurrent.ConcurrentHashMap<Unit, String>() /* Custom <-- */
 private val dictionaryRendererJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
 private val dictionaryKanjiRendererJs = java.util.concurrent.ConcurrentHashMap<Unit, String>()
 

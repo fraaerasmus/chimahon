@@ -4,15 +4,12 @@ package chimahon.dictionary
  * Result of a single deinflection step.
  * [text] is the candidate dictionary form; [conditionsOut] are the grammar tags
  * that must be satisfied by the next rule in the chain.
- * [conditions] are the parts of speech the last applied rule produces (empty for the
- * untouched text) and [steps] is how many rules were chained to reach [text].
  */
-data class DeinflectionResult(
-    val text: String,
-    val conditionsOut: Int,
-    val conditions: Set<String> = emptySet(),
-    val steps: Int = 0,
-)
+// Custom -->
+// conditions: the parts of speech the last applied rule produces (empty for the untouched text).
+// steps: how many rules were chained to reach text.
+// Custom <--
+data class DeinflectionResult(val text: String, val conditionsOut: Int /* Custom --> */, val conditions: Set<String> = emptySet(), val steps: Int = 0 /* Custom <-- */)
 
 /**
  * A morphological transformation rule.

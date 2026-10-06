@@ -697,24 +697,26 @@ window.hoshiReader = {
             return false;
         }
 
+        // Custom -->
+        // French lookups start at the beginning of the tapped word, so the hit is moved there
+        // before the code below reads it.
         const scanner = window.ChimahonLookupScanner;
         const lookupLanguage = window.__chimahonLookupLanguage || '';
         const isFrenchLookup = scanner && scanner.primaryLanguage(lookupLanguage) === 'fr';
-        const normalizedStart = isFrenchLookup
-            ? scanner.startOffset(hit.node.textContent || '', hit.offset, lookupLanguage)
-            : hit.offset;
-
-        if (normalizedStart === null) {
-            this.clearSelection();
-            if (window.ReaderAndroid && window.ReaderAndroid.onBackgroundTap) {
-                window.ReaderAndroid.onBackgroundTap(clientX, clientY);
+        if (isFrenchLookup) {
+            const normalizedStart = scanner.startOffset(hit.node.textContent || '', hit.offset, lookupLanguage);
+            if (normalizedStart === null) {
+                this.clearSelection();
+                if (window.ReaderAndroid && window.ReaderAndroid.onBackgroundTap) {
+                    window.ReaderAndroid.onBackgroundTap(clientX, clientY);
+                }
+                return false;
             }
-            return false;
+            hit.offset = normalizedStart;
         }
+        // Custom <--
 
-        const lookupHit = { node: hit.node, offset: normalizedStart };
-
-        if (this.selectionStartNode === lookupHit.node && this.selectionStartOffset === lookupHit.offset) {
+        if (this.selectionStartNode === hit.node && this.selectionStartOffset === hit.offset) {
             this.clearSelection();
             if (window.ReaderAndroid && window.ReaderAndroid.onBackgroundTap) {
                 window.ReaderAndroid.onBackgroundTap(clientX, clientY);
@@ -726,8 +728,8 @@ window.hoshiReader = {
         const walker = this.createWalker(container);
 
         let word = '';
-        let node = lookupHit.node;
-        let offset = lookupHit.offset;
+        let node = hit.node;
+        let offset = hit.offset;
         let ranges = [];
         let reachedSentenceBreak = false;
 
@@ -737,11 +739,7 @@ window.hoshiReader = {
             let start = offset;
             while (offset < content.length) {
                 const char = content[offset];
-                if (
-                    isFrenchLookup
-                        ? scanner.isScanBoundaryAt(content, offset, lookupLanguage, { scanAcrossSpaces: true })
-                        : this.sentenceDelimiters.includes(char)
-                ) {
+                if (/* Custom --> */ isFrenchLookup ? scanner.isScanBoundaryAt(content, offset, lookupLanguage, { scanAcrossSpaces: true }) : /* Custom <-- */ this.sentenceDelimiters.includes(char)) {
                     reachedSentenceBreak = true;
                     break;
                 }
@@ -757,10 +755,10 @@ window.hoshiReader = {
 
         if (word.length > 0) {
             this.clearSelection();
-            this.selectionStartNode = lookupHit.node;
-            this.selectionStartOffset = lookupHit.offset;
+            this.selectionStartNode = hit.node;
+            this.selectionStartOffset = hit.offset;
             this.selectionRanges = ranges;
-            const sentence = this.getSentence(lookupHit.node, lookupHit.offset);
+            const sentence = this.getSentence(hit.node, hit.offset);
 
             // Use Hoshi's approach: calculate bounding box based ONLY on the first character
             // This prevents the popup from jumping far away when a long phrase is selected.

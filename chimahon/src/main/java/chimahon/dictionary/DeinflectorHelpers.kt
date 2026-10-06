@@ -101,6 +101,9 @@ internal class RuleDeinflector(
     private val indexedRules = IndexedRules(rules)
 
     fun deinflect(text: String): List<DeinflectionResult> {
+        // Custom -->
+        // In place of upstream's loop over (text, conditions) pairs, which dropped the conditions
+        // on return. Same walk; each result keeps its conditions and how many rules led to it.
         val results = mutableListOf(DeinflectionResult(text, 0))
         val seen = hashSetOf(resultKey(text, emptySet()))
         var i = 0
@@ -119,6 +122,7 @@ internal class RuleDeinflector(
         }
 
         return results
+        // Custom <--
     }
 }
 
@@ -253,7 +257,7 @@ private class ExactRuleIndex<T : Rule> {
 /** Condition subsumption: maps each condition to its related conditions (both parent and children).
  *  E.g., "n" → ["np", "ns"] means when current conditions include "n", also match rules for "np"/"ns".
  *  "np" → ["n"] means when current conditions include "np", also match rules for "n". */
-internal val conditionHierarchy = mapOf(
+/* Custom --> */ internal /* Custom <-- */ val conditionHierarchy = mapOf(
     "n" to setOf("np", "ns"),
     "np" to setOf("n"),
     "ns" to setOf("n"),

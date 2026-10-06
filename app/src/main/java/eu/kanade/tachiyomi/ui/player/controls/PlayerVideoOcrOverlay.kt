@@ -38,9 +38,9 @@ import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLineGeometry
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
-import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupSelection
+import chimahon.custom.lookup.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.orderedFullText
-import eu.kanade.tachiyomi.ui.reader.viewer.orderedLineStartOffsets
+import chimahon.custom.lookup.orderedLineStartOffsets
 import eu.kanade.tachiyomi.ui.reader.viewer.toOrderedOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay

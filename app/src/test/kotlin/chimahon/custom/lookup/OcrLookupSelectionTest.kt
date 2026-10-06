@@ -1,5 +1,7 @@
-package eu.kanade.tachiyomi.ui.reader.viewer
+package chimahon.custom.lookup
 
+import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
+import eu.kanade.tachiyomi.ui.reader.viewer.fullText
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

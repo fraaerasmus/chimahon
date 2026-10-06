@@ -26,6 +26,8 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import chimahon.DictionaryRepository
+import chimahon.custom.lookup.extractOcrLookupSelection
+import chimahon.custom.lookup.lineStartOffsets
 import chimahon.ocr.OcrCharacterLine
 import chimahon.ocr.OcrHitTester
 import chimahon.ocr.shouldScanWholeWord
@@ -931,6 +933,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
         // Immediately trigger dictionary popup at the tapped character position
         val ssiv = pageView as? SubsamplingScaleImageView ?: return true
         val charOffset = getCharOffset(block, viewX, viewY, ssiv) ?: 0
+        // Custom -->
+        // In place of upstream's checks on the tapped character: the lookup starts where the
+        // scanner says the tapped word starts, which can be before the tap.
         val lookupSelection = extractOcrLookupSelection(
             text = block.fullText,
             start = charOffset,
@@ -951,7 +956,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
             logcat { "OCR tap ignored at non-lookup offset=$charOffset len=${block.fullText.length}" }
             return true
         }
-        // Custom -->
         // French uses the phrase-aware scanner selection (elisions, word-start scan);
         // other whole-word languages expand the tap to the surrounding word
         val isFrenchLookup = lookupLanguageCodeProvider().trim().lowercase().let {
@@ -962,7 +966,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
         } else {
             lookupSelection.text
         }
-        // Custom <--
         logcat {
             "OCR tap: lookup offset=${lookupSelection.startOffset} remainingChars=${lookupString.length} x=$viewX y=$viewY"
         }
@@ -972,6 +975,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         }
         val sentenceText = block.orderedDisplayText
         val sentenceOffset = block.toOrderedOffset(lookupSelection.startOffset)
+        // Custom <--
 
         ocrPopupLookupString = lookupString
 

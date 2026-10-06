@@ -803,6 +803,8 @@
     const ch = text[offset];
     if (!isWordChar(ch) || isScanBoundary(ch) || isFurigana(node)) return null;
 
+    // Custom -->
+    // French returns a selection object (text plus where it starts); everything else a string.
     const languageCode = document.documentElement.lang || '';
     const lookupScanner = window.ChimahonLookupScanner;
     if (lookupScanner && lookupScanner.primaryLanguage(languageCode) === 'fr') {
@@ -811,6 +813,7 @@
         maxCodePoints: MAX_SCAN_CHARS
       });
     }
+    // Custom <--
 
     if (isCJK(ch)) {
       // Collect forward text across nodes, skipping furigana (<rt>)
@@ -1087,9 +1090,12 @@
       // Skip interactive controls — buttons, dict tags, inflection toggles, etc.
       if (target.closest('button, .anki-add-btn, .lookup-tab, .entry-deinflection-row, .tag, .dictionary-header, details, summary, a, .gloss-link, .gloss-sc-a')) return;
 
+      // Custom -->
+      // In place of `const word = extractTextAtPoint(...)`: the result can be a selection object.
       const extracted = extractTextAtPoint(e.clientX, e.clientY);
       if (!extracted) return;
       const word = typeof extracted === 'string' ? extracted : extracted.text;
+      // Custom <--
       if (!word) return;
 
       rememberRecursiveSelectionAtPoint(e.clientX, e.clientY);
@@ -1098,11 +1104,14 @@
       let url = CHIMA_SCHEME + '//lookup?q=' + encodeURIComponent(word);
       if (sentenceContext && sentenceContext.sentence) {
         url += '&sentence=' + encodeURIComponent(sentenceContext.sentence);
+        // Custom -->
+        // In place of the offset as tapped: a selection that starts before the tap moves it back.
         const lookupStartDelta = typeof extracted === 'string'
           ? 0
           : Math.max(0, extracted.tapOffset - extracted.startOffset);
         const sentenceOffset = Math.max(0, (sentenceContext.offset || 0) - lookupStartDelta);
         url += '&offset=' + encodeURIComponent(String(sentenceOffset));
+        // Custom <--
       }
       url += '&x=' + Math.round(e.clientX);
       url += '&y=' + Math.round(e.clientY);
@@ -1550,6 +1559,7 @@
     };
   }
 
+  // Custom -->
   // Yomitan deinflection glossary entry: [uninflectedTerm, inflectionRule[]].
   function isDeinflectionGlossary(node) {
     return Array.isArray(node) &&
@@ -1567,6 +1577,7 @@
     parent.appendChild(term);
     parent.appendChild(document.createTextNode(` ${pair[1].join(', ')}`));
   }
+  // Custom <--
 
   function appendStructured(parent, content, dictName, mediaMap, language) {
     if (content === null || typeof content === 'undefined') return;
@@ -1577,6 +1588,7 @@
     }
 
     if (Array.isArray(content)) {
+      // Custom -->
       if (isDeinflectionGlossary(content)) {
         appendDeinflectionGlossary(parent, content);
         return;
@@ -1592,6 +1604,7 @@
         parent.appendChild(ul);
         return;
       }
+      // Custom <--
 
       const isStringArray = content.every((item) => typeof item === 'string');
       const parentTag = parent && parent.tagName;

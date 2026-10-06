@@ -49,9 +49,9 @@ import eu.kanade.tachiyomi.data.ocr.recognizePage
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
 import eu.kanade.tachiyomi.ui.reader.viewer.displayText
-import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupSelection
+import chimahon.custom.lookup.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.fullText
-import eu.kanade.tachiyomi.ui.reader.viewer.lineStartOffsets
+import chimahon.custom.lookup.lineStartOffsets
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope

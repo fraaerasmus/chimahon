@@ -3,9 +3,6 @@ package chimahon
 import android.os.SystemClock
 import android.util.Base64
 import android.util.Log
-import chimahon.dictionary.DeinflectedLookup
-import chimahon.dictionary.Deinflector
-import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.dictionary.ko.KoreanAnalyzerDeinflector
 import chimahon.dictionary.ko.KoreanParserMode
 import org.json.JSONArray
@@ -76,12 +73,40 @@ class DictionaryRepository(
 
         val results = if (effectiveLang == "ja") {
             HoshiDicts.lookup(activeSession, query, 20, 25).toList()
+        // Custom -->
+        // Same condition as the branch below, so this one takes every language with a deinflector
+        // and upstream's loop is not reached.
         } else if (genericDeinflector != null) {
-            val lookupQueries = FrenchLookupPolicy.lookupQueries(query, effectiveLang)
-            val queryResults = lookupQueries.flatMap { lookupQuery ->
-                lookupDeinflected(activeSession, lookupQuery, genericDeinflector, effectiveLang)
+            chimahon.custom.lookup.GenericLookup.forPopup(activeSession, query, genericDeinflector, effectiveLang)
+        // Custom <--
+        } else if (genericDeinflector != null) {
+            val finalResults = mutableListOf<chimahon.LookupResult>()
+            for (i in query.length downTo 1) {
+                val substring = query.substring(0, i)
+                val candidates = mutableMapOf<String, chimahon.dictionary.DeinflectionResult>()
+                for (preprocessed in genericDeinflector.preProcess(substring).distinct()) {
+                    for (deinflected in genericDeinflector.deinflect(preprocessed, effectiveLang)) {
+                        if (deinflected.text !in candidates) {
+                            candidates[deinflected.text] = deinflected
+                        }
+                    }
+                }
+                if (candidates.isNotEmpty()) {
+                    val substringResults = candidates.flatMap { (candidateText, deinflected) ->
+                        HoshiDicts.query(activeSession, candidateText).map { termResult ->
+                            chimahon.LookupResult(
+                                matched = substring,
+                                deinflected = candidateText,
+                                process = emptyArray(),
+                                term = termResult,
+                                preprocessorSteps = 0,
+                            )
+                        }
+                    }
+                    finalResults.addAll(substringResults)
+                }
             }
-            FrenchLookupPolicy.mergeResults(queryResults, effectiveLang, 20)
+            finalResults.distinctBy { it.term.expression to it.term.reading }.take(20)
         } else {
             HoshiDicts.lookup(activeSession, query, 20, 25).toList()
         }
@@ -100,17 +125,6 @@ class DictionaryRepository(
             mediaDataUris = emptyMap(),  // Empty on critical path
             error = null,
         )
-    }
-
-    private fun lookupDeinflected(
-        activeSession: Long,
-        query: String,
-        deinflector: Deinflector,
-        languageCode: String,
-    ): List<LookupResult> {
-        return DeinflectedLookup.lookup(query, deinflector, languageCode, 20) { candidate ->
-            HoshiDicts.query(activeSession, candidate).toList()
-        }
     }
 
     @Synchronized

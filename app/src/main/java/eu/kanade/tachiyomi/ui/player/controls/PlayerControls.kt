@@ -113,7 +113,7 @@ import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.SubtitleFontResolver
-import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupSelection
+import chimahon.custom.lookup.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupString
 import eu.kanade.tachiyomi.ui.reader.viewer.isLookupStartChar
 import eu.kanade.tachiyomi.util.system.toast

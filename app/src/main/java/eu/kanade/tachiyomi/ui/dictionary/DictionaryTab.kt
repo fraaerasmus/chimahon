@@ -54,7 +54,6 @@ import chimahon.LookupResult
 import chimahon.anki.AnkiCardCreator
 import chimahon.anki.AnkiDroidBridge
 import chimahon.anki.AnkiResult
-import chimahon.dictionary.FrenchLookupPolicy
 import eu.kanade.domain.ui.UiPreferences
 import eu.kanade.presentation.components.SearchHistoryRow
 import eu.kanade.presentation.util.Tab
@@ -902,19 +901,23 @@ data object DictionaryTab : Tab {
             val genericDeinflector = chimahon.dictionary.DeinflectorRegistry.get(effectiveLang)
             val results = if (effectiveLang == "ja") {
                 HoshiDicts.lookup(activeSession, query, 50, 25).toList()
+            // Custom -->
+            // Same condition as the branch below, so this one takes every language with a
+            // deinflector and upstream's code is not reached.
             } else if (genericDeinflector != null) {
-                fun lookupOne(lookupQuery: String): List<LookupResult> {
-                    val preprocessed = genericDeinflector.preProcess(lookupQuery)
-                    val deinflected = preprocessed.flatMap { genericDeinflector.deinflect(it, effectiveLang) }
-                    val candidates = deinflected.map { it.text }.distinct()
-                    return candidates.flatMap { candidate ->
+                chimahon.custom.lookup.GenericLookup.forDictionaryTab(activeSession, query, genericDeinflector, effectiveLang)
+            // Custom <--
+            } else if (genericDeinflector != null) {
+                val preprocessed = genericDeinflector.preProcess(query)
+                val deinflected = preprocessed.flatMap { genericDeinflector.deinflect(it, effectiveLang) }
+                val candidates = deinflected.map { it.text }.distinct()
+                if (candidates.isEmpty()) {
+                    emptyList()
+                } else {
+                    candidates.flatMap { candidate ->
                         HoshiDicts.lookup(activeSession, candidate, 50, 25).toList()
                     }.distinctBy { it.term.expression to it.term.reading }.take(50)
                 }
-
-                val queryResults = FrenchLookupPolicy.lookupQueries(query, effectiveLang)
-                    .flatMap(::lookupOne)
-                FrenchLookupPolicy.mergeResults(queryResults, effectiveLang, 50)
             } else {
                 HoshiDicts.lookup(activeSession, query, 50, 25).toList()
             }
