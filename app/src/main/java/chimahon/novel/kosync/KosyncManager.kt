@@ -2,6 +2,7 @@ package chimahon.novel.kosync
 
 import android.content.Context
 import android.util.Log
+import chimahon.custom.core.writeTextAtomic
 import chimahon.novel.data.BookMetadata
 import chimahon.novel.data.BookStorage
 import chimahon.novel.data.Bookmark
@@ -216,7 +217,8 @@ class KosyncManager(
 
     private suspend fun saveState(bookDir: File, state: KosyncBookState) = withContext(ioDispatcher) {
         runCatching {
-            File(bookDir, STATE_FILE_NAME).writeText(json.encodeToString(KosyncBookState.serializer(), state))
+            File(bookDir, STATE_FILE_NAME)
+                .writeTextAtomic(json.encodeToString(KosyncBookState.serializer(), state))
         }
         Unit
     }

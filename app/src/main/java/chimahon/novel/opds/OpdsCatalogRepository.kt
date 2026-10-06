@@ -1,6 +1,7 @@
 package chimahon.novel.opds
 
 import android.content.Context
+import chimahon.custom.core.writeTextAtomic
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,8 +40,7 @@ class OpdsCatalogRepository(
 
     private suspend fun update(transform: (List<OpdsCatalog>) -> List<OpdsCatalog>) = withContext(ioDispatcher) {
         val next = transform(state.value).sortedBy { it.name.lowercase() }
-        file.parentFile?.mkdirs()
-        file.writeText(json.encodeToString(serializer, next))
+        file.writeTextAtomic(json.encodeToString(serializer, next))
         state.value = next
     }
 

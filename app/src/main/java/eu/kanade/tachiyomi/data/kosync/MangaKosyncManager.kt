@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.data.kosync
 
 import android.content.Context
+import chimahon.custom.core.writeTextAtomic
 import chimahon.novel.kosync.KosyncApi
 import chimahon.novel.kosync.KosyncClient
 import chimahon.novel.kosync.KosyncDocumentId
@@ -151,7 +152,7 @@ class MangaKosyncManager(
         mutex.withLock {
             val all = allStates()
             all[chapterId] = state
-            runCatching { stateFile.writeText(json.encodeToString(serializer, all)) }
+            runCatching { stateFile.writeTextAtomic(json.encodeToString(serializer, all)) }
                 .onFailure { logcat(LogPriority.WARN, it) { "kosync: could not save manga state" } }
         }
         Unit
