@@ -292,6 +292,25 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - YouTube stream selection in its own file (2026-10-05): the rules for which audio and
   subtitle streams reach the player moved out of the resolver into `YouTubeStreamSelection`,
   pure functions with their own tests. No behaviour change.
+- KOReader sync no longer holds the reader on a dead server (2026-10-06): a pull now gives
+  up after 3 s connecting and 4 s reading. It used the same 10 s and 15 s as a push, so
+  with the server unreachable a book or chapter sat on the syncing screen for up to 25 s.
+  The 4 s cap on the manga side never applied, because the blocking request ignored it.
+- KOReader sync sign-out (2026-10-06): the sync page shows a Sign out button once a login is
+  stored. It removes the server, username and stored key and keeps the device id.
+- Screen lookup respects OCR lines (2026-10-06): the 2026-09 line-break fix for
+  space-delimited languages reached the reader and the video overlay but missed the
+  screen-lookup overlay. A tap there no longer pulls in the last word of the line above.
+- Long-press settings (2026-10-06): "Disable long-press screenshot" is greyed out while the
+  long-press action is hold for 2x, where it never had an effect.
+- YouTube history sync hardening (2026-10-06): the reporter's state is confined to one
+  thread, and a cancelled request cancels its caller instead of being logged as a failure.
+- State files survive a crash mid-save (2026-10-06): `kosync.json`, `kosync_manga.json` and
+  `opds_catalogs.json` are written to a temporary file and renamed into place.
+- Checks on push (2026-10-06): a fork-owned `custom_checks.yml` runs the unit tests and the
+  JavaScript lookup tests on every push to `chimahon-custom`. Before this nothing in CI
+  tested a push, and the JavaScript tests ran nowhere. `spotlessCheck` is not part of it
+  because it fails on upstream's own code.
 
 ## Dropped (superseded by upstream)
 
