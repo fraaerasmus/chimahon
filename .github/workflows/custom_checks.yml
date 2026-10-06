@@ -34,7 +34,10 @@ jobs:
           fetch-depth: 0
 
       - name: Checkout submodules
-        run: git submodule update --init --recursive
+        run: |
+          # A nested hoshidicts submodule is declared with an SSH URL.
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git submodule update --init --recursive
 
       - name: Run lookup scanner and renderer tests
         run: node --test chimahon/src/test/js/*.test.mjs
