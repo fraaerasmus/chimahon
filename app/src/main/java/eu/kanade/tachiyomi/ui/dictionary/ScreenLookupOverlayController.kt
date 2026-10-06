@@ -51,6 +51,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
 import eu.kanade.tachiyomi.ui.reader.viewer.displayText
 import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.fullText
+import eu.kanade.tachiyomi.ui.reader.viewer.lineStartOffsets
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
@@ -331,7 +332,12 @@ internal fun ScreenLookupOverlay(
             onBlockTapped = { tapped, tapX, tapY ->
                 val charOffset = tapped.screenLookupCharOffset(tapX, tapY)
                 val text = tapped.fullText
-                val lookupSelection = extractOcrLookupSelection(text, charOffset, activeProfile.languageCode)
+                val lookupSelection = extractOcrLookupSelection(
+                    text,
+                    charOffset,
+                    activeProfile.languageCode,
+                    tapped.lineStartOffsets(),
+                )
                 if (selection?.block == tapped && selection?.sentenceOffset == lookupSelection?.startOffset) {
                     selection = null
                     showTapHint = false
