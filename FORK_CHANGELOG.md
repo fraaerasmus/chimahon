@@ -321,6 +321,39 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   addition conflicted, into `strings_custom.xml`. `FORK_OVERVIEW.md` describes the layout,
   the techniques and the blocks that replace upstream code, and
   `.github/scripts/custom_fence_audit.py` checks the fences on every push.
+- Dictionary tab matches the popup (2026-10-06): for every language but Japanese the
+  Dictionary tab now runs the popup's lookup. A typed inflected form shows its lemma, a rule
+  for one part of speech no longer lands on an entry of another, and results come in the
+  popup's order, up to 50 of them. The tab used to deinflect the whole query and rank nothing.
+- Elided French words are looked up once (2026-10-06): upstream's French preprocessing strips
+  `l'`, `d'`, `qu'` and the rest itself since v2.3.2, so the fork's own stripping looked every
+  elided word up a second time. It is gone; the highlight still covers the whole `l'homme`.
+- KOReader sync waits 4 seconds at most (2026-10-06): both readers give the server 4 seconds
+  before a book or chapter opens without it. The novel reader allowed 7. The manga reader's
+  4 second cap now takes effect, because the request can be cancelled. Leaving the OPDS
+  browser cancels a download in progress and removes its partial file.
+- Server errors in plain words (2026-10-06): KOReader sync, OPDS and server upload report
+  "Server not found", "Could not connect to the server" or "The server did not respond in
+  time" instead of the exception's text.
+- KOReader sync and OPDS settings moved (2026-10-06): both are kept in the app's preference
+  store now. The old `kosync-settings` file, including the device id the server knows this
+  install by, and `opds_catalogs.json` are taken over on first use. The kosync key and the
+  catalogs are private settings, so a backup includes them only when private settings are
+  included; the device id never goes into a backup. The address and username fields of both
+  login forms no longer autocorrect or capitalise.
+- Key bindings apply at once (2026-10-06): a binding edited while the player sits in picture
+  in picture works when the player comes back, without reopening the video.
+- YouTube start page loads once (2026-10-06): a fresh browser set to open on Watch history
+  checks the sign-in cookie first and opens Home directly when nobody is signed in. It used
+  to load the history page, ask it whether anyone was signed in, and then load Home.
+- Shared plumbing (2026-10-06): no behaviour change beyond the entries above. KOReader sync,
+  OPDS and server upload share one HTTP client; the novel and manga sync share one
+  `KosyncSession`; a player key action is declared once in `KeyAction`; the fork's gesture
+  options live in fork classes, which makes `GesturePreferences` and `PlayerPreferences`
+  identical to upstream again; the three OCR tap sites share one helper. `FORK_OVERVIEW.md`
+  gains "Shared pieces", a table of what to reuse before writing another client, store or
+  login form, and how to add a key action, a gesture option or a YouTube option. Unit tests
+  went from 638 to 663, with the kosync pull and push rules covered for the first time.
 
 ## Dropped (superseded by upstream)
 

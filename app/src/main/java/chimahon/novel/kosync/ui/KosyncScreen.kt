@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -95,8 +96,9 @@ class KosyncScreen : Screen {
 private fun KosyncLogin(preferences: KosyncPreferences) {
     val scope = rememberCoroutineScope()
     val session = remember { Injekt.get<KosyncSession>() }
-    var serverUrl by remember { mutableStateOf(preferences.serverUrl().get()) }
-    var username by remember { mutableStateOf(preferences.username().get()) }
+    // Saveable, so what was typed survives the form scrolling out of the list. Not the password.
+    var serverUrl by rememberSaveable { mutableStateOf(preferences.serverUrl().get()) }
+    var username by rememberSaveable { mutableStateOf(preferences.username().get()) }
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }

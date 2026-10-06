@@ -68,7 +68,7 @@ chimahon.custom.di.CustomModule.register(this, app)
   `// Custom <--` around a block, `/* Custom --> */ ... /* Custom <-- */` inside one line,
   `# Custom -->` in proguard rules, and `<!-- Custom -->` with `<!-- /Custom -->` in XML,
   where a comment cannot contain two dashes.
-- **Fork-owned roots:** `app/src/main/java/chimahon/custom/` (`di`, `core`, `kosync`,
+- **Fork-owned roots:** `app/src/main/java/chimahon/custom/` (`di`, `core`, `ui`, `kosync`,
   `upload`, `player`, `youtube`, `lookup`), `chimahon/keybinding`,
   `chimahon/novel/{kosync,opds}`, `chimahon/custom/lookup` in the `chimahon` module, and the
   `strings_custom.xml` files in `i18n` and `i18n-ank`. Not everything under
@@ -96,6 +96,38 @@ Ways to keep a hook thin, all in use:
 - **One registration point.** New services go in `CustomModule`, new strings in
   `strings_custom.xml`, new series-menu entries in `LocalCustomMangaActions`. None of these
   needs a new line in an upstream file.
+- **Fork preferences in a fork class.** A fork option is stored through upstream's
+  `PreferenceStore` from a class of ours (`KosyncPreferences`, `CustomGesturePreferences`,
+  `KeyBindingPreferences`), not as a new function in one of upstream's preference classes.
+
+### Shared pieces: reuse these before writing another
+
+Each of these exists because the fork once had two or three copies of it.
+
+| Need | Use | Where |
+|---|---|---|
+| Talk to a server the user runs (kosync, OPDS, WebDAV) | `CustomHttp.client.withTimeouts(...)` with `await()`. Not `NetworkHelper.client`: its DNS-over-HTTPS cannot resolve LAN or VPN names and its call timeout cuts large transfers. | `chimahon/custom/core/CustomHttp.kt` |
+| Report a server's refusal, or a network failure, to the user | throw `ServerException(message)`, show `error.describeForUser()` | same file |
+| A typed address without a scheme | `String.withHttpScheme()` | same file |
+| Server address, username and password fields | `ServerLoginFields` | `chimahon/custom/ui` |
+| A settings switch, list or slider | upstream's `Preference.PreferenceItem` on a `PreferenceStore` preference, as `KosyncScreen` and `CustomGestureSettings` do | |
+| State that is not a setting, kept as a JSON file | `JsonFileStore`, which writes through `writeAtomic` | `chimahon/custom/core` |
+| Parse XML from outside the app | `hardenedDocumentBuilderFactory` | `chimahon/custom/core/Xml.kt` |
+| Is this language French | `LookupLanguage.isFrench` | `chimahon/dictionary/LookupPolicy.kt` |
+| A fake server or preference store in a unit test | `TinyHttpServer`, `FakePreferenceStore` (upstream's `InMemoryPreferenceStore` forgets every write) | `app/src/test/kotlin/chimahon/custom/core` |
+
+Adding the usual things:
+
+- **A player key action:** an entry in `KeyAction` (screen, heading, title, argument kind), a
+  branch in `PlayerKeyController.run`, and its strings. The settings rows, labels and
+  validation follow from the entry.
+- **A player gesture option:** a preference in `CustomGesturePreferences`, a field in
+  `CustomGestureConfig`, a row in `CustomGestureSettings`, and its use in `GestureHandler.kt`.
+  A row that sits between upstream's rows is one fenced line naming it.
+- **A YouTube option:** a property in `YouTubeCustomPreferences` and a `CheckboxRow` or
+  `RadioRow` in `YouTubeCustomSettings`.
+- **A language-specific lookup rule:** in `LookupTextScanner` and `LookupPolicy`, and the same
+  rule in `assets/shared/lookup-scanner.js`.
 
 ### Replaced upstream blocks
 
@@ -108,9 +140,10 @@ the merge conflicts here and the fork side has to be updated by hand.
 | `ui/youtube/YouTubeResolver.kt` | the subtitle and audio track lists in `resolveVideo` | `YouTubeStreamSelection` |
 | `ui/player/controls/PlayerControls.kt` | `detectTapGestures` on the subtitle line, `extractOcrLookupString` in the tap selection | `claimTapWhereHit`, `extractOcrLookupSelection` |
 | `ui/player/controls/components/panels/SubtitleListPanel.kt` | the scroll-to-active effect, the centred scroll delta, `clickable` on a row | `FollowActiveCue`, `centeredScrollDelta`, `tapLeavingLongPress` |
-| `ui/player/controls/GestureHandler.kt` | the long-press guard and its screenshot body | fenced in place |
-| `ui/reader/viewer/ReaderPageImageView.kt`, `ui/dictionary/ScreenLookupOverlayController.kt`, `ui/player/controls/PlayerVideoOcrOverlay.kt` | lookups starting at the tapped character | `extractOcrLookupSelection` |
-| `ui/reader/viewer/OcrLookupPopup.kt`, `ui/library/novels/ChimaReaderActivity.kt` | highlight count and offset from the matched text | `FrenchLookupPolicy.highlightFor` |
+| `ui/player/controls/GestureHandler.kt` | the `areControlsLocked` state, the long-press guard and its screenshot body | `rememberCustomGestureConfig`, the rest fenced in place |
+| `presentation/more/settings/screen/player/PlayerSettingsGesturesScreen.kt` | `enabled = !subtitleSwipeControls` on the two slider switches | `CustomGestureSettings.slidersAvailable` |
+| `ui/reader/viewer/ReaderPageImageView.kt`, `ui/dictionary/ScreenLookupOverlayController.kt`, `ui/player/controls/PlayerVideoOcrOverlay.kt` | lookups starting at the tapped character | `OcrLookup.selectionAt`, `OcrLookup.orderedSelectionAt` |
+| `ui/reader/viewer/OcrLookupPopup.kt`, `ui/library/novels/ChimaReaderActivity.kt` | highlight count and offset from the matched text | `LookupPolicy.highlightFor` |
 | `ui/library/novels/NovelLibraryScreen.kt` | the add button | `NovelImportFab` |
 | `chimahon/dictionary/DeinflectorHelpers.kt` | the loop in `RuleDeinflector.deinflect` | fenced in place |
 | `assets/dictionary/renderer.js` | the tapped word as a plain string | fenced in place |
@@ -122,36 +155,51 @@ copy a small constant instead): `lookupWithSearchResolution` in `OcrLookupPopup.
 ## Where fork features live
 
 - **KOReader sync:** `chimahon/novel/kosync` (client, document ids, XPointers, the novel
-  manager, the settings screens under `ui/`) and `chimahon/custom/kosync` (the manga manager
-  and its reader hook). The novel reader calls `KosyncManager.pullOnOpen` from `ReaderScreen`
-  and `KosyncReaderLifecycle` from `ChimaReaderActivity`; the manga reader holds one
-  `MangaKosyncReaderHook`. `NovelDbPositionStore` is the bridge to upstream's DB-first reader,
-  and `jumpToSyncedPosition` in the novel `ReaderViewModel` is the one method that has to live
-  in upstream's class.
+  manager, the settings screen under `ui/`) and `chimahon/custom/kosync` (the manga manager
+  and its reader hook). `KosyncSession` is what the two managers share: the switches, the
+  login, the device id and the rule for when a remote position replaces the local one. Each
+  manager adds how its documents are identified and how a position converts. Settings are
+  `KosyncPreferences` in the app's preference store; the user key is a private key and the
+  device id is app state, so neither enters a backup by default. The novel reader calls
+  `KosyncManager.pullOnOpen` from `ReaderScreen` and `KosyncReaderLifecycle` from
+  `ChimaReaderActivity`; the manga reader holds one `MangaKosyncReaderHook`.
+  `NovelDbPositionStore` is the bridge to upstream's DB-first reader, and
+  `jumpToSyncedPosition` in the novel `ReaderViewModel` is the one method that has to live in
+  upstream's class.
 - **OPDS:** `chimahon/novel/opds` (browser, feed parser, client, `OpdsComicImporter`) and its
   `ui/` (`OpdsMangaScreen`, `NovelImportFab`, `NovelOpdsBrowser`). Novels go through upstream's
   `importBooks`, which returns its `Job` so the download can be deleted afterwards.
-  `BookImporter` and `FileNames` are identical to upstream.
+  `BookImporter` and `FileNames` are identical to upstream. Saved catalogs are one private
+  entry in the preference store (`OpdsCatalogRepository`).
 - **Server upload:** `eu/kanade/tachiyomi/data/upload`. These six files are ours but stay in
   an upstream package on purpose: two of them are WorkManager workers, and WorkManager stores
   the class name with every queued job. The UI is in `chimahon/custom/upload`.
-- **Player key bindings:** `chimahon/keybinding`. Bindings are stored one preference per
+- **Player key bindings:** `chimahon/keybinding`. `KeyAction` is the registry: each entry
+  declares its screen, heading, title and argument. Bindings are stored one preference per
   screen (`pref_key_bindings_<screen>`), so a reader can get its own set later without a
-  migration. `PlayerWordCursor` holds the key cursor; `WordCursorOpenEffect` and
+  migration, and the player reads them live. `PlayerWordCursor` holds the key cursor; `WordCursorOpenEffect` and
   `PopupKeyScriptsEffect` connect it to the subtitle line and the popup. `cycleSubtitle` stays
   in `PlayerViewModel` because it needs the view model's private state.
 - **Player gestures, reporting and assets:** `chimahon/custom/player`. Gesture options
-  (`CustomGestures`, `CustomPlayerEnums`), the subtitle list (`SubtitleListSupport`), tapping
+  (`CustomGesturePreferences`, `CustomGestureConfig`, `CustomGestureSettings`,
+  `CustomPlayerEnums`), the subtitle list (`SubtitleListSupport`), tapping
   a subtitle word (`SubtitleWordLookup`), media session state and Jellyfin reporting
   (`PlayerSessionReporters`, `JellyfinPlaybackReporter`), the mpv asset self-heal
-  (`PlayerAssets`) and the sentence-audio header list (`SentenceAudioInput`).
+  (`PlayerAssets`) and the sentence-audio header list (`SentenceAudioInput`). The Jellyfin
+  reporter follows mpv's file-loaded event in the activity. The YouTube one
+  (`YouTubeWatchHistorySync`) lives in the view model on purpose: the activity is recreated
+  when a gamepad or keyboard connects, the view model is not, and a session restarted
+  mid-video would send YouTube a second start ping for the same video.
 - **YouTube:** `chimahon/custom/youtube`. Browser navigation and start page, stream selection,
   watch history sync, and the fork's settings and preferences. The preferences share upstream's
-  `youtube_prefs` file under their own keys.
+  `youtube_prefs` file under their own keys. `YouTubeAccount` says whether anyone is signed in,
+  from the browser's cookies; the start page and the history sync both ask it.
 - **Lookup:** `chimahon/dictionary` in the `chimahon` module holds `LookupTextScanner`,
-  `DeinflectedLookup` and `FrenchLookupPolicy`; `chimahon/custom/lookup` holds `GenericLookup`
-  and, in `app`, `OcrLookupSelection`. `assets/shared/lookup-scanner.js` is the same scanner
-  for the WebViews and has to be kept in step with the Kotlin one by hand.
+  `DeinflectedLookup`, `LookupPolicy` and `LookupLanguage`; `chimahon/custom/lookup` holds
+  `GenericLookup`, the one lookup both the popup and the Dictionary tab run for every language
+  but Japanese, and, in `app`, `OcrLookup` for taps on OCR text. Elisions (`l'homme`) are
+  upstream's to strip, in `FrenchTextPreprocessors`. `assets/shared/lookup-scanner.js` is the
+  same scanner for the WebViews and has to be kept in step with the Kotlin one by hand.
 - **Smaller pieces:** the ComicInfo `LanguageISO` field (`core-metadata` and
   `domain/manga/model/Manga.kt`), the `{secondary-subtitle}` Anki marker (`AnkiCardCreator`,
   `MediaInfo`), the playback log switch (`AniyomiMPVView`, `AdvancedPlayerPreferences`).
