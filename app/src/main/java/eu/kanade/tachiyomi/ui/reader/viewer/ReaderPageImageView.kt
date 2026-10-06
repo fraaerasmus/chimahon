@@ -149,9 +149,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
     internal var activeOcrMatchedCount: Int = 0
     internal var ocrLayoutCache: Pair<OcrTextBlock, StaticLayout>? = null
     internal var ocrPopupLookupString: String? = null
-    // Chimahon -->
+    // Custom -->
     var lookupLanguageCodeProvider: () -> String = { "" }
-    // Chimahon <--
+    // Custom <--
 
     var onOcrLookup: ((String) -> Unit)? = null
     var onDismissOcrPopup: (() -> Unit)? = null
@@ -951,7 +951,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
             logcat { "OCR tap ignored at non-lookup offset=$charOffset len=${block.fullText.length}" }
             return true
         }
-        // Chimahon -->
+        // Custom -->
         // French uses the phrase-aware scanner selection (elisions, word-start scan);
         // other whole-word languages expand the tap to the surrounding word
         val isFrenchLookup = lookupLanguageCodeProvider().trim().lowercase().let {
@@ -962,7 +962,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         } else {
             lookupSelection.text
         }
-        // Chimahon <--
+        // Custom <--
         logcat {
             "OCR tap: lookup offset=${lookupSelection.startOffset} remainingChars=${lookupString.length} x=$viewX y=$viewY"
         }

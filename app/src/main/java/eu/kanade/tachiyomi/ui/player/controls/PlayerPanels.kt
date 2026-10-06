@@ -59,9 +59,9 @@ fun PlayerPanels(
     onSubtitleRegexFiltersChanged: () -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
-    // Chimahon -->
+    // Custom -->
     subtitlePositionSeconds: () -> Double = { 0.0 },
-    // Chimahon <--
+    // Custom <--
 ) {
     AnimatedContent(
         targetState = panelShown,
@@ -83,9 +83,9 @@ fun PlayerPanels(
                     activeCueIndex = activeSubtitleCueIndex,
                     onSelectCue = onSelectSubtitleCue,
                     onDismissRequest = onDismissRequest,
-                    // Chimahon -->
+                    // Custom -->
                     positionSeconds = subtitlePositionSeconds,
-                    // Chimahon <--
+                    // Custom <--
                 )
             }
             Panels.SubtitleSettings -> {

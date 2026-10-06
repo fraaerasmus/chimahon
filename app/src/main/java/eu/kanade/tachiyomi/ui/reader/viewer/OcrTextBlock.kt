@@ -152,7 +152,7 @@ internal fun isLookupStartChar(char: Char): Boolean {
     return isOcrLookupStartChar(char)
 }
 
-// Chimahon -->
+// Custom -->
 /**
  * [lineBreaks] are the offsets in [text] where an OCR line starts. For
  * space-delimited languages they stop the scan from running into a neighboring
@@ -189,7 +189,7 @@ private fun lineStartOffsets(lines: List<String>): Set<Int> {
     }
     return offsets
 }
-// Chimahon <--
+// Custom <--
 
 internal fun extractOcrLookupString(text: String, start: Int): String {
     return extractOcrLookupText(text, start)

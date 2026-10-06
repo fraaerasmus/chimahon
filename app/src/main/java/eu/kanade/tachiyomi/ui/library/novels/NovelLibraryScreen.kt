@@ -231,10 +231,10 @@ fun Screen.NovelLibraryScreen(
         }
     }
 
-    // Chimahon -->
+    // Custom -->
     var showImportMenu by remember { mutableStateOf(false) }
     var showOpdsBrowser by remember { mutableStateOf(false) }
-    // Chimahon <--
+    // Custom <--
 
     // Mirror manga library: back exits selection or clears search
     BackHandler(enabled = state.selectionMode || state.searchQuery != null) {
@@ -394,7 +394,7 @@ fun Screen.NovelLibraryScreen(
                 enter = androidx.compose.animation.fadeIn(),
                 exit = androidx.compose.animation.fadeOut(),
             ) {
-                // Chimahon -->
+                // Custom -->
                 Box {
                     FloatingActionButton(
                         onClick = { showImportMenu = true },
@@ -424,7 +424,7 @@ fun Screen.NovelLibraryScreen(
                         )
                     }
                 }
-                // Chimahon <--
+                // Custom <--
             }
         },
         snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
@@ -489,7 +489,7 @@ fun Screen.NovelLibraryScreen(
         }
     }
 
-    // Chimahon -->
+    // Custom -->
     if (showOpdsBrowser) {
         val opdsRepository = remember { Injekt.get<chimahon.novel.opds.OpdsCatalogRepository>() }
         chimahon.novel.opds.OpdsBrowser(
@@ -500,7 +500,7 @@ fun Screen.NovelLibraryScreen(
             modifier = Modifier.fillMaxSize(),
         )
     }
-    // Chimahon <--
+    // Custom <--
 
     // Hide bottom nav while in selection mode
     LaunchedEffect(state.selectionMode, state.dialog) {

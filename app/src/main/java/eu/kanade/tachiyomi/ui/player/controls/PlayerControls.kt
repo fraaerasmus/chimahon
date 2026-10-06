@@ -180,7 +180,7 @@ fun PlayerControls(
     val activeSubtitleCue = remember(subtitleCues, activeSubtitleCueIndex) {
         subtitleCues.firstOrNull { it.index == activeSubtitleCueIndex }
     }
-    // Chimahon -->
+    // Custom -->
     val lookupAnime by viewModel.currentAnime.collectAsState()
     val lookupProfile = remember(lookupAnime?.id, currentSource?.id, currentSource?.lang) {
         dictionaryPreferences.profileResolver.resolve(
@@ -189,14 +189,14 @@ fun PlayerControls(
             sourceLang = currentSource?.lang.orEmpty(),
         )
     }
-    // Chimahon <--
+    // Custom <--
 
     val playerTimeToDisappear by playerPreferences.playerTimeToDisappear().collectAsState()
     var isSeeking by remember { mutableStateOf(false) }
     var resetControls by remember { mutableStateOf(true) }
     var subtitleLookupRequest by remember { mutableStateOf<SubtitleLookupRequest?>(null) }
     var wasPlayerAlreadyPause by remember { mutableStateOf(false) }
-    // Chimahon -->
+    // Custom -->
     // Looking a word up with keys: the cursor has to know when the popup opens and closes.
     val wordCursor by viewModel.wordCursor.cursor.collectAsState()
     LaunchedEffect(subtitleLookupRequest?.charOffset) {
@@ -205,7 +205,7 @@ fun PlayerControls(
     BackHandler(enabled = wordCursor != null && subtitleLookupRequest == null) {
         viewModel.wordCursor.end()
     }
-    // Chimahon <--
+    // Custom <--
     val customButtons by viewModel.customButtons.collectAsState()
     val customButton by viewModel.primaryButton.collectAsState()
 
@@ -236,10 +236,10 @@ fun PlayerControls(
         val currentPanel = viewModel.panelShown.value
         if (
             viewModel.sheetShown.value != Sheets.None ||
-            // Chimahon -->
+            // Custom -->
             // The subtitle list sits beside the subtitles, so looking a word up stays possible.
             (currentPanel != Panels.None && currentPanel != Panels.SubtitleSideList) ||
-            // Chimahon <--
+            // Custom <--
             viewModel.dialogShown.value != Dialogs.None
         ) {
             return@openSubtitleLookup
@@ -285,14 +285,14 @@ fun PlayerControls(
         viewModel = viewModel,
         interactionSource = interactionSource,
     )
-    // Chimahon -->
+    // Custom -->
     // Without a lookup open, touches the subtitle line does not claim fall through to the gestures.
     Box(
         Modifier
             .fillMaxSize()
             .then(if (subtitleLookupRequest == null) Modifier.sharePointerInputWithSiblings() else Modifier),
     ) {
-        // Chimahon <--
+        // Custom <--
         if (subtitleLookupRequest != null) {
             Box(Modifier.fillMaxSize().clickable {
                 subtitleLookupRequest = null
@@ -304,11 +304,11 @@ fun PlayerControls(
             cue = activeSubtitleCue,
             subtitleDelaySeconds = primarySubtitleDelaySeconds,
             languageCode = lookupProfile.languageCode,
-            // Chimahon -->
+            // Custom -->
             // With no popup open, the word under the key cursor is the one highlighted.
             request = subtitleLookupRequest ?: wordCursor?.highlightRequest(),
             wordCursor = viewModel.wordCursor,
-            // Chimahon <--
+            // Custom <--
             onLookup = openSubtitleLookup,
         )
         PlayerSubtitleTextLayer(
@@ -471,9 +471,9 @@ fun PlayerControls(
                     },
                 ) {
                     when (currentPlayerUpdate) {
-                        // Chimahon -->
+                        // Custom -->
                         is PlayerUpdates.DoubleSpeed -> TextPlayerUpdate(stringResource(MR.strings.player_speed, 2f))
-                        // Chimahon <--
+                        // Custom <--
                         is PlayerUpdates.AspectRatio -> TextPlayerUpdate(stringResource(aspectRatio.titleRes))
                         is PlayerUpdates.ShowText -> TextPlayerUpdate(
                             (currentPlayerUpdate as PlayerUpdates.ShowText).value,
@@ -843,9 +843,9 @@ fun PlayerControls(
             onSubtitleSpeedChange = viewModel::updateSubtitleSpeed,
             onSubtitleRegexFiltersChanged = viewModel::refreshSubtitleRegexFilters,
             onDismissRequest = { viewModel.showPanel(Panels.None) },
-            // Chimahon -->
+            // Custom -->
             subtitlePositionSeconds = { viewModel.pos.value.toDouble() },
-            // Chimahon <--
+            // Custom <--
         )
 
         val activity = LocalContext.current as PlayerActivity
@@ -908,16 +908,16 @@ private fun PlayerSubtitleTextLayer(
     text: String,
     cue: PlayerViewModel.SubtitleCue? = null,
     subtitleDelaySeconds: Double = 0.0,
-    // Chimahon -->
+    // Custom -->
     languageCode: String = "",
-    // Chimahon <--
+    // Custom <--
     request: SubtitleLookupRequest? = null,
-    // Chimahon -->
+    // Custom -->
     // Null leaves the line without pointer input, so every touch on it reaches the gestures.
     onLookup: ((SubtitleLookupSelection) -> Unit)? = null,
     // Only the line that can be looked up is given the key cursor.
     wordCursor: PlayerWordCursor? = null,
-    // Chimahon <--
+    // Custom <--
     modifier: Modifier = Modifier,
     topAligned: Boolean = false,
     bottomPadding: Dp? = null,
@@ -951,18 +951,18 @@ private fun PlayerSubtitleTextLayer(
     val bold by subtitlePreferences.boldSubtitles().collectAsState()
     val italic by subtitlePreferences.italicSubtitles().collectAsState()
 
-    // Chimahon -->
+    // Custom -->
     // Ahead of the return below, so the cursor also hears of the line going away.
     if (wordCursor != null) {
         LaunchedEffect(wordCursor, subtitleText) { wordCursor.onSubtitleText(subtitleText) }
     }
-    // Chimahon <--
+    // Custom <--
 
     if (subtitleText.isBlank()) return
 
     var textLayout by remember(subtitleText) { mutableStateOf<TextLayoutResult?>(null) }
     var textLayerOrigin by remember(subtitleText) { mutableStateOf(Offset.Zero) }
-    // Chimahon -->
+    // Custom -->
     val currentOnLookup by rememberUpdatedState(onLookup)
     val currentLanguageCode by rememberUpdatedState(languageCode)
     if (wordCursor != null) {
@@ -984,7 +984,7 @@ private fun PlayerSubtitleTextLayer(
                 ?.let { currentOnLookup?.invoke(it) }
         }
     }
-    // Chimahon <--
+    // Custom <--
     val fontSizeSp = (subtitleFontSize * subtitleScale * fontSizeFactor).coerceIn(minFontSize, maxFontSize)
     // Map the position preference the same way mpv's sub-pos behaves: 100 sits flush at the
     // bottom, lower values lift the text, higher values push it down into the lower black bars.
@@ -1022,13 +1022,13 @@ private fun PlayerSubtitleTextLayer(
                 if (topAligned) {
                     Modifier.padding(top = 24.dp)
                 } else {
-                    // Chimahon -->
+                    // Custom -->
                     // Padding throws on a negative value, which positions past 100 produce.
                     // Those move the line down with an offset instead.
                     Modifier
                         .padding(bottom = resolvedBottomPadding.coerceAtLeast(0.dp))
                         .offset(y = -resolvedBottomPadding.coerceAtMost(0.dp))
-                    // Chimahon <--
+                    // Custom <--
                 },
             ),
         contentAlignment = if (topAligned) Alignment.TopCenter else Alignment.BottomCenter,
@@ -1081,7 +1081,7 @@ private fun PlayerSubtitleTextLayer(
                         )
                     }
                 }
-                // Chimahon -->
+                // Custom -->
                 .then(
                     if (onLookup == null) {
                         Modifier
@@ -1119,7 +1119,7 @@ private fun PlayerSubtitleTextLayer(
                         }
                     },
                 ),
-            // Chimahon <--
+            // Custom <--
         ) {
             if (borderStyle == SubtitlesBorderStyle.OutlineAndShadow) {
                 Text(

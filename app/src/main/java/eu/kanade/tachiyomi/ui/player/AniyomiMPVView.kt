@@ -172,13 +172,13 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
             MPVLib.setOptionString("vf", "format=yuv420p")
         }
         MPVLib.setOptionString("msg-level", "all=" + if (networkPreferences.verboseLogging().get()) "v" else "warn")
-        // Chimahon -->
+        // Custom -->
         // A full mpv log (track selection, seeks, HTTP errors) for troubleshooting playback
         // without editing mpv.conf. mpv truncates the file on every start.
         if (advancedPreferences.mpvLogFile().get()) {
             mpvLogFile(context)?.let { MPVLib.setOptionString("log-file", it.path) }
         }
-        // Chimahon <--
+        // Custom <--
 
         MPVLib.setPropertyBoolean("keep-open", true)
         MPVLib.setPropertyBoolean("input-default-bindings", true)
@@ -346,7 +346,7 @@ class AniyomiMPVView(context: Context, attributes: AttributeSet) : BaseMPVView(c
     }
 }
 
-// Chimahon -->
+// Custom -->
 /** App-specific external storage: always writable, and readable over adb or a file manager. */
 fun mpvLogFile(context: Context): java.io.File? = context.getExternalFilesDir(null)?.let { java.io.File(it, "mpv.log") }
-// Chimahon <--
+// Custom <--

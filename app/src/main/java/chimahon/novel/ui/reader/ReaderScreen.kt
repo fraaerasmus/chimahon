@@ -225,7 +225,7 @@ fun ReaderScreen(
                 }
             }
 
-            // Chimahon -->
+            // Custom -->
             // Pull the KOReader position before the view model reads the resume rows, so a
             // position pushed from another device is the one the book opens at.
             val kosyncManager = try {
@@ -240,7 +240,7 @@ fun ReaderScreen(
                     runCatching { kosyncManager.pull(rootUrl, book.title.orEmpty()) }
                 }
             }
-            // Chimahon <--
+            // Custom <--
 
             // Constructed off-main: init does disk reads (settings, bookmark,
             // statistics) that must never block the UI thread.

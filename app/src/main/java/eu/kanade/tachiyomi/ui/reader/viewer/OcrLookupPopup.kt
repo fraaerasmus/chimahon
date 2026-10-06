@@ -1395,7 +1395,7 @@ fun OcrLookupPopup(
  * a query yields no results it is retried cutting at word boundaries. Returns
  * the last empty (or first non-empty) result.
  */
-/* Chimahon --> */ internal /* Chimahon <-- */ fun lookupWithSearchResolution(
+/* Custom --> */ internal /* Custom <-- */ fun lookupWithSearchResolution(
     repository: DictionaryRepository,
     query: String,
     termPaths: chimahon.DictionaryPaths,

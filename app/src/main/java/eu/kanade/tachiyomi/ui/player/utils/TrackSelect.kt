@@ -33,11 +33,11 @@ class TrackSelect(
         }.split(",").filter { it.isNotEmpty() }
 
         val locales = prefLangs.map(::Locale).ifEmpty {
-            // Chimahon -->
+            // Custom -->
             // Audio without a preference means the source's first track, not the device language:
             // an English device would otherwise get YouTube's English auto-dub over the original.
             if (!subtitle) return null
-            // Chimahon <--
+            // Custom <--
             listOf(LocaleListCompat.getDefault()[0]!!)
         }
 

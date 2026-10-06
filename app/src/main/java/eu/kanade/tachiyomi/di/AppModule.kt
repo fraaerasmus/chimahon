@@ -15,12 +15,12 @@ import chimahon.ocr.LensClient
 import chimahon.ocr.OcrCacheManager
 import chimahon.novel.data.NovelCategoryStorage
 import chimahon.novel.ui.reader.NovelReaderActivity
-// Chimahon -->
+// Custom -->
 import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncSettingsRepository
 import chimahon.novel.kosync.NovelDbPositionStore
 import chimahon.novel.opds.OpdsCatalogRepository
-// Chimahon <--
+// Custom <--
 import eu.kanade.domain.track.store.DelayedAnimeTrackingStore
 import eu.kanade.domain.track.store.DelayedTrackingStore
 import eu.kanade.tachiyomi.animeextension.AnimeExtensionManager
@@ -336,13 +336,13 @@ class AppModule(val app: Application) : InjektModule {
         addSingletonFactory { chimahon.novel.interactor.FetchNovelInterval() }
         addSingletonFactory { eu.kanade.tachiyomi.data.backup.create.creators.NovelExtensionRepoBackupCreator() }
         addSingletonFactory { eu.kanade.tachiyomi.data.backup.restore.restorers.NovelExtensionRepoRestorer() }
-        // Chimahon -->
+        // Custom -->
         addSingletonFactory { KosyncSettingsRepository(app) }
         addSingletonFactory { KosyncManager(app, get(), positionStore = NovelDbPositionStore(get(), get(), get())) }
         addSingletonFactory { MangaKosyncManager(app, get(), get(), get(), get()) }
         addSingletonFactory { ServerUploadManager(app, get(), get(), get()) }
         addSingletonFactory { OpdsCatalogRepository(app) }
-        // Chimahon <--
+        // Custom <--
         addSingletonFactory<WordAudioPreferences> { get<DictionaryPreferences>() }
         addSingletonFactory { WordAudioService(app) }
 

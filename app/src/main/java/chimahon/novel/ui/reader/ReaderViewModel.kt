@@ -1104,7 +1104,7 @@ class ReaderViewModel(
      * If the URL cannot be matched to any spine item (e.g. external http link) the call is
      * silently ignored – the WebView already blocked the navigation via shouldOverrideUrlLoading.
      */
-    // Chimahon -->
+    // Custom -->
     /**
      * Lands on a position another device pushed through KOReader sync. The DB rows were already
      * updated by the pull, so this only moves the view; nothing is saved first, because the
@@ -1114,7 +1114,7 @@ class ReaderViewModel(
         chapterTransition = null
         loadChapter(spineIndex, progress)
     }
-    // Chimahon <--
+    // Custom <--
 
     fun jumpToUrl(url: String) {
         val fragment = url.substringAfter("#", missingDelimiterValue = "")

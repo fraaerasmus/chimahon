@@ -827,9 +827,9 @@ class ReaderActivity : BaseActivity() {
         // Set up OCR popup callback on the active reader viewer.
         when (val viewer = viewModel.state.value.viewer) {
             is PagerViewer -> {
-                // Chimahon -->
+                // Custom -->
                 viewer.lookupLanguageCodeProvider = { getOrRefreshLookupPaths().first.languageCode }
-                // Chimahon <--
+                // Custom <--
                 if (viewer.onShowOcrPopup == null) {
                     viewer.onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, _, sourcePage ->
                         val (activeProfile, deferredLookup) = preDeferLookup(lookupString)
@@ -890,9 +890,9 @@ class ReaderActivity : BaseActivity() {
                 }
             }
             is WebtoonViewer -> {
-                // Chimahon -->
+                // Custom -->
                 viewer.lookupLanguageCodeProvider = { getOrRefreshLookupPaths().first.languageCode }
-                // Chimahon <--
+                // Custom <--
                 if (viewer.onShowOcrPopup == null) {
                     viewer.onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, _, sourcePage ->
                         val (activeProfile, deferredLookup) = preDeferLookup(lookupString)
@@ -1087,10 +1087,10 @@ class ReaderActivity : BaseActivity() {
         }
     }
 
-    // Chimahon -->
+    // Custom -->
     /** Set by onPause so that only a real return to the reader pulls from the KOReader sync server. */
     private var kosyncPaused = false
-    // Chimahon <--
+    // Custom <--
 
     /**
      * Called when the activity is destroyed. Cleans up the viewer, configuration and any view.
@@ -1108,10 +1108,10 @@ class ReaderActivity : BaseActivity() {
         lifecycleScope.launchNonCancellable {
             viewModel.updateHistory()
         }
-        // Chimahon -->
+        // Custom -->
         lifecycleScope.launchNonCancellable { viewModel.pushKosyncProgress() }
         kosyncPaused = true
-        // Chimahon <--
+        // Custom <--
 
         // AM (DISCORD) -->
         updateDiscordRPC(exitingReader = true)
@@ -1127,12 +1127,12 @@ class ReaderActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.restartReadTimer()
-        // Chimahon -->
+        // Custom -->
         if (kosyncPaused) {
             kosyncPaused = false
             lifecycleScope.launch { viewModel.pullKosyncPosition()?.let(::moveToPageIndex) }
         }
-        // Chimahon <--
+        // Custom <--
 
         // AM (DISCORD) -->
         updateDiscordRPC(exitingReader = false)

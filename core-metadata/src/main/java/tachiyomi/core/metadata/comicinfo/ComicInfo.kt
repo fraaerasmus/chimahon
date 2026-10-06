@@ -81,9 +81,9 @@ data class ComicInfo(
     val genre: Genre?,
     val tags: Tags?,
     val web: Web?,
-    // Chimahon -->
+    // Custom -->
     val languageISO: LanguageISO? = null,
-    // Chimahon <--
+    // Custom <--
     val publishingStatus: PublishingStatusTachiyomi?,
     val categories: CategoriesTachiyomi?,
     val source: SourceMihon?,
@@ -155,11 +155,11 @@ data class ComicInfo(
     @XmlSerialName("Web", "", "")
     data class Web(@XmlValue(true) val value: String = "")
 
-    // Chimahon -->
+    // Custom -->
     @Serializable
     @XmlSerialName("LanguageISO", "", "")
     data class LanguageISO(@XmlValue(true) val value: String = "")
-    // Chimahon <--
+    // Custom <--
 
     // The spec doesn't have a good field for this
     @Serializable

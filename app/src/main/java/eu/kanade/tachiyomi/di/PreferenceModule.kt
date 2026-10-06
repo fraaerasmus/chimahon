@@ -80,11 +80,11 @@ class PreferenceModule(val app: Application) : InjektModule {
         addSingletonFactory {
             GesturePreferences(get())
         }
-        // Chimahon -->
+        // Custom -->
         addSingletonFactory {
             KeyBindingPreferences(get())
         }
-        // Chimahon <--
+        // Custom <--
         addSingletonFactory {
             SubtitlePreferences(get())
         }

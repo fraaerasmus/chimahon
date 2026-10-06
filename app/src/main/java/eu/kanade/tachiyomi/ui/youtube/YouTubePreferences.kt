@@ -18,7 +18,7 @@ class YouTubePreferences(context: Context) {
             ?: DEFAULT_QUALITY
         set(value) = prefs.edit().putString(KEY_QUALITY, value).apply()
 
-    // Chimahon -->
+    // Custom -->
     var preferredStartPage: String
         get() = prefs.getString(KEY_START_PAGE, DEFAULT_START_PAGE)
             ?.takeIf { it in START_PAGES }
@@ -32,7 +32,7 @@ class YouTubePreferences(context: Context) {
     var syncWatchHistory: Boolean
         get() = prefs.getBoolean(KEY_SYNC_WATCH_HISTORY, false)
         set(value) = prefs.edit().putBoolean(KEY_SYNC_WATCH_HISTORY, value).apply()
-    // Chimahon <--
+    // Custom <--
 
     companion object {
         const val KEY_QUALITY = "preferred_quality"
@@ -57,7 +57,7 @@ class YouTubePreferences(context: Context) {
             QUALITY_360P,
         )
 
-        // Chimahon -->
+        // Custom -->
         const val KEY_START_PAGE = "preferred_start_page"
         const val START_PAGE_HOME = "home"
         const val START_PAGE_HISTORY = "history"
@@ -69,6 +69,6 @@ class YouTubePreferences(context: Context) {
             START_PAGE_HOME,
             START_PAGE_HISTORY,
         )
-        // Chimahon <--
+        // Custom <--
     }
 }

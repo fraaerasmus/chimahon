@@ -49,9 +49,9 @@ fun Screen.sourcesTab(
     LocalMangaImportDialogs(
         state = importState,
         includeNovelOption = true,
-        // Chimahon -->
+        // Custom -->
         onOpds = { navigator.push(OpdsMangaScreen()) },
-        // Chimahon <--
+        // Custom <--
     )
 
     return TabContent(

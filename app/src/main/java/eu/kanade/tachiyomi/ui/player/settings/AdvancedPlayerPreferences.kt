@@ -9,9 +9,9 @@ class AdvancedPlayerPreferences(
     fun mpvConf() = preferenceStore.getString("pref_mpv_conf", "")
     fun mpvInput() = preferenceStore.getString("pref_mpv_input", "")
 
-    // Chimahon -->
+    // Custom -->
     fun mpvLogFile() = preferenceStore.getBoolean("pref_mpv_log_file", false)
-    // Chimahon <--
+    // Custom <--
 
     // Non-preference
 

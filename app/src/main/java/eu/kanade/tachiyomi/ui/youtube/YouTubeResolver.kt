@@ -67,9 +67,9 @@ class YouTubeResolver {
         suspend fun resolveVideo(
             videoId: String,
             preferredQuality: String = YouTubePreferences.DEFAULT_QUALITY,
-            // Chimahon -->
+            // Custom -->
             preferReliableAudio: Boolean = true,
-            // Chimahon <--
+            // Custom <--
         ): YouTubeVideoMetadata = resolveMutex.withLock {
             withContext(Dispatchers.IO) {
                 ensureInitialized()
@@ -77,18 +77,18 @@ class YouTubeResolver {
                 val extractor = ServiceList.YouTube.getStreamExtractor(linkHandler)
                 extractor.fetchPage()
 
-                // Chimahon -->
+                // Custom -->
                 // One format per language: every subtitle is a blocking fetch in the player
                 // before audio can be selected, and mpv rejects the default (TTML) format anyway.
                 val subtitleTracks = YouTubeStreamSelection.subtitleTracks(
                     runCatching { extractor.getSubtitles(MediaFormat.VTT) }.getOrDefault(emptyList())
                         .ifEmpty { runCatching { extractor.getSubtitles(MediaFormat.SRT) }.getOrDefault(emptyList()) },
                 )
-                // Chimahon <--
+                // Custom <--
 
-                // Chimahon -->
+                // Custom -->
                 val audioTracks = runCatching { YouTubeStreamSelection.audioTracks(extractor.audioStreams, preferReliableAudio) }.getOrDefault(emptyList())
-                // Chimahon <--
+                // Custom <--
 
                 val streams = (extractor.videoStreams + extractor.videoOnlyStreams)
                     .filter { it.content.isNotBlank() }
@@ -186,9 +186,9 @@ class YouTubeResolver {
             }
         }
 
-        // Chimahon -->
+        // Custom -->
         fun isYouTubeUrl(input: String): Boolean = extractVideoId(input) != null
-        // Chimahon <--
+        // Custom <--
 
         suspend fun resolveChannel(channelId: String): YouTubeChannelMetadata = resolveMutex.withLock {
                 withContext(Dispatchers.IO) {

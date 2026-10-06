@@ -18,14 +18,14 @@ class GesturePreferences(
 
     fun subtitleSwipeControls() = preferenceStore.getBoolean("pref_subtitle_swipe_controls", true)
 
-    // Chimahon -->
+    // Custom -->
     fun longPressGesture() = preferenceStore.getEnum("pref_long_press_gesture", LongPressGesture.Screenshot)
 
     fun subtitleSwipeVertical() = preferenceStore.getEnum(
         "pref_subtitle_swipe_vertical",
         VerticalSwipeGesture.SubtitleActions,
     )
-    // Chimahon <--
+    // Custom <--
 
     // Seeking
 
@@ -35,10 +35,10 @@ class GesturePreferences(
     fun skipLengthPreference() = preferenceStore.getInt("pref_skip_length_preference", 10)
     fun playerSmoothSeek() = preferenceStore.getBoolean("pref_player_smooth_seek", false)
 
-    // Chimahon -->
+    // Custom -->
     // Percent of the stock distance a horizontal swipe seeks
     fun horizontalSeekSensitivity() = preferenceStore.getInt("pref_horizontal_seek_sensitivity", 100)
-    // Chimahon <--
+    // Custom <--
 
     // Double tap
 

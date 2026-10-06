@@ -71,7 +71,7 @@ object ImportHandler {
         addMangaToLibrary(safeFolderName, mangaRepository, libraryPreferences)
     }
 
-    // Chimahon -->
+    // Custom -->
     data class OpdsComicImport(val seriesFolder: String, val chapterName: String)
 
     /**
@@ -119,7 +119,7 @@ object ImportHandler {
             file.delete()
         }
     }
-    // Chimahon <--
+    // Custom <--
 
     private suspend fun addMangaToLibrary(
         safeFolderName: String,

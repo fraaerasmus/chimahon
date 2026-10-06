@@ -102,9 +102,9 @@ class WebtoonPageHolder(
         frame.onImageLoaded = { onImageDecoded() }
         frame.onImageLoadError = { error -> setError(error) }
         frame.onScaleChanged = { viewer.activity.hideMenu() }
-        // Chimahon -->
+        // Custom -->
         frame.lookupLanguageCodeProvider = { viewer.lookupLanguageCodeProvider() }
-        // Chimahon <--
+        // Custom <--
         frame.onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, mediaInfo, _ ->
             viewer.onShowOcrPopup?.invoke(lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, mediaInfo, page)
         }

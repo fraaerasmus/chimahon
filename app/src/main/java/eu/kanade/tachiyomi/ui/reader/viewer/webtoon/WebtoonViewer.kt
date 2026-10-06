@@ -53,9 +53,9 @@ class WebtoonViewer(
 
     val downloadManager: DownloadManager by injectLazy()
 
-    // Chimahon -->
+    // Custom -->
     var lookupLanguageCodeProvider: () -> String = { "" }
-    // Chimahon <--
+    // Custom <--
 
     var onShowOcrPopup: (
         (

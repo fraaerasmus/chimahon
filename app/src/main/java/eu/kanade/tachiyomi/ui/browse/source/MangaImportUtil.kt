@@ -12,7 +12,7 @@ object MangaImportUtil {
      */
     fun getBaseTitle(fileName: String): String = getSeriesTitle(fileName.substringBeforeLast("."))
 
-    // Chimahon -->
+    // Custom -->
     // Trailing volume/chapter markers as catalogs write them: ", Vol. 3", " Volume 3", " Book 1", " Ch. 12",
     // " 第3巻", or a bare trailing number.
     private val trailingMarker = Regex(
@@ -32,7 +32,7 @@ object MangaImportUtil {
             .trim()
         return stripped.ifBlank { title.trim() }
     }
-    // Chimahon <--
+    // Custom <--
 
     /**
      * Replaces illegal characters with underscores and trims the result.

@@ -86,7 +86,7 @@ internal fun PlayerSubtitleLookupPopup(
 
     BackHandler(enabled = request != null, onBack = onDismiss)
 
-    // Chimahon -->
+    // Custom -->
     // Keys bound to the popup act on its page. A lookup inside the popup can open a second popup
     // over it, which takes the focus, and the keys are then meant for that one.
     val rootView = LocalView.current.rootView
@@ -96,7 +96,7 @@ internal fun PlayerSubtitleLookupPopup(
             (focused ?: webView).evaluateJavascript(script, null)
         }
     }
-    // Chimahon <--
+    // Custom <--
 
     val visible = request != null
     val mediaRequest: AnkiMediaRequest? = remember(request) {
@@ -104,12 +104,12 @@ internal fun PlayerSubtitleLookupPopup(
             viewModel.createSubtitleAudioMediaRequest(it.cueStartSeconds, it.cueEndSeconds)
         }
     }
-    // Chimahon -->
+    // Custom -->
     // The player pauses on lookup, so this is the line shown with the sentence being mined.
     val secondarySubtitle = remember(request) {
         if (request != null) viewModel.secondaryCurrentSubtitleText.value else ""
     }
-    // Chimahon <--
+    // Custom <--
 
     OcrLookupPopup(
         visible = visible,
@@ -129,9 +129,9 @@ internal fun PlayerSubtitleLookupPopup(
         mediaInfo = MediaInfo(
             mangaTitle = anime?.title.orEmpty(),
             chapterName = episode?.name.orEmpty(),
-            // Chimahon -->
+            // Custom -->
             secondarySubtitle = secondarySubtitle,
-            // Chimahon <--
+            // Custom <--
         ),
         onRequestScreenshot = {
             viewModel.captureVideoFrameForOcr()

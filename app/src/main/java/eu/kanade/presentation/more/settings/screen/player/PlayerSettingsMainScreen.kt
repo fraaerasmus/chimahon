@@ -188,14 +188,14 @@ object PlayerSettingsMainScreen : Screen() {
             icon = Icons.Outlined.Gesture,
             screen = PlayerSettingsGesturesScreen,
         ),
-        // Chimahon -->
+        // Custom -->
         Item(
             titleRes = MR.strings.pref_player_key_bindings,
             subtitleRes = MR.strings.pref_player_key_bindings_summary,
             icon = Icons.Outlined.Keyboard,
             screen = KeyBindingsScreen,
         ),
-        // Chimahon <--
+        // Custom <--
         Item(
             titleRes = MR.strings.pref_player_decoder,
             subtitleRes = MR.strings.pref_player_decoder_summary,

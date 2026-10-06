@@ -52,11 +52,11 @@ class YouTubeSettingsScreen : Screen {
         val context = LocalContext.current
         val preferences = remember { YouTubePreferences(context) }
         var selectedQuality by remember { mutableStateOf(preferences.preferredQuality) }
-        // Chimahon -->
+        // Custom -->
         var selectedStartPage by remember { mutableStateOf(preferences.preferredStartPage) }
-        // Chimahon <--
+        // Custom <--
         var addNewChannelsToLibrary by remember { mutableStateOf(preferences.addNewChannelsToLibrary) }
-        // Chimahon -->
+        // Custom -->
         var preferReliableAudio by remember { mutableStateOf(preferences.preferReliableAudio) }
         var syncWatchHistory by remember { mutableStateOf(preferences.syncWatchHistory) }
         val dictionaryPreferences = remember { Injekt.get<DictionaryPreferences>() }
@@ -65,7 +65,7 @@ class YouTubeSettingsScreen : Screen {
             dictionaryPreferences.rawProfileOverride(DictionaryProfileResolver.sourceOverrideKey(YouTubeSource.ID))
         }
         var selectedProfileId by remember { mutableStateOf(profileOverride.get()) }
-        // Chimahon <--
+        // Custom <--
 
         Scaffold(
             topBar = {
@@ -89,7 +89,7 @@ class YouTubeSettingsScreen : Screen {
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
             ) {
-                // Chimahon -->
+                // Custom -->
                 Text(
                     text = stringResource(AMR.strings.youtube_start_page),
                     style = MaterialTheme.typography.titleMedium,
@@ -136,7 +136,7 @@ class YouTubeSettingsScreen : Screen {
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
-                // Chimahon <--
+                // Custom <--
 
                 Text(
                     text = "General",
@@ -205,7 +205,7 @@ class YouTubeSettingsScreen : Screen {
                     }
                 }
 
-                // Chimahon -->
+                // Custom -->
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
@@ -317,7 +317,7 @@ class YouTubeSettingsScreen : Screen {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                // Chimahon <--
+                // Custom <--
 
                 Spacer(modifier = Modifier.height(24.dp))
 

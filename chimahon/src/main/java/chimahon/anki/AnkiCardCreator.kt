@@ -105,9 +105,9 @@ object Marker {
     const val WORD_AUDIO = "word-audio"
     const val SENTENCE_AUDIO = "sentence-audio"
 
-    // Chimahon -->
+    // Custom -->
     const val SECONDARY_SUBTITLE = "secondary-subtitle"
-    // Chimahon <--
+    // Custom <--
 
     val ALL: List<String> = listOf(
         // Core/Common
@@ -140,9 +140,9 @@ object Marker {
 
         // Other
         SENTENCE_AUDIO, POPUP_SELECTION_TEXT,
-        // Chimahon -->
+        // Custom -->
         SECONDARY_SUBTITLE,
-        // Chimahon <--
+        // Custom <--
     )
 
     val ALL_WITH_TODO: List<String> = ALL
@@ -914,9 +914,9 @@ object AnkiCardCreator {
         Marker.PITCH_ACCENT_COMPOSITE -> buildPitchAccents(result.term.reading, result.term.pitches, format = PitchFormat.COMPOSITE)
         Marker.WORD_AUDIO -> wordAudioFilename?.let { "[sound:$it]" } ?: ""
         Marker.SENTENCE_AUDIO -> sentenceAudioFilename?.let { "[sound:$it]" } ?: ""
-        // Chimahon -->
+        // Custom -->
         Marker.SECONDARY_SUBTITLE -> media?.secondarySubtitle?.let { escapeHtmlWithLineBreaks(it) } ?: ""
-        // Chimahon <--
+        // Custom <--
         Marker.MORAE -> buildMorae(result.term.reading)
         Marker.PITCH_ACCENT_GRAPHS, Marker.PITCH_ACCENT_GRAPHS_JJ -> buildPitchAccentGraphs(result.term.reading, result.term.pitches)
         Marker.SCREENSHOT -> screenshotFilename?.let { "<img src=\"$it\">" } ?: ""

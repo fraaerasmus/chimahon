@@ -803,7 +803,7 @@ object SettingsDataScreen : SearchableSettings {
                 ),
             ),
         ) + getSyncServicePreferences(syncPreferences, syncService) +
-            /* Chimahon --> */ getServerUploadPref(syncPreferences) + /* Chimahon <-- */ getTtuSyncPref()
+            /* Custom --> */ getServerUploadPref(syncPreferences) + /* Custom <-- */ getTtuSyncPref()
     }
 
     @Composable
@@ -820,7 +820,7 @@ object SettingsDataScreen : SearchableSettings {
                             navigator.push(TtuSyncScreen())
                         },
                     ),
-                    // Chimahon -->
+                    // Custom -->
                     Preference.PreferenceItem.TextPreference(
                         title = "KOReader Sync",
                         subtitle = "Sync novel and manga progress with KOReader devices via a kosync server",
@@ -828,13 +828,13 @@ object SettingsDataScreen : SearchableSettings {
                             navigator.push(KosyncScreen())
                         },
                     ),
-                    // Chimahon <--
+                    // Custom <--
                 ),
             ),
         )
     }
 
-    // Chimahon -->
+    // Custom -->
     @Composable
     private fun getServerUploadPref(syncPreferences: SyncPreferences): List<Preference> {
         val scope = rememberCoroutineScope()
@@ -860,7 +860,7 @@ object SettingsDataScreen : SearchableSettings {
             ),
         )
     }
-    // Chimahon <--
+    // Custom <--
 
     @Composable
     private fun getSyncServicePreferences(syncPreferences: SyncPreferences, syncService: Int): List<Preference> {

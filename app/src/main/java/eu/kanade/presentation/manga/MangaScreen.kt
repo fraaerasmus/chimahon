@@ -213,10 +213,10 @@ fun MangaScreen(
     onClickDictionaryProfile: (() -> Unit)?,
     onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
-    // Chimahon -->
+    // Custom -->
     serverUploadEnabled: Boolean = false,
     onToggleServerUpload: (() -> Unit)? = null,
-    // Chimahon <--
+    // Custom <--
     // KMK <--
 ) {
     val context = LocalContext.current
@@ -290,10 +290,10 @@ fun MangaScreen(
             onClickDictionaryProfile = onClickDictionaryProfile,
             onClickPreOcr = onClickPreOcr,
             onClickMangaStats = onClickMangaStats,
-            // Chimahon -->
+            // Custom -->
             serverUploadEnabled = serverUploadEnabled,
             onToggleServerUpload = onToggleServerUpload,
-            // Chimahon <--
+            // Custom <--
             // KMK <--
         )
     } else {
@@ -360,10 +360,10 @@ fun MangaScreen(
             onClickDictionaryProfile = onClickDictionaryProfile,
             onClickPreOcr = onClickPreOcr,
             onClickMangaStats = onClickMangaStats,
-            // Chimahon -->
+            // Custom -->
             serverUploadEnabled = serverUploadEnabled,
             onToggleServerUpload = onToggleServerUpload,
-            // Chimahon <--
+            // Custom <--
             // KMK <--
         )
     }
@@ -447,10 +447,10 @@ private fun MangaScreenSmallImpl(
     onClickDictionaryProfile: (() -> Unit)?,
     onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
-    // Chimahon -->
+    // Custom -->
     serverUploadEnabled: Boolean = false,
     onToggleServerUpload: (() -> Unit)? = null,
-    // Chimahon <--
+    // Custom <--
     // KMK <--
 ) {
     val chapterListState = rememberLazyListState()
@@ -548,10 +548,10 @@ private fun MangaScreenSmallImpl(
                 onClickDictionaryProfile = onClickDictionaryProfile,
                 onClickPreOcr = onClickPreOcr,
                 onClickMangaStats = onClickMangaStats,
-                // Chimahon -->
+                // Custom -->
                 serverUploadEnabled = serverUploadEnabled,
                 onToggleServerUpload = onToggleServerUpload,
-                // Chimahon <--
+                // Custom <--
                 // KMK <--
             )
         },
@@ -927,10 +927,10 @@ private fun MangaScreenLargeImpl(
     onClickDictionaryProfile: (() -> Unit)?,
     onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
-    // Chimahon -->
+    // Custom -->
     serverUploadEnabled: Boolean = false,
     onToggleServerUpload: (() -> Unit)? = null,
-    // Chimahon <--
+    // Custom <--
     // KMK <--
 ) {
     val layoutDirection = LocalLayoutDirection.current
@@ -1019,10 +1019,10 @@ private fun MangaScreenLargeImpl(
                 onClickDictionaryProfile = onClickDictionaryProfile,
                 onClickPreOcr = onClickPreOcr,
                 onClickMangaStats = onClickMangaStats,
-                // Chimahon -->
+                // Custom -->
                 serverUploadEnabled = serverUploadEnabled,
                 onToggleServerUpload = onToggleServerUpload,
-                // Chimahon <--
+                // Custom <--
                 // KMK <--
             )
         },

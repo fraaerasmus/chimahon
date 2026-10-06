@@ -49,9 +49,9 @@ fun rememberLocalMangaImportState(): LocalMangaImportState {
 fun LocalMangaImportDialogs(
     state: LocalMangaImportState,
     includeNovelOption: Boolean = true,
-    // Chimahon -->
+    // Custom -->
     onOpds: (() -> Unit)? = null,
-    // Chimahon <--
+    // Custom <--
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -118,7 +118,7 @@ fun LocalMangaImportDialogs(
                             Text(stringResource(MR.strings.novel_singular))
                         }
                     }
-                    // Chimahon -->
+                    // Custom -->
                     if (onOpds != null) {
                         TextButton(
                             onClick = {
@@ -129,7 +129,7 @@ fun LocalMangaImportDialogs(
                             Text("OPDS")
                         }
                     }
-                    // Chimahon <--
+                    // Custom <--
                 }
             },
         )

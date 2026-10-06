@@ -56,9 +56,9 @@ fun SubtitleListPanel(
     onSelectCue: (Int) -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
-    // Chimahon -->
+    // Custom -->
     positionSeconds: () -> Double = { 0.0 },
-    // Chimahon <--
+    // Custom <--
 ) {
     BackHandler(onBack = onDismissRequest)
 
@@ -106,7 +106,7 @@ private fun SubtitleCueLazyList(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    // Chimahon -->
+    // Custom -->
     val activePosition = cues.indexOfFirst { it.index == activeCueIndex }
     var hasFollowed by remember { mutableStateOf(false) }
 
@@ -122,7 +122,7 @@ private fun SubtitleCueLazyList(
         hasFollowed = true
         listState.animateScrollToCenteredItem(target)
     }
-    // Chimahon <--
+    // Custom <--
 
     if (cues.isEmpty()) {
         EmptySubtitleListMessage(modifier)
@@ -130,10 +130,10 @@ private fun SubtitleCueLazyList(
     }
 
     BoxWithConstraints(modifier = modifier) {
-        // Chimahon -->
+        // Custom -->
         // Long press a line to select text and get the system text menu (copy, translate, lookup).
         SelectionContainer {
-            // Chimahon <--
+            // Custom <--
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -160,21 +160,21 @@ private suspend fun LazyListState.animateScrollToCenteredItem(index: Int) {
     }
 
     val item = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index } ?: return
-    // Chimahon -->
+    // Custom -->
     val scrollDelta = centeredScrollDelta(
         itemOffset = item.offset,
         itemSize = item.size,
         viewportStartOffset = layoutInfo.viewportStartOffset,
         viewportEndOffset = layoutInfo.viewportEndOffset,
     )
-    // Chimahon <--
+    // Custom <--
 
     if (scrollDelta != 0) {
         animateScrollBy(scrollDelta.toFloat())
     }
 }
 
-// Chimahon -->
+// Custom -->
 /**
  * How far to scroll so an item sits in the middle of the viewport.
  *
@@ -198,7 +198,7 @@ internal fun centeredScrollDelta(
 internal fun fallbackPosition(cues: List<SubtitleCue>, positionSeconds: Double): Int {
     return cues.indexOfLast { it.positionSeconds <= positionSeconds }.coerceAtLeast(0)
 }
-// Chimahon <--
+// Custom <--
 
 @Composable
 private fun SubtitleCueSideRow(
@@ -207,14 +207,14 @@ private fun SubtitleCueSideRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Chimahon -->
+    // Custom -->
     val currentOnClick by rememberUpdatedState(onClick)
-    // Chimahon <--
+    // Custom <--
     Text(
         text = cue.text,
         modifier = modifier
             .fillMaxWidth()
-            // Chimahon -->
+            // Custom -->
             // Not clickable: it claims the touch and also fires when a long hold is released, so
             // selecting text would seek. This leaves the touch unconsumed and ignores long holds.
             .pointerInput(Unit) {
@@ -233,7 +233,7 @@ private fun SubtitleCueSideRow(
                     true
                 }
             }
-            // Chimahon <--
+            // Custom <--
             .background(activeLineColor(selected), RoundedCornerShape(2.dp))
             .padding(horizontal = 12.dp, vertical = 7.dp),
         style = subtitleLogTextStyle(),

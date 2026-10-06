@@ -139,10 +139,10 @@ class PlayerActivity : BaseActivity() {
 
     private var mediaSession: MediaSession? = null
 
-    // Chimahon -->
+    // Custom -->
     @Volatile
     private var jellyfinReporter: JellyfinPlaybackReporter? = null
-    // Chimahon <--
+    // Custom <--
     private val gesturePreferences: GesturePreferences by lazy { viewModel.gesturePreferences }
     private val playerPreferences: PlayerPreferences by lazy { viewModel.playerPreferences }
     // AY -->
@@ -270,9 +270,9 @@ class PlayerActivity : BaseActivity() {
         {
             player.isExiting = false
             val videoUrl = intent.getStringExtra(EXTRA_YOUTUBE_VIDEO_URL)
-                // Chimahon -->
+                // Custom -->
                 ?: intent.dataString
-            // Chimahon <--
+            // Custom <--
             if (videoUrl != null)
             {
                 // Create anime and episodes
@@ -356,11 +356,11 @@ class PlayerActivity : BaseActivity() {
     private fun Intent.isYoutubeVideoIntent(): Boolean {
         if (getBooleanExtra(EXTRA_YOUTUBE_VIDEO, false)) return true
         if (hasExtra(EXTRA_YOUTUBE_VIDEO_URL)) return true
-        // Chimahon -->
+        // Custom -->
         // YouTube links shared from outside the in-app browser arrive as plain VIEW
         // intents; route them through the resolver too, since mpv can't open watch pages
         if (data?.toString()?.let { YouTubeResolver.isYouTubeUrl(it) } == true) return true
-        // Chimahon <--
+        // Custom <--
         return false
     }
 
@@ -565,20 +565,20 @@ class PlayerActivity : BaseActivity() {
 
         mediaSession?.let {
             it.isActive = false
-            // Chimahon -->
+            // Custom -->
             it.setPlaybackState(
                 PlaybackState.Builder(it.controller.playbackState)
                     .setState(PlaybackState.STATE_STOPPED, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 0f)
                     .build(),
             )
-            // Chimahon <--
+            // Custom <--
             it.release()
         }
-        // Chimahon -->
+        // Custom -->
         mediaSession = null
         jellyfinReporter?.stop()
         jellyfinReporter = null
-        // Chimahon <--
+        // Custom <--
 
         if (noisyReceiver.initialized) {
             unregisterReceiver(noisyReceiver)
@@ -817,7 +817,7 @@ class PlayerActivity : BaseActivity() {
                 val outFile = File("$configDir/$filename")
                 // Note that .available() officially returns an *estimated* number of bytes available
                 // this is only true for generic streams, asset streams return the full file size
-                // Chimahon -->
+                // Custom -->
                 // A restored or damaged file can match in size while being unreadable (e.g. after a
                 // device migration strips permissions), so also verify a byte can actually be read
                 val isIntact = outFile.length() == ins.available().toLong() &&
@@ -828,7 +828,7 @@ class PlayerActivity : BaseActivity() {
                 }
                 // Delete first: an unreadable file may not be writable either
                 outFile.delete()
-                // Chimahon <--
+                // Custom <--
                 out = FileOutputStream(outFile)
                 ins.copyTo(out)
                 logcat(LogPriority.WARN) { "Copied asset file: $filename" }
@@ -1087,7 +1087,7 @@ class PlayerActivity : BaseActivity() {
     }
 
     internal fun onObserverEvent(property: String, value: Boolean) {
-        // Chimahon -->
+        // Custom -->
         // Before the isExiting guard: backgrounding sets isExiting, then pauses
         if (property == "pause") {
             mediaSession?.let {
@@ -1100,7 +1100,7 @@ class PlayerActivity : BaseActivity() {
             }
             jellyfinReporter?.setPaused(value)
         }
-        // Chimahon <--
+        // Custom <--
         if (player.isExiting) return
         when (property) {
             "pause" -> {
@@ -1286,7 +1286,7 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
-    // Chimahon -->
+    // Custom -->
     private val keyController by lazy {
         PlayerKeyController(
             viewModel = viewModel,
@@ -1307,7 +1307,7 @@ class PlayerActivity : BaseActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         return keyController.onKey(event, isInPictureInPictureMode) || super.dispatchKeyEvent(event)
     }
-    // Chimahon <--
+    // Custom <--
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         when (keyCode) {
@@ -1900,14 +1900,14 @@ class PlayerActivity : BaseActivity() {
 
     private fun fileLoaded() {
         if (player.isExiting) return
-        // Chimahon -->
+        // Custom -->
         // Every load is a new play session on the server: next episode, quality switch
         jellyfinReporter?.stop(atLastReported = true)
         jellyfinReporter = viewModel.currentVideo.value
             ?.let { JellyfinPlaybackReporter.parseTarget(it.videoUrl, it.headers) }
             ?.let { target -> JellyfinPlaybackReporter(target) { viewModel.pos.value } }
             ?.also { it.start(paused = player.paused == true) }
-        // Chimahon <--
+        // Custom <--
 
         // KMK -->
         updateDiscordRPC(exitingPlayer = false)
@@ -1957,13 +1957,13 @@ class PlayerActivity : BaseActivity() {
             return
         }
 
-        // Chimahon -->
+        // Custom -->
         // Select the first external audio track as soon as it opens: mpv never picks `auto`
         // tracks on its own, and onFinishLoadingTracks only runs after every add below returns.
         audioTracks?.forEachIndexed { index, audio ->
             executeMPVCommand(arrayOf("audio-add", audio.url, if (index == 0) "select" else "auto", audio.lang))
         }
-        // Chimahon <--
+        // Custom <--
         subtitleTracks?.forEach { sub ->
             executeMPVCommand(arrayOf("sub-add", sub.url, "auto", sub.lang))
         }

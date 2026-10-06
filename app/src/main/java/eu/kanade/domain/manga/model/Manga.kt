@@ -93,9 +93,9 @@ fun getComicInfo(
     urls: List<String>,
     categories: List<String>?,
     sourceName: String,
-    // Chimahon -->
+    // Custom -->
     languageIso: String? = null,
-    // Chimahon <--
+    // Custom <--
 ) = ComicInfo(
     title = ComicInfo.Title(chapter.name),
     series = ComicInfo.Series(manga.title),
@@ -107,9 +107,9 @@ fun getComicInfo(
         }
     },
     web = ComicInfo.Web(urls.joinToString(" ")),
-    // Chimahon -->
+    // Custom -->
     languageISO = languageIso?.let { ComicInfo.LanguageISO(it) },
-    // Chimahon <--
+    // Custom <--
     summary = manga.description?.let { ComicInfo.Summary(it) },
     writer = manga.author?.let { ComicInfo.Writer(it) },
     penciller = manga.artist?.let { ComicInfo.Penciller(it) },

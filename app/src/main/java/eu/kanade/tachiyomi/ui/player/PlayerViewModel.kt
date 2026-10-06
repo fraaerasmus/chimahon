@@ -527,7 +527,7 @@ class PlayerViewModel @JvmOverloads constructor(
                             rememberParsedSubtitleTrack(track)
                         }
                         "audio" -> {
-                            // Chimahon -->
+                            // Custom -->
                             audioTracks.add(
                                 VideoTrack(
                                     id = getTrackMPVId(i),
@@ -536,7 +536,7 @@ class PlayerViewModel @JvmOverloads constructor(
                                     externalFilename = getTrackExternalFilename(i),
                                 ),
                             )
-                            // Chimahon <--
+                            // Custom <--
                         }
                         else -> error("Unrecognized track type")
                     }
@@ -1357,7 +1357,7 @@ class PlayerViewModel @JvmOverloads constructor(
         rememberSubtitleSelectionForCurrentEpisode()
     }
 
-    // Chimahon -->
+    // Custom -->
     val wordCursor by lazy { PlayerWordCursor(this) }
 
     /**
@@ -1385,7 +1385,7 @@ class PlayerViewModel @JvmOverloads constructor(
         val name = subtitleTracks.value.firstOrNull { it.id == changed }?.name
         playerUpdate.update { PlayerUpdates.ShowText(name ?: activity.stringResource(MR.strings.off)) }
     }
-    // Chimahon <--
+    // Custom <--
 
     fun updateSubtitle(sid: Int, secondarySid: Int) {
         _selectedSubtitles.update { Pair(sid, secondarySid) }
@@ -2033,16 +2033,16 @@ class PlayerViewModel @JvmOverloads constructor(
         }
     }
 
-    // Chimahon -->
+    // Custom -->
     private val youtubeWatchHistory = YouTubeWatchHistorySync(currentEpisode, currentSource, pos, paused) {
         YouTubePreferences(Injekt.get<Application>()).syncWatchHistory
     }
-    // Chimahon <--
+    // Custom <--
 
     override fun onCleared() {
-        // Chimahon -->
+        // Custom -->
         youtubeWatchHistory.stop()
-        // Chimahon <--
+        // Custom <--
         if (currentEpisode.value != null) {
             saveWatchingProgress(currentEpisode.value!!)
             episodeToDownload?.let {

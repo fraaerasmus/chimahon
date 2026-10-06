@@ -54,9 +54,9 @@ data class Cloze(
 data class MediaInfo(
     val mangaTitle: String,
     val chapterName: String,
-    // Chimahon -->
+    // Custom -->
     val secondarySubtitle: String = "",
-    // Chimahon <--
+    // Custom <--
 )
 
 data class TermResult(

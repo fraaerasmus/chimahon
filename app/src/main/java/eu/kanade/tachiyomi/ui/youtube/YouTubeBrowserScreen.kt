@@ -57,10 +57,10 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
     private companion object {
         private const val PLAYER_LAUNCH_DEBOUNCE_MS = 1_500L
 
-        // Chimahon -->
+        // Custom -->
         private const val YOUTUBE_HOME_URL = "https://m.youtube.com/"
         private const val YOUTUBE_HISTORY_URL = "https://www.youtube.com/feed/history"
-        // Chimahon <--
+        // Custom <--
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -69,15 +69,15 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        // Chimahon -->
+        // Custom -->
         val preferences = remember(context) { YouTubePreferences(context.applicationContext) }
-        // Chimahon <--
+        // Custom <--
         var progress by remember { mutableIntStateOf(0) }
         var isLoading by remember { mutableStateOf(true) }
         var title by remember { mutableStateOf("YouTube") }
         var webView by remember { mutableStateOf<WebView?>(null) }
 
-        // Chimahon -->
+        // Custom -->
         var canGoBack by remember { mutableStateOf(false) }
         var canGoForward by remember { mutableStateOf(false) }
         var retainSessionOnDispose by remember { mutableStateOf(true) }
@@ -121,17 +121,17 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
         }
 
         BackHandler(onBack = ::navigateBackOrMinimize)
-        // Chimahon <--
+        // Custom <--
 
         DisposableEffect(Unit) {
             onDispose {
                 webView?.let { view ->
-                    // Chimahon -->
+                    // Custom -->
                     CookieManager.getInstance().flush()
                     if (retainSessionOnDispose) {
                         YouTubeBrowserSession.capture(view)
                     }
-                    // Chimahon <--
+                    // Custom <--
                     view.stopLoading()
                     view.webChromeClient = null
                     view.webViewClient = WebViewClient()
@@ -146,7 +146,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
             topBar = {
                 TopAppBar(
                     title = { Text(text = title) },
-                    // Chimahon -->
+                    // Custom -->
                     navigationIcon = {
                         IconButton(onClick = ::minimizeBrowser) {
                             Icon(
@@ -181,7 +181,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                             )
                         }
                     },
-                    // Chimahon <--
+                    // Custom <--
                 )
             },
         ) { padding ->
@@ -199,10 +199,10 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                             val mainHandler = Handler(Looper.getMainLooper())
                             var lastPlayerLaunchVideoId = ""
                             var lastPlayerLaunchAt = 0L
-                            // Chimahon -->
+                            // Custom -->
                             var pendingFreshHistoryLoginCheck = false
                             var clearHistoryOnHomeFinish = false
-                            // Chimahon <--
+                            // Custom <--
 
                             fun openInPlayer(url: String) {
                                 val videoId = getDirectYouTubeVideoId(url) ?: return
@@ -318,7 +318,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                         CookieManager.getInstance().flush()
                                         injectInterceptScript(view)
 
-                                        // Chimahon -->
+                                        // Custom -->
                                         if (clearHistoryOnHomeFinish && isYouTubeHomeUrl(url)) {
                                             clearHistoryOnHomeFinish = false
                                             view?.clearHistory()
@@ -340,7 +340,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                                 }
                                             }
                                         }
-                                        // Chimahon <--
+                                        // Custom <--
                                     }
                                 }
 
@@ -354,7 +354,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                     "Android",
                                 )
 
-                                // Chimahon -->
+                                // Custom -->
                                 // Explicit browse targets win; otherwise restore the retained
                                 // session, then fall back to the configured start page
                                 val retainedSession = YouTubeBrowserSession.consume()
@@ -373,7 +373,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                     }
                                     else -> loadUrl(YouTubeSource.baseUrl)
                                 }
-                                // Chimahon <--
+                                // Custom <--
                             }
                         },
                         modifier = Modifier.fillMaxSize(),
@@ -403,7 +403,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
         return videoId?.takeIf { it.isYouTubeVideoId() }
     }
 
-    // Chimahon -->
+    // Custom -->
     private fun isYouTubeHistoryUrl(url: String?): Boolean {
         val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return false
         return uri.isYouTubeHost() && uri.path.orEmpty().trimEnd('/') == "/feed/history"
@@ -447,7 +447,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
             )
         }
     }
-    // Chimahon <--
+    // Custom <--
 
     private fun String.isYouTubeVideoId(): Boolean {
         return length == 11 && all { it.isLetterOrDigit() || it == '_' || it == '-' }

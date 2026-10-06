@@ -59,7 +59,7 @@ enum class SingleActionGesture(val stringRes: StringResource) {
     Custom(stringRes = MR.strings.single_action_custom),
 }
 
-// Chimahon -->
+// Custom -->
 /**
  * Action performed on long press
  */
@@ -75,7 +75,7 @@ enum class VerticalSwipeGesture(val stringRes: StringResource) {
     SubtitleActions(stringRes = MR.strings.vertical_swipe_subtitle_actions),
     VolumeBrightness(stringRes = MR.strings.vertical_swipe_volume_brightness),
 }
-// Chimahon <--
+// Custom <--
 
 /**
  * Key codes sent through the `Custom` option in gestures

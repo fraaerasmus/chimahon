@@ -261,7 +261,7 @@ class NovelLibraryScreenModel(
      * Imports an EPUB downloaded from an OPDS catalog, then deletes the download. The file is
      * imported byte-for-byte so its KOReader document id matches the same book elsewhere.
      */
-    // Chimahon -->
+    // Custom -->
     /** An EPUB an OPDS catalog handed us; the file is ours to delete once the importer has copied it. */
     fun importDownloadedBook(file: java.io.File) {
         screenModelScope.launch {
@@ -272,7 +272,7 @@ class NovelLibraryScreenModel(
             }
         }
     }
-    // Chimahon <--
+    // Custom <--
 
     fun importBooks(uris: List<Uri>) {
         screenModelScope.launch { importUris(uris) }

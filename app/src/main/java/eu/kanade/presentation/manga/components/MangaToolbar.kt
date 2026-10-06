@@ -64,10 +64,10 @@ fun MangaToolbar(
     onClickDictionaryProfile: (() -> Unit)?,
     onClickPreOcr: (() -> Unit)?,
     onClickMangaStats: (() -> Unit)?,
-    // Chimahon -->
+    // Custom -->
     serverUploadEnabled: Boolean = false,
     onToggleServerUpload: (() -> Unit)? = null,
-    // Chimahon <--
+    // Custom <--
 
     // For action mode
     actionModeCounter: Int,
@@ -297,7 +297,7 @@ fun MangaToolbar(
                             ),
                         )
                     }
-                    // Chimahon -->
+                    // Custom -->
                     if (onToggleServerUpload != null) {
                         add(
                             AppBar.OverflowAction(
@@ -306,7 +306,7 @@ fun MangaToolbar(
                             ),
                         )
                     }
-                    // Chimahon <--
+                    // Custom <--
                     if (isDebugBuildType) {
                         add(
                             AppBar.OverflowAction(

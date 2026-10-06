@@ -35,11 +35,11 @@ internal fun getDictionaryBootstrapHtml(
     val js = dictionaryRendererJs.getOrPut(Unit) {
         readTextAsset(context.applicationContext, "dictionary/renderer.js").replace("</script", "<\\/script")
     }
-    // Chimahon -->
+    // Custom -->
     val lookupScannerJs = dictionaryLookupScannerJs.getOrPut(Unit) {
         readTextAsset(context.applicationContext, "shared/lookup-scanner.js").replace("</script", "<\\/script")
     }
-    // Chimahon <--
+    // Custom <--
     val kanjiJs = dictionaryKanjiRendererJs.getOrPut(Unit) {
         readTextAsset(context.applicationContext, "dictionary/kanji-renderer.js")
     }

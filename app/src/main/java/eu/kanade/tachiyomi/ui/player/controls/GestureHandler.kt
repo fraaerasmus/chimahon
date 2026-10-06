@@ -87,7 +87,7 @@ import kotlin.math.abs
 private const val SUBTITLE_SWIPE_TIME_LIMIT_MILLIS = 500L
 private const val SUBTITLE_SWIPE_DOMINANCE_RATIO = 1.2f
 
-// Chimahon -->
+// Custom -->
 private const val HORIZONTAL_SEEK_SECONDS_PER_PIXEL = 0.15f
 
 /**
@@ -96,7 +96,7 @@ private const val HORIZONTAL_SEEK_SECONDS_PER_PIXEL = 0.15f
 internal fun horizontalSeekSecondsPerPixel(sensitivityPercent: Int): Float {
     return HORIZONTAL_SEEK_SECONDS_PER_PIXEL * sensitivityPercent / 100f
 }
-// Chimahon <--
+// Custom <--
 
 internal enum class SubtitleSwipeAction {
     ToggleVisibility,
@@ -142,13 +142,13 @@ fun GestureHandler(
     val duration by viewModel.duration.collectAsState()
     val position by viewModel.pos.collectAsState()
     val controlsShown by viewModel.controlsShown.collectAsState()
-    // Chimahon -->
+    // Custom -->
     // Gestures only count as locked while the user has not allowed them in the locked state.
     // Kept under the upstream name so every lock check below stays untouched.
     val controlsLocked by viewModel.areControlsLocked.collectAsState()
     val allowGesturesWhenLocked by playerPreferences.allowGesturesWhenLocked().collectAsState()
     val areControlsLocked by rememberUpdatedState(controlsLocked && !allowGesturesWhenLocked)
-    // Chimahon <--
+    // Custom <--
     val disableLongPressScr by playerPreferences.disableLongPressScreenshot().collectAsState()
     val singleTapToPause by playerPreferences.singleTapToPause().collectAsState()
     val seekAmount by viewModel.doubleTapSeekAmount.collectAsState()
@@ -170,13 +170,13 @@ fun GestureHandler(
     val seekGesture by gesturePreferences.gestureHorizontalSeek().collectAsState()
     val preciseSeeking by gesturePreferences.playerSmoothSeek().collectAsState()
     val showSeekbar by gesturePreferences.showSeekBar().collectAsState()
-    // Chimahon -->
+    // Custom -->
     val longPressGesture by gesturePreferences.longPressGesture().collectAsState()
     val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
     val subtitleVerticalSwipe = subtitleSwipeControls &&
         subtitleSwipeVertical == VerticalSwipeGesture.SubtitleActions
     val seekSensitivity by gesturePreferences.horizontalSeekSensitivity().collectAsState()
-    // Chimahon <--
+    // Custom <--
     var isLongPressing by remember { mutableStateOf(false) }
     val currentVolume by viewModel.currentVolume.collectAsState()
     val currentMPVVolume by viewModel.currentMPVVolume.collectAsState()
@@ -291,17 +291,17 @@ fun GestureHandler(
                             pendingSingleTap?.cancel()
                             lastTapAt = 0L
                             if (areControlsLocked) return@detectTapGestures
-                            // Chimahon -->
+                            // Custom -->
                             if (longPressGesture == LongPressGesture.Screenshot && disableLongPressScr) {
                                 return@detectTapGestures
                             }
-                            // Chimahon <--
+                            // Custom <--
                             if (!isLongPressing) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 if (onSubtitleLongPress(it.x, it.y, size.width, size.height)) {
                                     return@detectTapGestures
                                 }
-                                // Chimahon -->
+                                // Custom -->
                                 when (longPressGesture) {
                                     LongPressGesture.DoubleSpeed -> {
                                         originalSpeed = viewModel.playbackSpeed.value
@@ -315,7 +315,7 @@ fun GestureHandler(
                                         viewModel.sheetShown.update { Sheets.Screenshot }
                                     }
                                 }
-                                // Chimahon <--
+                                // Custom <--
                             }
                         },
                     )
@@ -326,7 +326,7 @@ fun GestureHandler(
                 var startedAt = 0L
                 var totalDragX = 0f
                 var totalDragY = 0f
-                // Chimahon -->
+                // Custom -->
                 if (!subtitleVerticalSwipe) {
                     // Vertical swipes belong to volume/brightness, so only claim horizontal drags.
                     detectHorizontalDragGestures(
@@ -352,7 +352,7 @@ fun GestureHandler(
                     }
                     return@pointerInput
                 }
-                // Chimahon <--
+                // Custom <--
                 detectDragGestures(
                     onDragStart = {
                         startedAt = SystemClock.uptimeMillis()
@@ -404,14 +404,14 @@ fun GestureHandler(
                 ) { change, dragAmount ->
                     if (position <= 0f && dragAmount < 0) return@detectHorizontalDragGestures
                     if (position >= duration && dragAmount > 0) return@detectHorizontalDragGestures
-                    // Chimahon -->
+                    // Custom -->
                     calculateNewHorizontalGestureValue(
                         startingPosition,
                         startingX,
                         change.position.x,
                         horizontalSeekSecondsPerPixel(seekSensitivity),
                     ).let {
-                        // Chimahon <--
+                        // Custom <--
                         viewModel.gestureSeekAmount.update { _ ->
                             Pair(
                                 startingPosition,
@@ -425,10 +425,10 @@ fun GestureHandler(
                     if (showSeekbar) viewModel.showSeekBar()
                 }
             }
-            // Chimahon -->
+            // Custom -->
             .pointerInput(areControlsLocked, subtitleVerticalSwipe) {
                 if (subtitleVerticalSwipe || !gestureVolumeBrightness || areControlsLocked) return@pointerInput
-                // Chimahon <--
+                // Custom <--
                 var startingY = 0f
                 var mpvVolumeStartingY = 0f
                 var originalVolume = currentVolume

@@ -63,7 +63,7 @@ import uy.kohesive.injekt.api.get
  */
 class ChimaReaderActivity : NovelReaderActivity() {
 
-    // Chimahon -->
+    // Custom -->
     private val kosyncManager: chimahon.novel.kosync.KosyncManager? by lazy {
         runCatching { Injekt.get<chimahon.novel.kosync.KosyncManager>() }.getOrNull()
     }
@@ -98,7 +98,7 @@ class ChimaReaderActivity : NovelReaderActivity() {
         val title = bookMetadata?.title.orEmpty()
         kosyncScope.launch { runCatching { kosync.push(bookDir, title) } }
     }
-    // Chimahon <--
+    // Custom <--
 
     private val readerPreferences: eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences by uy.kohesive.injekt.injectLazy()
     private var popupWebView: WebView? = null
@@ -445,9 +445,9 @@ class ChimaReaderActivity : NovelReaderActivity() {
             val result = try { lookupDeferred?.await() } catch (_: Exception) { null }
             val firstMatched = result?.results?.firstOrNull()?.matched
             if (firstMatched != null && resolveAnchorFromWebView) {
-                // Chimahon -->
+                // Custom -->
                 val highlight = FrenchLookupPolicy.highlightFor(word, firstMatched)
-                // Chimahon <--
+                // Custom <--
                 withContext(Dispatchers.Main) {
                     pendingShowByRects = true
                     readerViewModel?.bridge?.send(
@@ -606,11 +606,11 @@ class ChimaReaderActivity : NovelReaderActivity() {
         }
     }
 
-    // Chimahon -->
+    // Custom -->
     private companion object {
         /** Outlives the activity so a closing push is not cancelled with it. */
         val kosyncScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     }
-    // Chimahon <--
+    // Custom <--
 
 }

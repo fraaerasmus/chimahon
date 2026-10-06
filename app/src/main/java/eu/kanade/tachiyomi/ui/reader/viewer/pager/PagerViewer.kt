@@ -47,9 +47,9 @@ abstract class PagerViewer(
 
     val scope = MainScope()
 
-    // Chimahon -->
+    // Custom -->
     var lookupLanguageCodeProvider: () -> String = { "" }
-    // Chimahon <--
+    // Custom <--
 
     var onShowOcrPopup: (
         (
