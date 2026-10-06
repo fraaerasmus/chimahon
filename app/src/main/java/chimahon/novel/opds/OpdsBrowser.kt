@@ -48,10 +48,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import chimahon.custom.core.describeForUser
+import chimahon.custom.core.withHttpScheme
+import chimahon.custom.ui.ServerLoginFields
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
@@ -76,7 +77,7 @@ fun OpdsBrowser(
     val context = LocalContext.current
     val client = remember { OpdsClient() }
     val scope = rememberCoroutineScope()
-    val catalogs by repository.catalogs.collectAsState()
+    val catalogs by repository.catalogs.collectAsState(initial = repository.current())
     var selected by remember { mutableStateOf<OpdsCatalog?>(null) }
     val feedStack = remember { mutableStateListOf<OpdsFeed>() }
     var searchTemplate by remember { mutableStateOf<String?>(null) }
@@ -175,7 +176,7 @@ fun OpdsBrowser(
             onDismiss = { editing = null },
             onSave = { next ->
                 editing = null
-                scope.launch { repository.save(next) }
+                repository.save(next)
             },
         )
     }
@@ -187,7 +188,7 @@ fun OpdsBrowser(
                 TextButton(
                     onClick = {
                         deleteCandidate = null
-                        scope.launch { repository.delete(catalog.id) }
+                        repository.delete(catalog.id)
                     },
                 ) { Text("Remove") }
             },
@@ -449,37 +450,24 @@ private fun CatalogDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("Catalog URL") },
-                    placeholder = { Text("http://host:8083/opds") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Username (optional)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password (optional)") },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
+                ServerLoginFields(
+                    url = url,
+                    onUrlChange = { url = it },
+                    urlLabel = "Catalog URL",
+                    urlPlaceholder = "http://host:8083/opds",
+                    username = username,
+                    onUsernameChange = { username = it },
+                    password = password,
+                    onPasswordChange = { password = it },
+                    usernameLabel = "Username (optional)",
+                    passwordLabel = "Password (optional)",
                 )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    val trimmedUrl = url.trim().let { if (it.contains("://")) it else "http://$it" }
+                    val trimmedUrl = url.withHttpScheme()
                     onSave(
                         initial.copy(
                             name = name.trim().ifBlank { trimmedUrl },

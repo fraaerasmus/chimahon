@@ -2,8 +2,7 @@ package chimahon.novel.kosync
 
 import chimahon.novel.data.Bookmark
 import chimahon.novel.data.FileNames
-import io.mockk.every
-import io.mockk.mockk
+import chimahon.custom.core.FakePreferenceStore
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -31,19 +30,12 @@ class KosyncManagerTest {
         }
     }
 
-    private var settings = KosyncSettings(enabled = true, serverUrl = "http://server", username = "reader")
-    private var signedIn = true
-
-    private fun manager(): KosyncManager {
-        val repository = mockk<KosyncSettingsRepository>()
-        every { repository.currentSettings() } answers { settings }
-        every { repository.hasUserKey() } answers { signedIn }
-        every { repository.credentials() } answers {
-            KosyncCredentials(settings.serverUrl, settings.username, "key").takeIf { signedIn }
-        }
-        every { repository.deviceId } returns THIS_DEVICE
-        return KosyncManager(mockk(), repository, api, positionStore = positions)
+    private val preferences = KosyncPreferences(FakePreferenceStore()).apply {
+        enabled().set(true)
+        saveLogin(KosyncCredentials("http://server", "reader", "key"))
     }
+
+    private fun manager() = KosyncManager(preferences, api, positionStore = positions)
 
     @BeforeEach
     fun book() {
@@ -95,7 +87,7 @@ class KosyncManagerTest {
         pull()
         api.remote = remoteProgress(percentage = 0.75, timestamp = null)
         pull()
-        api.remote = remoteProgress(percentage = 0.75, timestamp = 9_000L, deviceId = THIS_DEVICE)
+        api.remote = remoteProgress(percentage = 0.75, timestamp = 9_000L, deviceId = preferences.deviceId)
         pull()
         api.remote = remoteProgress(percentage = null, timestamp = 9_000L)
         pull()
@@ -128,14 +120,14 @@ class KosyncManagerTest {
         api.remote = remoteProgress(percentage = 0.75, timestamp = 2_000L)
         positions.bookmark = Bookmark(chapterIndex = 1, progress = 0.5, characterCount = 1500, lastModified = 1L)
 
-        settings = settings.copy(enabled = false)
+        preferences.enabled().set(false)
         pull()
         push()
-        settings = settings.copy(enabled = true)
-        signedIn = false
+        preferences.enabled().set(true)
+        preferences.clearLogin()
         pull()
         push()
-        signedIn = true
+        preferences.saveLogin(KosyncCredentials("http://server", "reader", "key"))
         File(bookDir, "book.epub").delete()
         pull()
         push()
@@ -155,18 +147,18 @@ class KosyncManagerTest {
         // The chapter cannot be read here, so the pointer is the start of its DocFragment.
         assertEquals("/body/DocFragment[2]/body", put.progress)
         assertEquals(KosyncManager.DEVICE_NAME, put.device)
-        assertEquals(THIS_DEVICE, put.deviceId)
+        assertEquals(preferences.deviceId, put.deviceId)
         assertEquals(false, put.numericProgress)
     }
 
     @Test
     fun `a position is pushed once, and not at all when pushing is off`() {
         positions.bookmark = Bookmark(chapterIndex = 1, progress = 0.5, characterCount = 1500, lastModified = 1L)
-        settings = settings.copy(pushEnabled = false)
+        preferences.push().set(false)
         push()
         assertEquals(0, api.puts.size)
 
-        settings = settings.copy(pushEnabled = true)
+        preferences.push().set(true)
         push()
         push()
         assertEquals(1, api.puts.size)
@@ -191,9 +183,5 @@ class KosyncManagerTest {
         push()
         assertNull(positions.bookmark)
         assertEquals(0, api.puts.size)
-    }
-
-    private companion object {
-        const val THIS_DEVICE = "THISDEVICE"
     }
 }

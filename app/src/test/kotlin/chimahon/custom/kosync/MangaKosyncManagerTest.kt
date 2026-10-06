@@ -1,12 +1,12 @@
 package chimahon.custom.kosync
 
 import android.content.Context
+import chimahon.custom.core.FakePreferenceStore
 import chimahon.novel.kosync.FakeKosyncApi
 import chimahon.novel.kosync.KosyncCredentials
 import chimahon.novel.kosync.KosyncDocumentId
 import chimahon.novel.kosync.KosyncManager
-import chimahon.novel.kosync.KosyncSettings
-import chimahon.novel.kosync.KosyncSettingsRepository
+import chimahon.novel.kosync.KosyncPreferences
 import chimahon.novel.kosync.remoteProgress
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.Source
@@ -32,7 +32,10 @@ class MangaKosyncManagerTest {
     lateinit var filesDir: File
 
     private val api = FakeKosyncApi()
-    private var settings = KosyncSettings(enabled = true, serverUrl = "http://server", username = "reader")
+    private val preferences = KosyncPreferences(FakePreferenceStore()).apply {
+        enabled().set(true)
+        saveLogin(KosyncCredentials("http://server", "reader", "key"))
+    }
     private lateinit var archive: File
     private lateinit var archiveFile: UniFile
 
@@ -61,18 +64,13 @@ class MangaKosyncManagerTest {
         val context = mockk<Context>()
         every { context.applicationContext } returns context
         every { context.filesDir } returns filesDir
-        val repository = mockk<KosyncSettingsRepository>()
-        every { repository.currentSettings() } answers { settings }
-        every { repository.hasUserKey() } returns true
-        every { repository.credentials() } answers { KosyncCredentials(settings.serverUrl, settings.username, "key") }
-        every { repository.deviceId } returns THIS_DEVICE
         val source = mockk<Source>()
         every { source.id } returns LocalSource.ID
         val sources = mockk<SourceManager>()
         every { sources.getOrStub(any()) } returns source
         val localFiles = mockk<LocalSourceFileSystem>()
         every { localFiles.getFilesInMangaDirectory("Berserk") } returns listOf(archiveFile)
-        return MangaKosyncManager(context, repository, mockk(), sources, localFiles, api)
+        return MangaKosyncManager(context, preferences, mockk(), sources, localFiles, api)
     }
 
     private fun MangaKosyncManager.pullPage(pageCount: Int = 10) = runBlocking { pull(manga, chapter, pageCount) }
@@ -101,7 +99,7 @@ class MangaKosyncManagerTest {
         assertNull(manager.pullPage())
         api.remote = remoteProgress(progress = "5", percentage = 0.5, timestamp = null)
         assertNull(manager.pullPage())
-        api.remote = remoteProgress(progress = "5", percentage = 0.5, timestamp = 9_000L, deviceId = THIS_DEVICE)
+        api.remote = remoteProgress(progress = "5", percentage = 0.5, timestamp = 9_000L, deviceId = preferences.deviceId)
         assertNull(manager.pullPage())
         api.remote = remoteProgress(progress = "5", percentage = null, timestamp = 9_000L)
         assertNull(manager.pullPage())
@@ -136,12 +134,13 @@ class MangaKosyncManagerTest {
     fun `nothing is asked of the server when manga sync or sync on open is off`() {
         api.remote = remoteProgress(progress = "5", percentage = 0.5, timestamp = 2_000L)
 
-        settings = settings.copy(mangaEnabled = false)
+        preferences.mangaEnabled().set(false)
         assertNull(manager().pullPage())
         manager().pushPage(3)
-        settings = settings.copy(mangaEnabled = true, autoSyncEnabled = false)
+        preferences.mangaEnabled().set(true)
+        preferences.autoSync().set(false)
         assertNull(manager().pullPage())
-        settings = settings.copy(autoSyncEnabled = true)
+        preferences.autoSync().set(true)
         assertNull(manager().pullPage(pageCount = 0))
 
         assertEquals(emptyList<String>(), api.pulls)
@@ -150,11 +149,11 @@ class MangaKosyncManagerTest {
 
     @Test
     fun `a push sends the page as a number, once, and not at all when pushing is off`() {
-        settings = settings.copy(pushEnabled = false)
+        preferences.push().set(false)
         manager().pushPage(3)
         assertEquals(0, api.puts.size)
 
-        settings = settings.copy(pushEnabled = true)
+        preferences.push().set(true)
         manager().pushPage(3)
         // A new manager reads what the last one saved.
         manager().pushPage(3)
@@ -164,7 +163,7 @@ class MangaKosyncManagerTest {
         assertEquals(0.4, put.percentage)
         assertEquals(true, put.numericProgress)
         assertEquals(KosyncManager.DEVICE_NAME, put.device)
-        assertEquals(THIS_DEVICE, put.deviceId)
+        assertEquals(preferences.deviceId, put.deviceId)
     }
 
     @Test
@@ -187,9 +186,5 @@ class MangaKosyncManagerTest {
 
         verify(exactly = 1) { archiveFile.filePath }
         assertEquals(3, api.puts.size)
-    }
-
-    private companion object {
-        const val THIS_DEVICE = "THISDEVICE"
     }
 }

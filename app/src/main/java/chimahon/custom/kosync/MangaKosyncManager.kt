@@ -1,13 +1,13 @@
 package chimahon.custom.kosync
 
 import android.content.Context
-import chimahon.custom.core.writeTextAtomic
+import chimahon.custom.core.JsonFileStore
 import chimahon.novel.kosync.KosyncApi
 import chimahon.novel.kosync.KosyncClient
 import chimahon.novel.kosync.KosyncDocumentId
 import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncPagedProgress
-import chimahon.novel.kosync.KosyncSettingsRepository
+import chimahon.novel.kosync.KosyncPreferences
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import kotlinx.coroutines.CoroutineDispatcher
@@ -18,7 +18,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.chapter.model.Chapter
@@ -40,14 +39,18 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class MangaKosyncManager(
     context: Context,
-    private val settingsRepository: KosyncSettingsRepository,
+    private val preferences: KosyncPreferences,
     private val downloadProvider: DownloadProvider,
     private val sourceManager: SourceManager,
     private val localFileSystem: LocalSourceFileSystem,
     private val api: KosyncApi = KosyncClient(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
-    private val stateFile = File(context.applicationContext.filesDir, STATE_FILE_NAME)
+    private val stateStore = JsonFileStore(
+        File(context.applicationContext.filesDir, STATE_FILE_NAME),
+        MapSerializer(Long.serializer(), ChapterState.serializer()),
+        { emptyMap() },
+    )
     private val mutex = Mutex()
     private var states: MutableMap<Long, ChapterState>? = null
 
@@ -55,8 +58,7 @@ class MangaKosyncManager(
     private val pageTurns = ConcurrentHashMap<Long, Long>()
 
     val isEnabled: Boolean
-        get() = settingsRepository.currentSettings().let { it.enabled && it.mangaEnabled && it.isConfigured } &&
-            settingsRepository.hasUserKey()
+        get() = preferences.enabled().get() && preferences.mangaEnabled().get() && preferences.credentials() != null
 
     fun notePageTurn(chapterId: Long) {
         pageTurns[chapterId] = nowSeconds()
@@ -67,14 +69,13 @@ class MangaKosyncManager(
      * or null when the local position stands.
      */
     suspend fun pull(manga: Manga, chapter: Chapter, pageCount: Int): Int? {
-        val settings = settingsRepository.currentSettings()
-        if (!isEnabled || !settings.autoSyncEnabled || pageCount <= 0) return null
-        val credentials = settingsRepository.credentials() ?: return null
+        if (!isEnabled || !preferences.autoSync().get() || pageCount <= 0) return null
+        val credentials = preferences.credentials() ?: return null
         val document = documentId(manga, chapter) ?: return null
 
         val remote = api.getProgress(credentials, document) ?: return null
         val percentage = remote.percentage ?: return null
-        if (remote.deviceId == settingsRepository.deviceId) return null
+        if (remote.deviceId == preferences.deviceId) return null
         val remoteSeconds = remote.timestamp ?: return null
 
         val state = loadState(chapter.id)
@@ -93,9 +94,8 @@ class MangaKosyncManager(
     }
 
     suspend fun push(manga: Manga, chapter: Chapter, pageIndex: Int, pageCount: Int) {
-        val settings = settingsRepository.currentSettings()
-        if (!isEnabled || !settings.pushEnabled || pageCount <= 0) return
-        val credentials = settingsRepository.credentials() ?: return
+        if (!isEnabled || !preferences.push().get() || pageCount <= 0) return
+        val credentials = preferences.credentials() ?: return
         val state = loadState(chapter.id)
         if (state.lastSyncedPage == pageIndex) return
         val document = documentId(manga, chapter) ?: return
@@ -106,7 +106,7 @@ class MangaKosyncManager(
             progress = KosyncPagedProgress.progress(pageIndex, pageCount),
             percentage = KosyncPagedProgress.percentage(pageIndex, pageCount),
             device = KosyncManager.DEVICE_NAME,
-            deviceId = settingsRepository.deviceId,
+            deviceId = preferences.deviceId,
             numericProgress = true,
         )
         saveState(chapter.id, loadState(chapter.id).copy(lastSyncedPage = pageIndex, lastServerTimestamp = timestamp))
@@ -152,16 +152,14 @@ class MangaKosyncManager(
         mutex.withLock {
             val all = allStates()
             all[chapterId] = state
-            runCatching { stateFile.writeTextAtomic(json.encodeToString(serializer, all)) }
+            runCatching { stateStore.save(all) }
                 .onFailure { logcat(LogPriority.WARN, it) { "kosync: could not save manga state" } }
         }
         Unit
     }
 
     private fun allStates(): MutableMap<Long, ChapterState> = states ?: run {
-        val loaded = runCatching { json.decodeFromString(serializer, stateFile.readText()) }
-            .getOrDefault(emptyMap())
-            .toMutableMap()
+        val loaded = stateStore.load().toMutableMap()
         states = loaded
         loaded
     }
@@ -178,8 +176,6 @@ class MangaKosyncManager(
 
     private companion object {
         const val STATE_FILE_NAME = "kosync_manga.json"
-        val json = Json { ignoreUnknownKeys = true }
-        val serializer = MapSerializer(Long.serializer(), ChapterState.serializer())
 
         fun nowSeconds(): Long = System.currentTimeMillis() / 1_000
 

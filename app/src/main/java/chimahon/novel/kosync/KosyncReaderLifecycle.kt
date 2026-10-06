@@ -38,7 +38,7 @@ class KosyncReaderLifecycle(
      */
     fun onStart() {
         if (!stoppedOnce) return
-        if (!manager.isEnabled || !manager.loadSettings().autoSyncEnabled) return
+        if (!manager.canPull) return
         val bookDir = bookDir() ?: return
         val title = title()
         activity.lifecycleScope.launch {
@@ -51,7 +51,7 @@ class KosyncReaderLifecycle(
     /** Leaving: the activity has just flushed the chapter rows, so the push sends the final position. */
     fun onStop() {
         stoppedOnce = true
-        if (!manager.isEnabled || !manager.loadSettings().pushEnabled) return
+        if (!manager.canPush) return
         val bookDir = bookDir() ?: return
         val title = title()
         closingScope.launch { runCatching { manager.push(bookDir, title) } }

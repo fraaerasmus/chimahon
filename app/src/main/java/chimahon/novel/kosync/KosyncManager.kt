@@ -1,18 +1,13 @@
 package chimahon.novel.kosync
 
-import android.content.Context
-import chimahon.custom.core.ServerException
-import chimahon.custom.core.writeTextAtomic
-import chimahon.novel.data.BookMetadata
+import chimahon.custom.core.JsonFileStore
 import chimahon.novel.data.BookStorage
 import chimahon.novel.data.Bookmark
 import chimahon.novel.data.epub.EpubBook
 import chimahon.novel.data.epub.EpubParser
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
@@ -28,35 +23,27 @@ import kotlin.math.roundToInt
  * there.
  */
 class KosyncManager(
-    private val context: Context,
-    private val settingsRepository: KosyncSettingsRepository,
+    private val preferences: KosyncPreferences,
     private val api: KosyncApi = KosyncClient(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val positionStore: KosyncPositionStore = SidecarPositionStore,
 ) {
-    val settingsFlow: Flow<KosyncSettings> get() = settingsRepository.settings
+    private val isEnabled: Boolean
+        get() = preferences.enabled().get() && preferences.credentials() != null
 
-    fun loadSettings(): KosyncSettings = settingsRepository.currentSettings()
+    /** Whether a book pulls when it opens or comes back to the front. */
+    val canPull: Boolean get() = isEnabled && preferences.autoSync().get()
 
-    val isEnabled: Boolean
-        get() = settingsRepository.currentSettings().let { it.enabled && it.isConfigured } &&
-            settingsRepository.hasUserKey()
+    /** Whether a book pushes when it is left. */
+    val canPush: Boolean get() = isEnabled && preferences.push().get()
 
-    suspend fun testConnection(credentials: KosyncCredentials? = null) {
-        val resolved = credentials ?: settingsRepository.credentials()
-            ?: throw ServerException("Enter the server, username and password first.")
-        api.authorize(resolved)
+    suspend fun testConnection(credentials: KosyncCredentials) {
+        api.authorize(credentials)
     }
 
     suspend fun register(credentials: KosyncCredentials) {
         api.register(credentials)
     }
-
-    suspend fun pull(metadata: BookMetadata): KosyncResult =
-        pull(bookDirectory(metadata), metadata.title.orEmpty())
-
-    suspend fun push(metadata: BookMetadata): KosyncResult =
-        push(bookDirectory(metadata), metadata.title.orEmpty())
 
     /**
      * The pull a book opens with. It does nothing unless sync on open is on, calls [onSyncing]
@@ -64,20 +51,19 @@ class KosyncManager(
      * book from opening.
      */
     suspend fun pullOnOpen(bookDir: File, title: String, onSyncing: () -> Unit) {
-        if (!isEnabled || !loadSettings().autoSyncEnabled) return
+        if (!canPull) return
         onSyncing()
         withContext(ioDispatcher) { runCatching { pull(bookDir, title) } }
     }
 
     internal suspend fun pull(bookDir: File, title: String): KosyncResult {
-        val settings = settingsRepository.currentSettings()
-        if (!settings.enabled) return KosyncResult.Skipped
-        val credentials = settingsRepository.credentials() ?: return KosyncResult.Skipped
+        if (!preferences.enabled().get()) return KosyncResult.Skipped
+        val credentials = preferences.credentials() ?: return KosyncResult.Skipped
         val document = documentId(bookDir) ?: return noDocumentId(bookDir, title)
 
         val remote = api.getProgress(credentials, document) ?: return KosyncResult.Skipped
         val percentage = remote.percentage ?: return KosyncResult.Skipped
-        if (remote.deviceId == settingsRepository.deviceId) return KosyncResult.UpToDate(title)
+        if (remote.deviceId == preferences.deviceId) return KosyncResult.UpToDate(title)
 
         val local = positionStore.load(bookDir)
         val remoteSeconds = remote.timestamp
@@ -94,9 +80,8 @@ class KosyncManager(
     }
 
     internal suspend fun push(bookDir: File, title: String): KosyncResult {
-        val settings = settingsRepository.currentSettings()
-        if (!settings.enabled || !settings.pushEnabled) return KosyncResult.Skipped
-        val credentials = settingsRepository.credentials() ?: return KosyncResult.Skipped
+        if (!preferences.enabled().get() || !preferences.push().get()) return KosyncResult.Skipped
+        val credentials = preferences.credentials() ?: return KosyncResult.Skipped
 
         val bookmark = positionStore.load(bookDir) ?: return KosyncResult.Skipped
         if (loadState(bookDir).lastSyncedCharacterCount == bookmark.characterCount) {
@@ -127,7 +112,7 @@ class KosyncManager(
             progress = xpointer,
             percentage = percentage,
             device = DEVICE_NAME,
-            deviceId = settingsRepository.deviceId,
+            deviceId = preferences.deviceId,
         )
         saveState(bookDir, KosyncBookState(bookmark.characterCount, timestamp))
         return KosyncResult.Pushed(title, percentage)
@@ -183,9 +168,6 @@ class KosyncManager(
         return KosyncResult.NoDocumentId(title)
     }
 
-    private fun bookDirectory(metadata: BookMetadata): File =
-        BookStorage.getBookDirectory(context, metadata.folder ?: metadata.id)
-
     /**
      * The packed EPUB kept verbatim beside the extracted book: `book.epub` in the extraction cache
      * of a public book, `<folder>.epub` for a private import, `source.epub` for books this fork
@@ -221,18 +203,15 @@ class KosyncManager(
             null
         }
 
+    private fun stateStore(bookDir: File) =
+        JsonFileStore(File(bookDir, STATE_FILE_NAME), KosyncBookState.serializer(), ::KosyncBookState)
+
     private suspend fun loadState(bookDir: File): KosyncBookState = withContext(ioDispatcher) {
-        val file = File(bookDir, STATE_FILE_NAME)
-        if (!file.isFile) return@withContext KosyncBookState()
-        runCatching { json.decodeFromString(KosyncBookState.serializer(), file.readText()) }
-            .getOrDefault(KosyncBookState())
+        stateStore(bookDir).load()
     }
 
     private suspend fun saveState(bookDir: File, state: KosyncBookState) = withContext(ioDispatcher) {
-        runCatching {
-            File(bookDir, STATE_FILE_NAME)
-                .writeTextAtomic(json.encodeToString(KosyncBookState.serializer(), state))
-        }
+        runCatching { stateStore(bookDir).save(state) }
         Unit
     }
 
@@ -240,7 +219,6 @@ class KosyncManager(
         const val DEVICE_NAME = "Chimahon Custom"
         private const val STATE_FILE_NAME = "kosync.json"
         private const val LEGACY_SOURCE_EPUB = "source.epub"
-        private val json = Json { ignoreUnknownKeys = true }
     }
 }
 
