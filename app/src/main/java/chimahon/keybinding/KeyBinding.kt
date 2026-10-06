@@ -1,51 +1,107 @@
 package chimahon.keybinding
 
 import android.view.KeyEvent
+import dev.icerock.moko.resources.StringResource
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import tachiyomi.i18n.MR
 
 /** A screen with its own set of bindings. Each set is stored under its own preference. */
-enum class KeyContext(val prefKey: String) {
-    Player("player"),
+enum class KeyContext(val prefKey: String, val titleRes: StringResource) {
+    Player("player", MR.strings.key_context_player),
 
     /** The player while a word of the subtitle is picked out or its dictionary popup is open. */
-    PlayerLookup("player_lookup"),
+    PlayerLookup("player_lookup", MR.strings.key_context_player_lookup),
 }
 
-/** [context] is the one screen the action works on. Null is every screen. */
+/** The headings the settings screen lists its rows under, in this order. */
+enum class KeyGroup(val titleRes: StringResource) {
+    Playback(MR.strings.key_group_playback),
+    Subtitles(MR.strings.key_group_subtitles),
+    WordLookup(MR.strings.key_group_word_lookup),
+    Popup(MR.strings.key_group_popup),
+    Other(MR.strings.key_group_other),
+}
+
+/** What a key has to say besides which action it runs: how that is asked for, checked and shown. */
+enum class KeyArgument(val labelRes: StringResource, val summaryRes: StringResource) {
+    Step(MR.strings.key_binding_step, MR.strings.key_binding_step_summary),
+    Seconds(MR.strings.key_binding_seconds, MR.strings.key_binding_seconds_summary),
+    VolumeSteps(MR.strings.key_binding_volume_steps, MR.strings.key_binding_volume_steps_summary),
+    BrightnessSteps(MR.strings.key_binding_brightness_steps, MR.strings.key_binding_brightness_steps_summary),
+    Command(MR.strings.key_binding_mpv_command, MR.strings.key_binding_mpv_command_summary),
+    ;
+
+    /** A command is any text. Everything else is a signed whole number other than zero. */
+    fun accepts(argument: String): Boolean =
+        if (this == Command) argument.isNotBlank() else argument.toIntOrNull().let { it != null && it != 0 }
+
+    /** How [argument] reads on a key cap. */
+    fun capLabel(argument: String): String {
+        if (this == Command) {
+            return if (argument.length > COMMAND_LABEL_LENGTH) argument.take(COMMAND_LABEL_LENGTH) + "…" else argument
+        }
+        val amount = argument.toIntOrNull() ?: return ""
+        val signed = if (amount > 0) "+$amount" else "$amount"
+        return if (this == Seconds) "$signed s" else signed
+    }
+
+    private companion object {
+        const val COMMAND_LABEL_LENGTH = 16
+    }
+}
+
+/**
+ * Everything a key can do, and all there is to say about each action apart from running it, which
+ * is `PlayerKeyController.run`. A new action is an entry here, a branch there and its strings.
+ *
+ * [context] is the one screen the action works on and [group] the heading it is listed under.
+ * Both are null for an action every screen has; it is listed last on each of them.
+ */
 enum class KeyAction(
     val context: KeyContext?,
+    val group: KeyGroup?,
+    val titleRes: StringResource,
+    val argument: KeyArgument? = null,
     val repeatable: Boolean = false,
-    val hasArgument: Boolean = false,
 ) {
-    PlayPause(KeyContext.Player),
-    SeekBy(KeyContext.Player, repeatable = true, hasArgument = true),
-    VolumeBy(KeyContext.Player, repeatable = true, hasArgument = true),
-    BrightnessBy(KeyContext.Player, repeatable = true, hasArgument = true),
-    SubtitleLine(KeyContext.Player, hasArgument = true),
-    ReplaySubtitle(KeyContext.Player),
-    ToggleSubtitles(KeyContext.Player),
-    SubtitleTrack(KeyContext.Player, hasArgument = true),
-    SecondarySubtitleTrack(KeyContext.Player, hasArgument = true),
-    StartWordCursor(KeyContext.Player),
-    Word(KeyContext.PlayerLookup, repeatable = true, hasArgument = true),
-    OpenPopup(KeyContext.PlayerLookup),
-    Entry(KeyContext.PlayerLookup, repeatable = true, hasArgument = true),
-    Scroll(KeyContext.PlayerLookup, repeatable = true, hasArgument = true),
-    PlayWordAudio(KeyContext.PlayerLookup),
-    MineEntry(KeyContext.PlayerLookup),
-    Back(null),
-    MpvCommand(null, hasArgument = true),
+    PlayPause(KeyContext.Player, KeyGroup.Playback, MR.strings.key_action_play_pause),
+    SeekBy(KeyContext.Player, KeyGroup.Playback, MR.strings.key_action_seek_by, KeyArgument.Seconds, repeatable = true),
+    VolumeBy(KeyContext.Player, KeyGroup.Playback, MR.strings.key_action_volume, KeyArgument.VolumeSteps, repeatable = true),
+    BrightnessBy(
+        KeyContext.Player,
+        KeyGroup.Playback,
+        MR.strings.key_action_brightness,
+        KeyArgument.BrightnessSteps,
+        repeatable = true,
+    ),
+    SubtitleLine(KeyContext.Player, KeyGroup.Subtitles, MR.strings.key_action_subtitle_line, KeyArgument.Step),
+    ReplaySubtitle(KeyContext.Player, KeyGroup.Subtitles, MR.strings.key_action_replay_subtitle),
+    ToggleSubtitles(KeyContext.Player, KeyGroup.Subtitles, MR.strings.key_action_toggle_subtitles),
+    SubtitleTrack(KeyContext.Player, KeyGroup.Subtitles, MR.strings.key_action_subtitle_track, KeyArgument.Step),
+    SecondarySubtitleTrack(
+        KeyContext.Player,
+        KeyGroup.Subtitles,
+        MR.strings.key_action_secondary_subtitle_track,
+        KeyArgument.Step,
+    ),
+    StartWordCursor(KeyContext.Player, KeyGroup.WordLookup, MR.strings.key_action_start_word_cursor),
+    Word(KeyContext.PlayerLookup, KeyGroup.WordLookup, MR.strings.key_action_word, KeyArgument.Step, repeatable = true),
+    OpenPopup(KeyContext.PlayerLookup, KeyGroup.WordLookup, MR.strings.key_action_open_popup),
+    Entry(KeyContext.PlayerLookup, KeyGroup.Popup, MR.strings.key_action_entry, KeyArgument.Step, repeatable = true),
+    Scroll(KeyContext.PlayerLookup, KeyGroup.Popup, MR.strings.key_action_scroll, KeyArgument.Step, repeatable = true),
+    PlayWordAudio(KeyContext.PlayerLookup, KeyGroup.Popup, MR.strings.key_action_play_word_audio),
+    MineEntry(KeyContext.PlayerLookup, KeyGroup.Popup, MR.strings.key_action_mine_entry),
+    Back(null, null, MR.strings.key_action_back),
+    MpvCommand(null, null, MR.strings.key_action_mpv_command, KeyArgument.Command),
     ;
+
+    val hasArgument: Boolean get() = argument != null
 
     fun isFor(context: KeyContext) = this.context == null || this.context == context
 
-    /** Whether [argument] is one this action can run with. A number is a signed step. */
-    fun accepts(argument: String): Boolean = when {
-        this == MpvCommand -> argument.isNotBlank()
-        hasArgument -> argument.toIntOrNull().let { it != null && it != 0 }
-        else -> true
-    }
+    /** Whether [argument] is one this action can run with. */
+    fun accepts(argument: String): Boolean = this.argument?.accepts(argument) ?: true
 
     companion object {
         fun fromName(name: String): KeyAction? = entries.firstOrNull { it.name == name }
@@ -69,12 +125,7 @@ data class KeyBinding(
     val action: String,
     val argument: String = "",
 ) {
-    fun sameTrigger(other: KeyBinding): Boolean {
-        return keyCode == other.keyCode &&
-            modifiers == other.modifiers &&
-            chordKeyCode == other.chordKeyCode &&
-            longPress == other.longPress
-    }
+    fun sameTrigger(other: KeyBinding): Boolean = trigger == other.trigger && longPress == other.longPress
 }
 
 /**

@@ -1,8 +1,5 @@
 package chimahon.keybinding
 
-/** The headings the settings screen lists its rows under. */
-enum class KeyGroup { Playback, Subtitles, WordLookup, Popup, Other }
-
 /** A row of the settings screen: one thing that can be done on one screen, and the keys that do it. */
 data class KeySlot(val context: KeyContext, val action: KeyAction) {
     fun holds(binding: KeyBinding) = binding.action == action.name
@@ -20,51 +17,19 @@ fun List<KeyBinding>.withSlot(slot: KeySlot, keys: List<KeyBinding>): List<KeyBi
 }
 
 /** How a key's argument reads on its cap, or null for an action that takes none. */
-fun argumentLabel(action: KeyAction, argument: String): String? {
-    if (!action.hasArgument) return null
-    if (action == KeyAction.MpvCommand) {
-        return if (argument.length > MPV_LABEL_LENGTH) argument.take(MPV_LABEL_LENGTH) + "…" else argument
-    }
-    val amount = argument.toIntOrNull() ?: return ""
-    val signed = if (amount > 0) "+$amount" else "$amount"
-    return if (action == KeyAction.SeekBy) "$signed s" else signed
-}
+fun argumentLabel(action: KeyAction, argument: String): String? = action.argument?.capLabel(argument)
 
-private const val MPV_LABEL_LENGTH = 16
-
-/** The rows to show, every action once for each screen it works on. */
-fun keySlots(): Map<KeyGroup, List<KeySlot>> {
-    fun rows(context: KeyContext, vararg actions: KeyAction) = actions.map { KeySlot(context, it) }
-
-    val player = KeyContext.Player
-    val lookup = KeyContext.PlayerLookup
-    return mapOf(
-        KeyGroup.Playback to rows(
-            player,
-            KeyAction.PlayPause,
-            KeyAction.SeekBy,
-            KeyAction.VolumeBy,
-            KeyAction.BrightnessBy,
-        ),
-        KeyGroup.Subtitles to rows(
-            player,
-            KeyAction.SubtitleLine,
-            KeyAction.ReplaySubtitle,
-            KeyAction.ToggleSubtitles,
-            KeyAction.SubtitleTrack,
-            KeyAction.SecondarySubtitleTrack,
-        ),
-        KeyGroup.WordLookup to rows(player, KeyAction.StartWordCursor) +
-            rows(lookup, KeyAction.Word, KeyAction.OpenPopup),
-        KeyGroup.Popup to rows(
-            lookup,
-            KeyAction.Entry,
-            KeyAction.Scroll,
-            KeyAction.PlayWordAudio,
-            KeyAction.MineEntry,
-            KeyAction.Back,
-            KeyAction.MpvCommand,
-        ),
-        KeyGroup.Other to rows(player, KeyAction.Back, KeyAction.MpvCommand),
-    )
-}
+/**
+ * The rows to show: every action once for each screen it works on, under its heading. An action
+ * every screen has goes under the heading that closes that screen's rows.
+ */
+fun keySlots(): Map<KeyGroup, List<KeySlot>> =
+    KeyContext.entries
+        .flatMap { context -> KeyAction.entries.filter { it.isFor(context) }.map { KeySlot(context, it) } }
+        .groupBy { slot ->
+            slot.action.group ?: when (slot.context) {
+                KeyContext.Player -> KeyGroup.Other
+                KeyContext.PlayerLookup -> KeyGroup.Popup
+            }
+        }
+        .toSortedMap()

@@ -18,6 +18,37 @@ class KeySlotsTest {
     }
 
     @Test
+    fun `rows are listed under their headings in the order the actions are declared`() {
+        val layout = keySlots().map { (group, slots) ->
+            group to slots.map { "${it.context.name}.${it.action.name}" }
+        }
+
+        assertEquals(
+            listOf(
+                KeyGroup.Playback to listOf("Player.PlayPause", "Player.SeekBy", "Player.VolumeBy", "Player.BrightnessBy"),
+                KeyGroup.Subtitles to listOf(
+                    "Player.SubtitleLine",
+                    "Player.ReplaySubtitle",
+                    "Player.ToggleSubtitles",
+                    "Player.SubtitleTrack",
+                    "Player.SecondarySubtitleTrack",
+                ),
+                KeyGroup.WordLookup to listOf("Player.StartWordCursor", "PlayerLookup.Word", "PlayerLookup.OpenPopup"),
+                KeyGroup.Popup to listOf(
+                    "PlayerLookup.Entry",
+                    "PlayerLookup.Scroll",
+                    "PlayerLookup.PlayWordAudio",
+                    "PlayerLookup.MineEntry",
+                    "PlayerLookup.Back",
+                    "PlayerLookup.MpvCommand",
+                ),
+                KeyGroup.Other to listOf("Player.Back", "Player.MpvCommand"),
+            ),
+            layout,
+        )
+    }
+
+    @Test
     fun `a row holds the keys of its action, whatever their arguments`() {
         val back = KeyBinding(keyCode = 1, action = KeyAction.SeekBy.name, argument = "-5")
         val forward = KeyBinding(keyCode = 2, action = KeyAction.SeekBy.name, argument = "5")

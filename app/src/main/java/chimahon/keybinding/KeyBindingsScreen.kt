@@ -48,7 +48,6 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.components.AppBarActions
 import eu.kanade.presentation.util.LocalBackPress
@@ -319,9 +318,9 @@ private fun KeySlotDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 // Each key carries its own argument, so the hint for it is given once, up here.
-                if (slot.action.hasArgument) {
+                slot.action.argument?.let { argument ->
                     Text(
-                        text = stringResource(slot.action.argumentSummaryRes),
+                        text = stringResource(argument.summaryRes),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -461,12 +460,12 @@ private fun KeyRow(
                 )
             }
         }
-        if (action.hasArgument) {
-            val usable = action.accepts(key.argument.trim())
+        action.argument?.let { argument ->
+            val usable = argument.accepts(key.argument.trim())
             OutlinedTextField(
                 value = key.argument,
                 onValueChange = onArgumentChange,
-                label = { Text(text = stringResource(action.argumentLabelRes)) },
+                label = { Text(text = stringResource(argument.labelRes)) },
                 supportingText = if (key.argument.isBlank()) {
                     { Text(text = stringResource(MR.strings.information_required_plain)) }
                 } else {
@@ -510,58 +509,3 @@ private fun bindingLabel(binding: KeyBinding, context: KeyContext): String {
     val argument = argumentLabel(action, binding.argument)
     return if (argument.isNullOrEmpty()) label else "$label $argument"
 }
-
-private val KeyAction.argumentLabelRes: StringResource
-    get() = when (this) {
-        KeyAction.SeekBy -> MR.strings.key_binding_seconds
-        KeyAction.VolumeBy -> MR.strings.key_binding_volume_steps
-        KeyAction.BrightnessBy -> MR.strings.key_binding_brightness_steps
-        KeyAction.MpvCommand -> MR.strings.key_binding_mpv_command
-        else -> MR.strings.key_binding_step
-    }
-
-private val KeyAction.argumentSummaryRes: StringResource
-    get() = when (this) {
-        KeyAction.SeekBy -> MR.strings.key_binding_seconds_summary
-        KeyAction.VolumeBy -> MR.strings.key_binding_volume_steps_summary
-        KeyAction.BrightnessBy -> MR.strings.key_binding_brightness_steps_summary
-        KeyAction.MpvCommand -> MR.strings.key_binding_mpv_command_summary
-        else -> MR.strings.key_binding_step_summary
-    }
-
-private val KeyAction.titleRes: StringResource
-    get() = when (this) {
-        KeyAction.PlayPause -> MR.strings.key_action_play_pause
-        KeyAction.SeekBy -> MR.strings.key_action_seek_by
-        KeyAction.VolumeBy -> MR.strings.key_action_volume
-        KeyAction.BrightnessBy -> MR.strings.key_action_brightness
-        KeyAction.SubtitleLine -> MR.strings.key_action_subtitle_line
-        KeyAction.ReplaySubtitle -> MR.strings.key_action_replay_subtitle
-        KeyAction.ToggleSubtitles -> MR.strings.key_action_toggle_subtitles
-        KeyAction.SubtitleTrack -> MR.strings.key_action_subtitle_track
-        KeyAction.SecondarySubtitleTrack -> MR.strings.key_action_secondary_subtitle_track
-        KeyAction.StartWordCursor -> MR.strings.key_action_start_word_cursor
-        KeyAction.Word -> MR.strings.key_action_word
-        KeyAction.OpenPopup -> MR.strings.key_action_open_popup
-        KeyAction.Entry -> MR.strings.key_action_entry
-        KeyAction.Scroll -> MR.strings.key_action_scroll
-        KeyAction.PlayWordAudio -> MR.strings.key_action_play_word_audio
-        KeyAction.MineEntry -> MR.strings.key_action_mine_entry
-        KeyAction.Back -> MR.strings.key_action_back
-        KeyAction.MpvCommand -> MR.strings.key_action_mpv_command
-    }
-
-private val KeyGroup.titleRes: StringResource
-    get() = when (this) {
-        KeyGroup.Playback -> MR.strings.key_group_playback
-        KeyGroup.Subtitles -> MR.strings.key_group_subtitles
-        KeyGroup.WordLookup -> MR.strings.key_group_word_lookup
-        KeyGroup.Popup -> MR.strings.key_group_popup
-        KeyGroup.Other -> MR.strings.key_group_other
-    }
-
-private val KeyContext.titleRes: StringResource
-    get() = when (this) {
-        KeyContext.Player -> MR.strings.key_context_player
-        KeyContext.PlayerLookup -> MR.strings.key_context_player_lookup
-    }

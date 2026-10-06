@@ -2,6 +2,7 @@ package chimahon.keybinding
 
 import android.view.KeyEvent
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
 import eu.kanade.tachiyomi.ui.player.Dialogs
 import eu.kanade.tachiyomi.ui.player.Panels
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
@@ -36,10 +37,9 @@ fun playerKeyGate(
 class PlayerKeyController(
     private val viewModel: PlayerViewModel,
     private val goBack: () -> Unit,
-    preferences: KeyBindingPreferences = Injekt.get(),
+    /** The bindings as they are now, so an edit made while the player is open applies. */
+    private val bindings: (KeyContext) -> List<KeyBinding>,
 ) {
-    private val playerBindings = preferences.bindings(KeyContext.Player).get()
-    private val lookupBindings = preferences.bindings(KeyContext.PlayerLookup).get()
     private val resolver = KeyResolver()
 
     /** True when the event was taken. */
@@ -52,8 +52,7 @@ class PlayerKeyController(
             panel = viewModel.panelShown.value,
             dialog = viewModel.dialogShown.value,
         )
-        val lookup = viewModel.wordCursor.isActive
-        val bindings = if (lookup) lookupBindings else playerBindings
+        val bindings = bindings(if (viewModel.wordCursor.isActive) KeyContext.PlayerLookup else KeyContext.Player)
         val active = when (gate) {
             PlayerKeyGate.All -> bindings
             PlayerKeyGate.BackOnly -> bindings.filter { it.action == KeyAction.Back.name }
@@ -77,8 +76,10 @@ class PlayerKeyController(
 
     private fun run(binding: KeyBinding) {
         val wordCursor = viewModel.wordCursor
+        val action = KeyAction.fromName(binding.action)?.takeIf { it.accepts(binding.argument) } ?: return
+        // Zero only for an action whose argument is not a number, and those do not read it.
         val step = binding.argument.toIntOrNull() ?: 0
-        when (KeyAction.fromName(binding.action) ?: return) {
+        when (action) {
             KeyAction.StartWordCursor -> wordCursor.start()
             KeyAction.Word -> wordCursor.move(step)
             KeyAction.OpenPopup -> wordCursor.openPopup()
@@ -87,13 +88,11 @@ class PlayerKeyController(
             KeyAction.PlayWordAudio -> wordCursor.runInPopup(PopupKeyScripts.PLAY_WORD_AUDIO)
             KeyAction.MineEntry -> wordCursor.runInPopup(PopupKeyScripts.MINE_ENTRY)
             KeyAction.PlayPause -> viewModel.pauseUnpause()
-            KeyAction.SeekBy -> binding.argument.toIntOrNull()?.let {
-                viewModel.seekBy(it, viewModel.gesturePreferences.playerSmoothSeek().get())
-            }
-            KeyAction.VolumeBy -> binding.argument.toIntOrNull()?.let(::changeVolume)
-            KeyAction.BrightnessBy -> binding.argument.toIntOrNull()?.let { steps ->
+            KeyAction.SeekBy -> viewModel.seekBy(step, viewModel.gesturePreferences.playerSmoothSeek().get())
+            KeyAction.VolumeBy -> changeVolume(step)
+            KeyAction.BrightnessBy -> {
                 // The same scale as the swipe: 0 to 1 for the window, in steps of 5%.
-                viewModel.changeBrightnessTo(viewModel.currentBrightness.value + steps * 0.05f)
+                viewModel.changeBrightnessTo(viewModel.currentBrightness.value + step * 0.05f)
                 viewModel.displayBrightnessSlider()
             }
             KeyAction.SubtitleLine -> repeat(step.absoluteValue) { viewModel.seekToAdjacentSubtitle(step > 0) }
@@ -111,19 +110,27 @@ class PlayerKeyController(
 
     companion object {
         /** The controller for the player activity, with back going where the system back key goes. */
-        fun forActivity(activity: ComponentActivity, viewModel: PlayerViewModel) = PlayerKeyController(
-            viewModel = viewModel,
-            goBack = {
-                // Sheets and popups close through the dispatcher. With none open its own fallback
-                // would skip onBackPressed, which is where leaving into picture in picture lives.
-                if (activity.onBackPressedDispatcher.hasEnabledCallbacks()) {
-                    activity.onBackPressedDispatcher.onBackPressed()
-                } else {
-                    @Suppress("DEPRECATION")
-                    activity.onBackPressed()
-                }
-            },
-        )
+        fun forActivity(
+            activity: ComponentActivity,
+            viewModel: PlayerViewModel,
+            preferences: KeyBindingPreferences = Injekt.get(),
+        ): PlayerKeyController {
+            val current = KeyContext.entries.associateWith { preferences.bindings(it).stateIn(activity.lifecycleScope) }
+            return PlayerKeyController(
+                viewModel = viewModel,
+                bindings = { current.getValue(it).value },
+                goBack = {
+                    // Sheets and popups close through the dispatcher. With none open its own fallback
+                    // would skip onBackPressed, which is where leaving into picture in picture lives.
+                    if (activity.onBackPressedDispatcher.hasEnabledCallbacks()) {
+                        activity.onBackPressedDispatcher.onBackPressed()
+                    } else {
+                        @Suppress("DEPRECATION")
+                        activity.onBackPressed()
+                    }
+                },
+            )
+        }
     }
 
     private fun changeVolume(steps: Int) {
