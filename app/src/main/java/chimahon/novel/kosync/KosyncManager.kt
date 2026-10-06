@@ -1,7 +1,6 @@
 package chimahon.novel.kosync
 
 import android.content.Context
-import android.util.Log
 import chimahon.custom.core.ServerException
 import chimahon.custom.core.writeTextAtomic
 import chimahon.novel.data.BookMetadata
@@ -14,6 +13,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -178,7 +179,7 @@ class KosyncManager(
     }
 
     private fun noDocumentId(bookDir: File, title: String): KosyncResult {
-        Log.i(TAG, "No source EPUB for '${bookDir.name}'; re-import the book to sync it with KOReader.")
+        logcat(LogPriority.INFO) { "kosync: no source EPUB for '${bookDir.name}'; re-import the book to sync it" }
         return KosyncResult.NoDocumentId(title)
     }
 
@@ -207,7 +208,7 @@ class KosyncManager(
         try {
             BookStorage.loadEpub(bookDir)
         } catch (e: Exception) {
-            Log.w(TAG, "Could not load EPUB for kosync: ${bookDir.name}", e)
+            logcat(LogPriority.WARN, e) { "kosync: could not load EPUB ${bookDir.name}" }
             null
         }
     }
@@ -216,7 +217,7 @@ class KosyncManager(
         try {
             EpubParser().parseChapter(book, chapterIndex)?.let(KosyncChapterDom::parseBody)
         } catch (e: Exception) {
-            Log.w(TAG, "Could not read chapter $chapterIndex for kosync", e)
+            logcat(LogPriority.WARN, e) { "kosync: could not read chapter $chapterIndex" }
             null
         }
 
@@ -237,7 +238,6 @@ class KosyncManager(
 
     companion object {
         const val DEVICE_NAME = "Chimahon Custom"
-        private const val TAG = "KosyncManager"
         private const val STATE_FILE_NAME = "kosync.json"
         private const val LEGACY_SOURCE_EPUB = "source.epub"
         private val json = Json { ignoreUnknownKeys = true }
