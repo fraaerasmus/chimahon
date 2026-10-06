@@ -23,7 +23,6 @@ import java.io.File
  */
 class KosyncReaderLifecycle(
     private val activity: ComponentActivity,
-    private val title: () -> String,
     private val onPulled: (Bookmark) -> Unit,
 ) {
     private val manager: KosyncManager by lazy { Injekt.get() }
@@ -40,11 +39,8 @@ class KosyncReaderLifecycle(
         if (!stoppedOnce) return
         if (!manager.canPull) return
         val bookDir = bookDir() ?: return
-        val title = title()
         activity.lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) { runCatching { manager.pull(bookDir, title) }.getOrNull() }
-            val bookmark = (result as? KosyncResult.Pulled)?.bookmark ?: return@launch
-            onPulled(bookmark)
+            withContext(Dispatchers.IO) { runCatching { manager.pull(bookDir) }.getOrNull() }?.let(onPulled)
         }
     }
 
@@ -53,8 +49,7 @@ class KosyncReaderLifecycle(
         stoppedOnce = true
         if (!manager.canPush) return
         val bookDir = bookDir() ?: return
-        val title = title()
-        closingScope.launch { runCatching { manager.push(bookDir, title) } }
+        closingScope.launch { runCatching { manager.push(bookDir) } }
     }
 
     private companion object {

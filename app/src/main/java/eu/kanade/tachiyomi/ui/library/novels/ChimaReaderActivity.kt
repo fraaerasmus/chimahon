@@ -64,7 +64,6 @@ class ChimaReaderActivity : NovelReaderActivity() {
     // Custom -->
     private val kosync = chimahon.novel.kosync.KosyncReaderLifecycle(
         activity = this,
-        title = { bookMetadata?.title.orEmpty() },
         onPulled = { readerViewModel?.jumpToSyncedPosition(it.chapterIndex, it.progress) },
     )
 

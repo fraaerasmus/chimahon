@@ -1,6 +1,5 @@
 package chimahon.novel.kosync
 
-import chimahon.novel.data.Bookmark
 import kotlinx.serialization.Serializable
 
 data class KosyncCredentials(
@@ -17,16 +16,6 @@ data class KosyncRemoteProgress(
     /** Server-assigned, unix seconds. */
     val timestamp: Long?,
 )
-
-sealed interface KosyncResult {
-    data class Pulled(val title: String, val percentage: Double, val bookmark: Bookmark? = null) : KosyncResult
-    data class Pushed(val title: String, val percentage: Double) : KosyncResult
-    data class UpToDate(val title: String) : KosyncResult
-    data object Skipped : KosyncResult
-
-    /** The book has no stored source EPUB, so it cannot be identified the way KOReader does. */
-    data class NoDocumentId(val title: String) : KosyncResult
-}
 
 /** Per-book kosync bookkeeping, stored as `kosync.json` beside `bookmark.json`. */
 @Serializable

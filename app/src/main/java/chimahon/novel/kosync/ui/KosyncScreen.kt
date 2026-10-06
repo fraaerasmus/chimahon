@@ -22,8 +22,8 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import chimahon.custom.core.describeForUser
 import chimahon.custom.ui.ServerLoginFields
-import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncPreferences
+import chimahon.novel.kosync.KosyncSession
 import eu.kanade.presentation.components.AppBar
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.PreferenceScreen
@@ -94,7 +94,7 @@ class KosyncScreen : Screen {
 @Composable
 private fun KosyncLogin(preferences: KosyncPreferences) {
     val scope = rememberCoroutineScope()
-    val manager = remember { Injekt.get<KosyncManager>() }
+    val session = remember { Injekt.get<KosyncSession>() }
     var serverUrl by remember { mutableStateOf(preferences.serverUrl().get()) }
     var username by remember { mutableStateOf(preferences.username().get()) }
     var password by remember { mutableStateOf("") }
@@ -117,12 +117,8 @@ private fun KosyncLogin(preferences: KosyncPreferences) {
         message = null
         scope.launch {
             val credentials = KosyncPreferences.credentialsFor(serverUrl, username, password)
-            runCatching {
-                if (register) manager.register(credentials)
-                manager.testConnection(credentials)
-            }
+            runCatching { session.signIn(credentials, register) }
                 .onSuccess {
-                    preferences.saveLogin(credentials)
                     password = ""
                     signedIn = true
                     report(if (register) "Account created and signed in." else "Signed in.", false)
@@ -157,7 +153,7 @@ private fun KosyncLogin(preferences: KosyncPreferences) {
             if (signedIn) {
                 TextButton(
                     onClick = {
-                        preferences.clearLogin()
+                        session.signOut()
                         password = ""
                         signedIn = false
                         report("Signed out. This device no longer syncs.", false)

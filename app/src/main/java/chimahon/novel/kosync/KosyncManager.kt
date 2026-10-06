@@ -23,71 +23,53 @@ import kotlin.math.roundToInt
  * there.
  */
 class KosyncManager(
-    private val preferences: KosyncPreferences,
-    private val api: KosyncApi = KosyncClient(),
+    private val session: KosyncSession,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val positionStore: KosyncPositionStore = SidecarPositionStore,
 ) {
-    private val isEnabled: Boolean
-        get() = preferences.enabled().get() && preferences.credentials() != null
-
     /** Whether a book pulls when it opens or comes back to the front. */
-    val canPull: Boolean get() = isEnabled && preferences.autoSync().get()
+    val canPull: Boolean get() = session.canPull
 
     /** Whether a book pushes when it is left. */
-    val canPush: Boolean get() = isEnabled && preferences.push().get()
-
-    suspend fun testConnection(credentials: KosyncCredentials) {
-        api.authorize(credentials)
-    }
-
-    suspend fun register(credentials: KosyncCredentials) {
-        api.register(credentials)
-    }
+    val canPush: Boolean get() = session.canPush
 
     /**
      * The pull a book opens with. It does nothing unless sync on open is on, calls [onSyncing]
      * right before it talks to the server, and never throws: a kosync failure must not keep the
      * book from opening.
      */
-    suspend fun pullOnOpen(bookDir: File, title: String, onSyncing: () -> Unit) {
+    suspend fun pullOnOpen(bookDir: File, onSyncing: () -> Unit) {
         if (!canPull) return
         onSyncing()
-        withContext(ioDispatcher) { runCatching { pull(bookDir, title) } }
+        withContext(ioDispatcher) { runCatching { pull(bookDir) } }
     }
 
-    internal suspend fun pull(bookDir: File, title: String): KosyncResult {
-        if (!preferences.enabled().get()) return KosyncResult.Skipped
-        val credentials = preferences.credentials() ?: return KosyncResult.Skipped
-        val document = documentId(bookDir) ?: return noDocumentId(bookDir, title)
-
-        val remote = api.getProgress(credentials, document) ?: return KosyncResult.Skipped
-        val percentage = remote.percentage ?: return KosyncResult.Skipped
-        if (remote.deviceId == preferences.deviceId) return KosyncResult.UpToDate(title)
+    /**
+     * Moves the book to a newer position from another device and returns the bookmark it became,
+     * or null when the local position stands.
+     */
+    suspend fun pull(bookDir: File): Bookmark? {
+        if (!session.canPull) return null
+        val document = documentId(bookDir) ?: return null
 
         val local = positionStore.load(bookDir)
-        val remoteSeconds = remote.timestamp
-        val localSeconds = local?.lastModified?.let { it / 1_000 }
-        if (local != null && (remoteSeconds == null || localSeconds == null || remoteSeconds <= localSeconds)) {
-            return KosyncResult.UpToDate(title)
-        }
+        // A local position that carries no date is never replaced.
+        val localSeconds = local?.let { it.lastModified?.div(1_000) ?: Long.MAX_VALUE }
+        val remote = session.fetchNewer(document, localSeconds) ?: return null
+        val percentage = remote.percentage ?: return null
 
-        val bookmark = remoteBookmark(bookDir, remote.progress, percentage, remoteSeconds)
-            ?: return KosyncResult.Skipped
+        val bookmark = remoteBookmark(bookDir, remote.progress, percentage, remote.timestamp) ?: return null
         positionStore.save(bookDir, bookmark)
-        saveState(bookDir, KosyncBookState(bookmark.characterCount, remoteSeconds))
-        return KosyncResult.Pulled(title, percentage, bookmark)
+        saveState(bookDir, KosyncBookState(bookmark.characterCount, remote.timestamp))
+        return bookmark
     }
 
-    internal suspend fun push(bookDir: File, title: String): KosyncResult {
-        if (!preferences.enabled().get() || !preferences.push().get()) return KosyncResult.Skipped
-        val credentials = preferences.credentials() ?: return KosyncResult.Skipped
-
-        val bookmark = positionStore.load(bookDir) ?: return KosyncResult.Skipped
-        if (loadState(bookDir).lastSyncedCharacterCount == bookmark.characterCount) {
-            return KosyncResult.UpToDate(title)
-        }
-        val document = documentId(bookDir) ?: return noDocumentId(bookDir, title)
+    /** Sends the book's position unless it is the one last pulled or pushed. */
+    suspend fun push(bookDir: File) {
+        if (!session.canPush) return
+        val bookmark = positionStore.load(bookDir) ?: return
+        if (loadState(bookDir).lastSyncedCharacterCount == bookmark.characterCount) return
+        val document = documentId(bookDir) ?: return
         val bookInfo = withContext(ioDispatcher) { KosyncBookIndex.loadOrBuild(bookDir) }
         val totalCharacters = bookInfo?.characterCount ?: 0
         val percentage = if (totalCharacters > 0) {
@@ -106,16 +88,8 @@ class KosyncManager(
                 ?: KosyncXPointer.chapterStart(spineIndex)
         }
 
-        val timestamp = api.putProgress(
-            credentials = credentials,
-            document = document,
-            progress = xpointer,
-            percentage = percentage,
-            device = DEVICE_NAME,
-            deviceId = preferences.deviceId,
-        )
+        val timestamp = session.push(document, xpointer, percentage)
         saveState(bookDir, KosyncBookState(bookmark.characterCount, timestamp))
-        return KosyncResult.Pushed(title, percentage)
     }
 
     /**
@@ -163,18 +137,17 @@ class KosyncManager(
         )
     }
 
-    private fun noDocumentId(bookDir: File, title: String): KosyncResult {
-        logcat(LogPriority.INFO) { "kosync: no source EPUB for '${bookDir.name}'; re-import the book to sync it" }
-        return KosyncResult.NoDocumentId(title)
-    }
-
     /**
      * The packed EPUB kept verbatim beside the extracted book: `book.epub` in the extraction cache
      * of a public book, `<folder>.epub` for a private import, `source.epub` for books this fork
      * imported before upstream kept the file itself. Absent for older imports.
      */
     private suspend fun documentId(bookDir: File): String? = withContext(ioDispatcher) {
-        sourceEpub(bookDir)?.let(KosyncDocumentId::partialMd5)
+        val epub = sourceEpub(bookDir)
+        if (epub == null) {
+            logcat(LogPriority.INFO) { "kosync: no source EPUB for '${bookDir.name}'; re-import the book to sync it" }
+        }
+        epub?.let(KosyncDocumentId::partialMd5)
     }
 
     private fun sourceEpub(bookDir: File): File? {
@@ -216,7 +189,6 @@ class KosyncManager(
     }
 
     companion object {
-        const val DEVICE_NAME = "Chimahon Custom"
         private const val STATE_FILE_NAME = "kosync.json"
         private const val LEGACY_SOURCE_EPUB = "source.epub"
     }

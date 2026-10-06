@@ -35,7 +35,7 @@ class KosyncManagerTest {
         saveLogin(KosyncCredentials("http://server", "reader", "key"))
     }
 
-    private fun manager() = KosyncManager(preferences, api, positionStore = positions)
+    private fun manager() = KosyncManager(KosyncSession(preferences, api), positionStore = positions)
 
     @BeforeEach
     fun book() {
@@ -50,20 +50,18 @@ class KosyncManagerTest {
         File(bookDir, FileNames.bookinfo).writeText(Json.encodeToString(BookInfo.serializer(), index))
     }
 
-    private fun pull() = runBlocking { manager().pull(bookDir, "Book") }
-    private fun push() = runBlocking { manager().push(bookDir, "Book") }
+    private fun pull() = runBlocking { manager().pull(bookDir) }
+    private fun push() = runBlocking { manager().push(bookDir) }
 
     @Test
     fun `a newer position from another device replaces the local one`() {
         positions.bookmark = Bookmark(chapterIndex = 0, progress = 0.1, characterCount = 100, lastModified = 1_000_000L)
         api.remote = remoteProgress(percentage = 0.75, timestamp = 2_000L)
 
-        pull()
+        val pulled = pull()
 
-        assertEquals(
-            Bookmark(chapterIndex = 1, progress = 0.5, characterCount = 1500, lastModified = 2_000_000L),
-            positions.bookmark,
-        )
+        assertEquals(Bookmark(chapterIndex = 1, progress = 0.5, characterCount = 1500, lastModified = 2_000_000L), pulled)
+        assertEquals(pulled, positions.bookmark)
         assertEquals(listOf(KosyncDocumentId.partialMd5(File(bookDir, "book.epub"))), api.pulls)
     }
 
@@ -93,6 +91,7 @@ class KosyncManagerTest {
         pull()
 
         assertEquals(local, positions.bookmark)
+        assertNull(pull())
     }
 
     @Test
@@ -116,7 +115,7 @@ class KosyncManagerTest {
     }
 
     @Test
-    fun `nothing is asked of the server when sync is off, signed out or the book has no source file`() {
+    fun `nothing is asked of the server when a switch is off, signed out or the book has no source file`() {
         api.remote = remoteProgress(percentage = 0.75, timestamp = 2_000L)
         positions.bookmark = Bookmark(chapterIndex = 1, progress = 0.5, characterCount = 1500, lastModified = 1L)
 
@@ -128,6 +127,9 @@ class KosyncManagerTest {
         pull()
         push()
         preferences.saveLogin(KosyncCredentials("http://server", "reader", "key"))
+        preferences.autoSync().set(false)
+        pull()
+        preferences.autoSync().set(true)
         File(bookDir, "book.epub").delete()
         pull()
         push()
@@ -146,7 +148,7 @@ class KosyncManagerTest {
         assertEquals(0.75, put.percentage)
         // The chapter cannot be read here, so the pointer is the start of its DocFragment.
         assertEquals("/body/DocFragment[2]/body", put.progress)
-        assertEquals(KosyncManager.DEVICE_NAME, put.device)
+        assertEquals(KosyncSession.DEVICE_NAME, put.device)
         assertEquals(preferences.deviceId, put.deviceId)
         assertEquals(false, put.numericProgress)
     }

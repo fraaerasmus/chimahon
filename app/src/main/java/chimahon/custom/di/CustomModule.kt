@@ -4,6 +4,7 @@ import android.app.Application
 import chimahon.keybinding.KeyBindingPreferences
 import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncPreferences
+import chimahon.novel.kosync.KosyncSession
 import chimahon.novel.kosync.NovelDbPositionStore
 import chimahon.novel.opds.OpdsCatalogRepository
 import chimahon.custom.kosync.MangaKosyncManager
@@ -19,6 +20,7 @@ import uy.kohesive.injekt.api.get
 object CustomModule {
     fun register(registrar: InjektRegistrar, app: Application) = with(registrar) {
         addSingletonFactory { KosyncPreferences.create(get(), app) }
+        addSingletonFactory { KosyncSession(get()) }
         addSingletonFactory { KosyncManager(get(), positionStore = NovelDbPositionStore(get(), get(), get())) }
         addSingletonFactory { MangaKosyncManager(app, get(), get(), get(), get()) }
         addSingletonFactory { ServerUploadManager(app, get(), get()) }

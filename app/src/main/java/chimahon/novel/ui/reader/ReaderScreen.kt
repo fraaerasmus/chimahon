@@ -228,7 +228,7 @@ fun ReaderScreen(
             // Custom -->
             // Pull the KOReader position before the view model reads the resume rows, so a
             // position pushed from another device is the one the book opens at.
-            Injekt.get<chimahon.novel.kosync.KosyncManager>().pullOnOpen(rootUrl, book.title.orEmpty()) {
+            Injekt.get<chimahon.novel.kosync.KosyncManager>().pullOnOpen(rootUrl) {
                 loadingMessage = "Syncing reading progress..."
             }
             // Custom <--

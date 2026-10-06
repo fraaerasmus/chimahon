@@ -5,8 +5,8 @@ import chimahon.custom.core.FakePreferenceStore
 import chimahon.novel.kosync.FakeKosyncApi
 import chimahon.novel.kosync.KosyncCredentials
 import chimahon.novel.kosync.KosyncDocumentId
-import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncPreferences
+import chimahon.novel.kosync.KosyncSession
 import chimahon.novel.kosync.remoteProgress
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.source.Source
@@ -70,7 +70,7 @@ class MangaKosyncManagerTest {
         every { sources.getOrStub(any()) } returns source
         val localFiles = mockk<LocalSourceFileSystem>()
         every { localFiles.getFilesInMangaDirectory("Berserk") } returns listOf(archiveFile)
-        return MangaKosyncManager(context, preferences, mockk(), sources, localFiles, api)
+        return MangaKosyncManager(context, KosyncSession(preferences, api), mockk(), sources, localFiles)
     }
 
     private fun MangaKosyncManager.pullPage(pageCount: Int = 10) = runBlocking { pull(manga, chapter, pageCount) }
@@ -162,7 +162,7 @@ class MangaKosyncManagerTest {
         assertEquals("4", put.progress)
         assertEquals(0.4, put.percentage)
         assertEquals(true, put.numericProgress)
-        assertEquals(KosyncManager.DEVICE_NAME, put.device)
+        assertEquals(KosyncSession.DEVICE_NAME, put.device)
         assertEquals(preferences.deviceId, put.deviceId)
     }
 

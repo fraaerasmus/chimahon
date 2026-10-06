@@ -3,7 +3,6 @@ package chimahon.custom.kosync
 import eu.kanade.tachiyomi.data.database.models.toDomainChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.withTimeoutOrNull
 import logcat.LogPriority
 import tachiyomi.core.common.util.lang.launchNonCancellable
 import tachiyomi.core.common.util.system.logcat
@@ -54,11 +53,9 @@ class MangaKosyncReaderHook(
         val owner = ownerOf(chapter) ?: return null
         val pageCount = chapter.pages?.size ?: return null
         val domainChapter = chapter.chapter.toDomainChapter() ?: return null
-        return withTimeoutOrNull(PULL_TIMEOUT_MILLIS) {
-            runCatching { manager.pull(owner, domainChapter, pageCount) }
-                .onFailure { logcat(LogPriority.WARN, it) { "kosync: pull failed for ${chapter.chapter.name}" } }
-                .getOrNull()
-        }
+        return runCatching { manager.pull(owner, domainChapter, pageCount) }
+            .onFailure { logcat(LogPriority.WARN, it) { "kosync: pull failed for ${chapter.chapter.name}" } }
+            .getOrNull()
     }
 
     /** Pushes the page [chapter] is on. */
@@ -70,10 +67,5 @@ class MangaKosyncReaderHook(
         val domainChapter = chapter.chapter.toDomainChapter() ?: return
         runCatching { manager.push(owner, domainChapter, chapter.chapter.last_page_read, pageCount) }
             .onFailure { logcat(LogPriority.WARN, it) { "kosync: push failed for ${chapter.chapter.name}" } }
-    }
-
-    private companion object {
-        /** Upper bound on waiting for the KOReader sync server before a chapter is shown. */
-        const val PULL_TIMEOUT_MILLIS = 4_000L
     }
 }

@@ -2,12 +2,9 @@ package chimahon.custom.kosync
 
 import android.content.Context
 import chimahon.custom.core.JsonFileStore
-import chimahon.novel.kosync.KosyncApi
-import chimahon.novel.kosync.KosyncClient
 import chimahon.novel.kosync.KosyncDocumentId
-import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncPagedProgress
-import chimahon.novel.kosync.KosyncPreferences
+import chimahon.novel.kosync.KosyncSession
 import com.hippo.unifile.UniFile
 import eu.kanade.tachiyomi.data.download.DownloadProvider
 import kotlinx.coroutines.CoroutineDispatcher
@@ -39,11 +36,10 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class MangaKosyncManager(
     context: Context,
-    private val preferences: KosyncPreferences,
+    private val session: KosyncSession,
     private val downloadProvider: DownloadProvider,
     private val sourceManager: SourceManager,
     private val localFileSystem: LocalSourceFileSystem,
-    private val api: KosyncApi = KosyncClient(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     private val stateStore = JsonFileStore(
@@ -58,7 +54,7 @@ class MangaKosyncManager(
     private val pageTurns = ConcurrentHashMap<Long, Long>()
 
     val isEnabled: Boolean
-        get() = preferences.enabled().get() && preferences.mangaEnabled().get() && preferences.credentials() != null
+        get() = session.isActive && session.mangaEnabled
 
     fun notePageTurn(chapterId: Long) {
         pageTurns[chapterId] = nowSeconds()
@@ -69,14 +65,8 @@ class MangaKosyncManager(
      * or null when the local position stands.
      */
     suspend fun pull(manga: Manga, chapter: Chapter, pageCount: Int): Int? {
-        if (!isEnabled || !preferences.autoSync().get() || pageCount <= 0) return null
-        val credentials = preferences.credentials() ?: return null
+        if (!isEnabled || !session.canPull || pageCount <= 0) return null
         val document = documentId(manga, chapter) ?: return null
-
-        val remote = api.getProgress(credentials, document) ?: return null
-        val percentage = remote.percentage ?: return null
-        if (remote.deviceId == preferences.deviceId) return null
-        val remoteSeconds = remote.timestamp ?: return null
 
         val state = loadState(chapter.id)
         val localSeconds = maxOf(
@@ -84,9 +74,10 @@ class MangaKosyncManager(
             pageTurns[chapter.id] ?: 0L,
             state.lastServerTimestamp ?: 0L,
         )
-        if (remoteSeconds <= localSeconds) return null
+        val remote = session.fetchNewer(document, localSeconds) ?: return null
+        val remoteSeconds = remote.timestamp ?: return null
 
-        val index = KosyncPagedProgress.pageIndex(remote.progress, percentage, pageCount) ?: return null
+        val index = KosyncPagedProgress.pageIndex(remote.progress, remote.percentage, pageCount) ?: return null
         saveState(chapter.id, state.copy(lastSyncedPage = index, lastServerTimestamp = remoteSeconds))
         pageTurns[chapter.id] = remoteSeconds
         logcat { "kosync: pulled page ${index + 1}/$pageCount for '${chapter.name}' from ${remote.device}" }
@@ -94,19 +85,15 @@ class MangaKosyncManager(
     }
 
     suspend fun push(manga: Manga, chapter: Chapter, pageIndex: Int, pageCount: Int) {
-        if (!isEnabled || !preferences.push().get() || pageCount <= 0) return
-        val credentials = preferences.credentials() ?: return
+        if (!isEnabled || !session.canPush || pageCount <= 0) return
         val state = loadState(chapter.id)
         if (state.lastSyncedPage == pageIndex) return
         val document = documentId(manga, chapter) ?: return
 
-        val timestamp = api.putProgress(
-            credentials = credentials,
+        val timestamp = session.push(
             document = document,
             progress = KosyncPagedProgress.progress(pageIndex, pageCount),
             percentage = KosyncPagedProgress.percentage(pageIndex, pageCount),
-            device = KosyncManager.DEVICE_NAME,
-            deviceId = preferences.deviceId,
             numericProgress = true,
         )
         saveState(chapter.id, loadState(chapter.id).copy(lastSyncedPage = pageIndex, lastServerTimestamp = timestamp))
