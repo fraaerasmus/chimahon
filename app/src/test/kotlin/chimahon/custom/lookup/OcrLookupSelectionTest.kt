@@ -30,6 +30,15 @@ class OcrLookupSelectionTest {
         assertEquals(12, selection?.startOffset)
     }
 
+    // What the reader, the screen lookup and the player's video OCR all call.
+    @Test
+    fun `a tap handler gets the selection inside the tapped line without passing line starts`() {
+        val tapOnToi = 13
+
+        assertEquals(12, OcrLookup.selectionAt(block, tapOnToi, "fr")?.startOffset)
+        assertEquals("toi demain", OcrLookup.orderedSelectionAt(block, tapOnToi, "fr")?.text)
+    }
+
     @Test
     fun `without the line starts the same tap glues in the previous line's last word`() {
         val tapOnToi = 13

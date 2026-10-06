@@ -113,7 +113,6 @@ import eu.kanade.tachiyomi.ui.player.settings.GesturePreferences
 import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.player.utils.SubtitleFontResolver
-import chimahon.custom.lookup.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupString
 import eu.kanade.tachiyomi.ui.reader.viewer.isLookupStartChar
 import eu.kanade.tachiyomi.util.system.toast
@@ -1142,7 +1141,7 @@ private fun TextLayoutResult.subtitleLookupSelectionForTap(
     // Custom -->
     // In place of upstream's extractOcrLookupString: the selection can start before the tapped
     // character, at the beginning of its word.
-    val lookupSelection = extractOcrLookupSelection(text, offset, languageCode) ?: return null
+    val lookupSelection = chimahon.custom.lookup.extractOcrLookupSelection(text, offset, languageCode) ?: return null
     val lookupString = lookupSelection.text
     val anchor = lookupAnchorRect(text, lookupSelection.startOffset, lookupString) ?: return null
     val lineIndex = getLineForOffset(lookupSelection.startOffset.coerceIn(0, text.lastIndex))

@@ -4,6 +4,8 @@ import chimahon.dictionary.LookupTextScanner
 import chimahon.dictionary.LookupTextSelection
 import chimahon.ocr.isLanguageWholeWordScan
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
+import eu.kanade.tachiyomi.ui.reader.viewer.fullText
+import eu.kanade.tachiyomi.ui.reader.viewer.orderedFullText
 import eu.kanade.tachiyomi.ui.reader.viewer.orderedLineIndices
 
 /**
@@ -28,6 +30,20 @@ internal fun extractOcrLookupSelection(
     maxCodePoints = 80,
     lineBreaks = if (isLanguageWholeWordScan(languageCode)) lineBreaks else emptySet(),
 )
+
+/**
+ * The lookup a tap on an OCR block starts, with the scan kept inside the tapped line. Upstream's
+ * tap handlers call these by their full name, so they need no import.
+ */
+object OcrLookup {
+    /** For a tap at [offset] of the block's `fullText`. */
+    fun selectionAt(block: OcrTextBlock, offset: Int, languageCode: String): LookupTextSelection? =
+        extractOcrLookupSelection(block.fullText, offset, languageCode, block.lineStartOffsets())
+
+    /** For a tap at [offset] of the block's `orderedFullText`, the text in reading order. */
+    fun orderedSelectionAt(block: OcrTextBlock, offset: Int, languageCode: String): LookupTextSelection? =
+        extractOcrLookupSelection(block.orderedFullText, offset, languageCode, block.orderedLineStartOffsets())
+}
 
 /** Offsets in the block's `fullText` where each line after the first begins. */
 internal fun OcrTextBlock.lineStartOffsets(): Set<Int> = lineStartOffsets(lines)

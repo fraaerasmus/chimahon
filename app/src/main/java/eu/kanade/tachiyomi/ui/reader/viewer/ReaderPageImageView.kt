@@ -26,8 +26,6 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import chimahon.DictionaryRepository
-import chimahon.custom.lookup.extractOcrLookupSelection
-import chimahon.custom.lookup.lineStartOffsets
 import chimahon.ocr.OcrCharacterLine
 import chimahon.ocr.OcrHitTester
 import chimahon.ocr.shouldScanWholeWord
@@ -936,12 +934,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
         // Custom -->
         // In place of upstream's checks on the tapped character: the lookup starts where the
         // scanner says the tapped word starts, which can be before the tap.
-        val lookupSelection = extractOcrLookupSelection(
-            text = block.fullText,
-            start = charOffset,
-            languageCode = lookupLanguageCodeProvider(),
-            lineBreaks = block.lineStartOffsets(),
-        )
+        val lookupSelection =
+            chimahon.custom.lookup.OcrLookup.selectionAt(block, charOffset, lookupLanguageCodeProvider())
 
         if (wasActive == block && activeOcrCharOffset == lookupSelection?.startOffset) {
             logcat { "OCR tap: same character tapped, dismissing popup" }
@@ -958,9 +952,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         }
         // French uses the phrase-aware scanner selection (elisions, word-start scan);
         // other whole-word languages expand the tap to the surrounding word
-        val isFrenchLookup = lookupLanguageCodeProvider().trim().lowercase().let {
-            it == "fr" || it.startsWith("fr-") || it.startsWith("fr_")
-        }
+        val isFrenchLookup = chimahon.dictionary.LookupLanguage.isFrench(lookupLanguageCodeProvider())
         val lookupString = if (!isFrenchLookup && ocrWholeWordScan(block)) {
             block.extractLookupString(charOffset, true)
         } else {

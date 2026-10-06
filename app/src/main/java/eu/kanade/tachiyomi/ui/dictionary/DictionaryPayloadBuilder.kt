@@ -144,8 +144,8 @@ internal fun orderLookupResultsForDisplay(
         .map { it.withOrderedDictionaries(priorityMap) }
         .withIndex()
         .sortedWith(
-            compareByDescending<IndexedValue<LookupResult>> { /* Custom --> */ chimahon.dictionary.FrenchLookupPolicy.matchedCodePointCount(it.value) /* Custom <-- */ }
-                /* Custom --> */ .thenBy { chimahon.dictionary.FrenchLookupPolicy.formOfOnlyRank(it.value, profile.languageCode) } /* Custom <-- */
+            compareByDescending<IndexedValue<LookupResult>> { /* Custom --> */ chimahon.dictionary.LookupPolicy.matchedCodePointCount(it.value) /* Custom <-- */ }
+                /* Custom --> */ .thenBy { chimahon.dictionary.LookupPolicy.formOfOnlyRank(it.value, profile.languageCode) } /* Custom <-- */
                 .thenBy { dictionaryPriority(priorityMap, it.value.term.glossaries.firstOrNull()?.dictName) }
                 .thenBy { it.index },
         )

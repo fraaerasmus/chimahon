@@ -98,7 +98,7 @@ object DeinflectedLookup {
     }
 
     // Longest match, then fewest deinflection steps, exact headword, most frequent, lookup order.
-    private val hitOrder = compareByDescending<Hit> { FrenchLookupPolicy.matchedCodePointCount(it.result) }
+    private val hitOrder = compareByDescending<Hit> { LookupPolicy.matchedCodePointCount(it.result) }
         .thenBy { it.steps }
         .thenBy { if (it.result.term.expression == it.result.deinflected) 0 else 1 }
         .thenBy { frequencyRank(it.result.term) }

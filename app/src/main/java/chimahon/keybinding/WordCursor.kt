@@ -1,6 +1,6 @@
 package chimahon.keybinding
 
-import chimahon.dictionary.FrenchLookupPolicy
+import chimahon.dictionary.LookupPolicy
 import chimahon.dictionary.LookupTextScanner
 import chimahon.ocr.isLanguageWholeWordScan
 
@@ -55,7 +55,7 @@ fun cursorWords(text: String, languageCode: String, measure: (String) -> String?
         val matched = measure(query)
         val length = when {
             !matched.isNullOrEmpty() -> {
-                val matchedCodePoints = FrenchLookupPolicy.highlightFor(query, matched).codePointCount
+                val matchedCodePoints = LookupPolicy.highlightFor(query, matched).codePointCount
                 query.offsetByCodePoints(0, matchedCodePoints)
             }
             isLanguageWholeWordScan(languageCode) ->

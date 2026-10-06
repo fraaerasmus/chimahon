@@ -325,13 +325,13 @@ fun OcrLookupPopup(
             return
         }
 
-        val cleanQuery = if (isRecursive /* Custom --> */ && !chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode) /* Custom <-- */) {
+        val cleanQuery = if (isRecursive /* Custom --> */ && !chimahon.dictionary.LookupLanguage.isFrench(activeProfile.languageCode) /* Custom <-- */) {
             query.replace(Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+"), "").trim()
         } else {
             query.trim()
         }
 
-        if (isRecursive /* Custom --> */ && !chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode) /* Custom <-- */) {
+        if (isRecursive /* Custom --> */ && !chimahon.dictionary.LookupLanguage.isFrench(activeProfile.languageCode) /* Custom <-- */) {
             if (cleanQuery.isBlank()) return
             // Ignore if entirely ascii/english letters and numbers
             if (cleanQuery.all { it.code <= 127 }) return
@@ -379,7 +379,7 @@ fun OcrLookupPopup(
                     // Custom -->
                     // In place of the count and offset of the matched text alone: the highlight runs
                     // from the start of the selection to the end of the match (l'homme, not homme).
-                    val highlight = chimahon.dictionary.FrenchLookupPolicy.highlightFor(finalQuery, firstMatched)
+                    val highlight = chimahon.dictionary.LookupPolicy.highlightFor(finalQuery, firstMatched)
                     val charCount = highlight.codePointCount
                     val matchOffset = highlight.startOffset
                     // Custom <--
@@ -951,8 +951,8 @@ fun OcrLookupPopup(
         } else if (recursiveNavMode == "popup") {
             // Sync lookup (same warm path as pushLookup's recursive branch),
             // then create a child popup with the results — no parent WebView update.
-            val cleanQuery = /* Custom --> */ if (chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode)) word.trim() else /* Custom <-- */ word.replace(Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+"), "").trim()
-            if (cleanQuery.isNotBlank() && /* Custom --> */ (chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode) || /* Custom <-- */ cleanQuery.any { it.code > 127 } /* Custom --> */) /* Custom <-- */) {
+            val cleanQuery = /* Custom --> */ if (chimahon.dictionary.LookupLanguage.isFrench(activeProfile.languageCode)) word.trim() else /* Custom <-- */ word.replace(Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+"), "").trim()
+            if (cleanQuery.isNotBlank() && /* Custom --> */ (chimahon.dictionary.LookupLanguage.isFrench(activeProfile.languageCode) || /* Custom <-- */ cleanQuery.any { it.code > 127 } /* Custom --> */) /* Custom <-- */) {
                 val termPaths = getDictionaryPaths(context, activeProfile)
                 val result = runCatching {
                     repository.lookup(cleanQuery, termPaths, activeProfile.languageCode)

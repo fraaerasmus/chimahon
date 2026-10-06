@@ -50,11 +50,9 @@ import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
 import eu.kanade.tachiyomi.ui.reader.viewer.displayText
 import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupString
-import chimahon.custom.lookup.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.fullText
 import eu.kanade.tachiyomi.ui.reader.viewer.isLookupStartChar
 import eu.kanade.tachiyomi.util.system.toast
-import chimahon.custom.lookup.lineStartOffsets
 import eu.kanade.tachiyomi.util.view.setComposeContent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
@@ -338,12 +336,8 @@ internal fun ScreenLookupOverlay(
                 // Custom -->
                 // In place of upstream's use of the tapped offset: the lookup starts where the
                 // scanner says the tapped word starts, inside the tapped OCR line.
-                val lookupSelection = extractOcrLookupSelection(
-                    text,
-                    charOffset,
-                    activeProfile.languageCode,
-                    tapped.lineStartOffsets(),
-                )
+                val lookupSelection =
+                    chimahon.custom.lookup.OcrLookup.selectionAt(tapped, charOffset, activeProfile.languageCode)
                 if (selection?.block == tapped && selection?.sentenceOffset == lookupSelection?.startOffset) {
                 // Custom <--
                     selection = null

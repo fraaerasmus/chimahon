@@ -77,7 +77,7 @@ class DictionaryRepository(
         // Same condition as the branch below, so this one takes every language with a deinflector
         // and upstream's loop is not reached.
         } else if (genericDeinflector != null) {
-            chimahon.custom.lookup.GenericLookup.forPopup(activeSession, query, genericDeinflector, effectiveLang)
+            chimahon.custom.lookup.GenericLookup.lookup(activeSession, query, genericDeinflector, effectiveLang, 20)
         // Custom <--
         } else if (genericDeinflector != null) {
             val finalResults = mutableListOf<chimahon.LookupResult>()

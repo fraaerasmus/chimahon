@@ -428,7 +428,7 @@ class ChimaReaderActivity : NovelReaderActivity() {
                 // Custom -->
                 // In place of the count and offset of the matched text alone: the highlight runs
                 // from the start of the selection to the end of the match.
-                val highlight = chimahon.dictionary.FrenchLookupPolicy.highlightFor(word, firstMatched)
+                val highlight = chimahon.dictionary.LookupPolicy.highlightFor(word, firstMatched)
                 val matchOffset = highlight.startOffset
                 val charCount = highlight.codePointCount
                 // Custom <--

@@ -905,7 +905,7 @@ data object DictionaryTab : Tab {
             // Same condition as the branch below, so this one takes every language with a
             // deinflector and upstream's code is not reached.
             } else if (genericDeinflector != null) {
-                chimahon.custom.lookup.GenericLookup.forDictionaryTab(activeSession, query, genericDeinflector, effectiveLang)
+                chimahon.custom.lookup.GenericLookup.lookup(activeSession, query, genericDeinflector, effectiveLang, 50)
             // Custom <--
             } else if (genericDeinflector != null) {
                 val preprocessed = genericDeinflector.preProcess(query)

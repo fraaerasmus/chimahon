@@ -22,7 +22,7 @@ object LookupTextScanner {
         val normalizedTap = codePointStartOffset(text, tapOffset)
         if (normalizedTap !in text.indices || !isLookupCodePoint(text.codePointAt(normalizedTap))) return null
 
-        val isFrench = languageCode.primaryLanguage() == "fr"
+        val isFrench = LookupLanguage.isFrench(languageCode)
         val start = if (isFrench) findFrenchWordStart(text, normalizedTap, lineBreaks) else normalizedTap
         val end = findScanEnd(
             text = text,
@@ -165,9 +165,6 @@ object LookupTextScanner {
     }
 
     private fun isApostrophe(codePoint: Int): Boolean = codePoint == '\''.code || codePoint == '\u2019'.code
-
-    private fun String.primaryLanguage(): String =
-        trim().lowercase().substringBefore('-').substringBefore('_')
 
     private val internalHyphens = setOf('-'.code, '\u2010'.code, '\u2011'.code)
 

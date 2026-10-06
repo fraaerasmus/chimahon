@@ -88,6 +88,42 @@ class DeinflectedLookupTest {
         )
     }
 
+    // The words the fork's own elision stripping used to find. Upstream's French preprocessing
+    // strips the clitic now, so the engine finds them in one pass.
+    @Test
+    fun `finds the word behind an elided article and highlights the whole selection`() {
+        val results = lookup("l'homme politique", term("homme", rules = "n"), term("homme politique", rules = "n"))
+
+        assertEquals(listOf("homme politique", "homme"), results.map { it.term.expression })
+        assertEquals(listOf("l'homme politique", "l'homme"), results.map { it.matched })
+        assertEquals(
+            LookupHighlight(startOffset = 0, codePointCount = 7),
+            LookupPolicy.highlightFor("l'homme dort", lookup("l'homme dort", term("homme")).first().matched),
+        )
+    }
+
+    @Test
+    fun `finds elided words whatever the clitic, the capitals or the apostrophe`() {
+        assertEquals(listOf("accord"), lookup("D\u2019accord", term("accord", rules = "n")).map { it.term.expression })
+        assertEquals(listOf("il"), lookup("qu'il", term("il")).map { it.term.expression })
+        assertEquals(listOf("avoir"), lookup("j'ai", term("avoir", rules = "v")).map { it.term.expression })
+    }
+
+    @Test
+    fun `an entry that names the elided form itself comes with the word behind it`() {
+        val results = lookup("d'accord", term("d'accord"), term("accord", rules = "n"))
+
+        assertEquals(setOf("d'accord", "accord"), results.map { it.term.expression }.toSet())
+        assertEquals(1, results.count { it.term.expression == "accord" })
+    }
+
+    @Test
+    fun `an apostrophe inside a word is not an elision`() {
+        val results = lookup("aujourd'hui", term("aujourd'hui"), term("hui"))
+
+        assertEquals(listOf("aujourd'hui"), results.map { it.term.expression })
+    }
+
     private fun lookup(text: String, vararg terms: TermResult) =
         DeinflectedLookup.lookup(text, FrenchDeinflector, "fr", 20) { candidate ->
             terms.filter { it.expression == candidate }

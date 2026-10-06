@@ -7,33 +7,29 @@ data class LookupHighlight(
     val codePointCount: Int,
 )
 
-object FrenchLookupPolicy {
-    private val frenchElision = Regex("^(?:l|d|j|m|t|s|n|c|qu)['’]", RegexOption.IGNORE_CASE)
-    private val recursivePunctuation = Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+")
+/** The one place that says which language a code such as `fr-CA` or `FR_fr` stands for. */
+object LookupLanguage {
+    fun primary(languageCode: String): String =
+        languageCode.trim().lowercase().substringBefore('-').substringBefore('_')
 
-    fun lookupQueries(text: String, languageCode: String): List<String> {
-        val stripped = stripElision(text, languageCode) ?: return listOf(text)
-        return listOf(text, stripped).distinct()
-    }
+    /** French lookups scan from the start of the tapped word and across the words after it. */
+    fun isFrench(languageCode: String): Boolean = primary(languageCode) == "fr"
+}
 
-    fun stripElision(text: String, languageCode: String): String? {
-        if (languageCode.primaryLanguage() != "fr") return null
-        val match = frenchElision.find(text) ?: return null
-        return text.substring(match.value.length).takeIf { it.isNotEmpty() }
-    }
+/** How lookup results are ordered and highlighted, on top of what [DeinflectedLookup] returns. */
+object LookupPolicy {
+    private val whitespace = Regex("\\s+")
 
-    fun recursiveQuery(text: String, languageCode: String): String? {
-        if (languageCode.primaryLanguage() == "fr") return text.trim().takeIf { it.isNotEmpty() }
-        val cleaned = text.replace(recursivePunctuation, "").trim()
-        return cleaned.takeIf { it.isNotEmpty() && it.any { char -> char.code > 127 } }
-    }
-
-    fun mergeResults(
+    /**
+     * For French, entries that only say "form of another word" go below real definitions of the
+     * same match. Other languages keep the order they came in.
+     */
+    fun rank(
         results: List<LookupResult>,
         languageCode: String,
         maxResults: Int,
     ): List<LookupResult> {
-        if (languageCode.primaryLanguage() != "fr") {
+        if (!LookupLanguage.isFrench(languageCode)) {
             return results.distinctBy { it.term.expression to it.term.reading }.take(maxResults)
         }
         return results.withIndex()
@@ -50,15 +46,16 @@ object FrenchLookupPolicy {
     fun isFormOfOnly(result: LookupResult): Boolean =
         result.term.glossaries.isNotEmpty() &&
             result.term.glossaries.all { glossary ->
-                glossary.definitionTags.split(Regex("\\s+")).any { it == "non-lemma" }
+                glossary.definitionTags.split(whitespace).any { it == "non-lemma" }
             }
 
     fun formOfOnlyRank(result: LookupResult, languageCode: String): Int =
-        if (languageCode.primaryLanguage() == "fr" && isFormOfOnly(result)) 1 else 0
+        if (LookupLanguage.isFrench(languageCode) && isFormOfOnly(result)) 1 else 0
 
     fun matchedCodePointCount(result: LookupResult): Int =
         result.matched.codePointCount(0, result.matched.length)
 
+    /** The highlight runs from the start of the selection to the end of the match in it. */
     fun highlightFor(selectionText: String, matched: String): LookupHighlight {
         val matchStart = selectionText.indexOf(matched)
         val highlightEnd = if (matchStart >= 0) matchStart + matched.length else matched.length
@@ -68,9 +65,4 @@ object FrenchLookupPolicy {
             codePointCount = selectionText.codePointCount(0, safeEnd),
         )
     }
-
-    fun isFrench(languageCode: String): Boolean = languageCode.primaryLanguage() == "fr"
-
-    private fun String.primaryLanguage(): String =
-        trim().lowercase().substringBefore('-').substringBefore('_')
 }

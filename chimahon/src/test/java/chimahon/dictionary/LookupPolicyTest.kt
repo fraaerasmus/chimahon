@@ -5,35 +5,27 @@ import chimahon.LookupResult
 import chimahon.TermResult
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
-class FrenchLookupPolicyTest {
+class LookupPolicyTest {
 
     @Test
-    fun `strips recognized french elisions and keeps trailing lookup context`() {
-        assertEquals("homme politique", FrenchLookupPolicy.stripElision("l'homme politique", "fr"))
-        assertEquals("accord", FrenchLookupPolicy.stripElision("D’accord", "fr"))
-        assertEquals("il", FrenchLookupPolicy.stripElision("qu'il", "fr"))
-        assertNull(FrenchLookupPolicy.stripElision("aujourd'hui", "fr"))
-        assertNull(FrenchLookupPolicy.stripElision("l'homme", "en"))
+    fun `a language code is french whatever its region or case`() {
+        assertTrue(LookupLanguage.isFrench("fr"))
+        assertTrue(LookupLanguage.isFrench(" FR-ca "))
+        assertTrue(LookupLanguage.isFrench("fr_FR"))
+        assertFalse(LookupLanguage.isFrench("fro"))
+        assertFalse(LookupLanguage.isFrench("en"))
+        assertEquals("pt", LookupLanguage.primary("pt-BR"))
     }
 
     @Test
-    fun `produces original and stripped french lookup queries`() {
-        assertEquals(
-            listOf("l'homme dort", "homme dort"),
-            FrenchLookupPolicy.lookupQueries("l'homme dort", "fr"),
-        )
-        assertEquals(listOf("l'homme dort"), FrenchLookupPolicy.lookupQueries("l'homme dort", "en"))
-    }
+    fun `other languages keep the order they came in`() {
+        val first = result("house", matched = "house", definitionTags = listOf("non-lemma"))
+        val second = result("home", matched = "house", definitionTags = listOf("noun"))
 
-    @Test
-    fun `preserves french recursive words and existing japanese filtering`() {
-        assertEquals("l'homme politique", FrenchLookupPolicy.recursiveQuery(" l'homme politique ", "fr"))
-        assertEquals("猫", FrenchLookupPolicy.recursiveQuery("「猫」", "ja"))
-        assertNull(FrenchLookupPolicy.recursiveQuery("homme", "ja"))
+        assertEquals(listOf(first, second), LookupPolicy.rank(listOf(first, second, first), "en", 20))
     }
 
     @Test
@@ -45,7 +37,7 @@ class FrenchLookupPolicyTest {
 
         assertEquals(
             listOf("homme politique", "détester", "détestait", "homme"),
-            FrenchLookupPolicy.mergeResults(
+            LookupPolicy.rank(
                 results = listOf(shortReal, formOf, lemma, longReal),
                 languageCode = "fr",
                 maxResults = 20,
@@ -59,11 +51,11 @@ class FrenchLookupPolicyTest {
         val real = result("avoir", matched = "avait", definitionTags = listOf("verb"))
         val formOnly = result("avais", matched = "avait", definitionTags = listOf("non-lemma"))
 
-        val ordered = FrenchLookupPolicy.mergeResults(listOf(formOnly, mixed, real), "fr", 20)
+        val ordered = LookupPolicy.rank(listOf(formOnly, mixed, real), "fr", 20)
 
         assertEquals(listOf("avait", "avoir", "avais"), ordered.map { it.term.expression })
-        assertFalse(FrenchLookupPolicy.isFormOfOnly(mixed))
-        assertTrue(FrenchLookupPolicy.isFormOfOnly(formOnly))
+        assertFalse(LookupPolicy.isFormOfOnly(mixed))
+        assertTrue(LookupPolicy.isFormOfOnly(formOnly))
     }
 
     @Test
@@ -72,7 +64,7 @@ class FrenchLookupPolicyTest {
         val otherMatch = result("homme", matched = "l'", definitionTags = listOf("noun"))
         val extra = result("humain", matched = "homme", definitionTags = listOf("noun"))
 
-        val ordered = FrenchLookupPolicy.mergeResults(
+        val ordered = LookupPolicy.rank(
             listOf(sameMatch, sameMatch, otherMatch, extra),
             "fr",
             maxResults = 2,
@@ -85,11 +77,11 @@ class FrenchLookupPolicyTest {
     fun `highlight spans from selection start through an elision fallback match`() {
         assertEquals(
             LookupHighlight(startOffset = 0, codePointCount = 7),
-            FrenchLookupPolicy.highlightFor("l'homme", "homme"),
+            LookupPolicy.highlightFor("l'homme", "homme"),
         )
         assertEquals(
             LookupHighlight(startOffset = 0, codePointCount = 5),
-            FrenchLookupPolicy.highlightFor("homme", "homme"),
+            LookupPolicy.highlightFor("homme", "homme"),
         )
     }
 

@@ -839,7 +839,7 @@ class ReaderActivity : BaseActivity() {
                         lifecycleScope.launch(Dispatchers.Default) {
                             val result = try { deferredLookup.await() } catch (_: Exception) { null }
                             val firstMatched = result?.results?.firstOrNull()?.matched
-                            val charCount = /* Custom --> */ firstMatched?.let { chimahon.dictionary.FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount } /* Custom <-- */
+                            val charCount = /* Custom --> */ firstMatched?.let { chimahon.dictionary.LookupPolicy.highlightFor(lookupString, it).codePointCount } /* Custom <-- */
 
                             val rect = withContext(Dispatchers.Main) {
                                 if (charCount != null) {
@@ -901,7 +901,7 @@ class ReaderActivity : BaseActivity() {
                         lifecycleScope.launch(Dispatchers.Default) {
                             val result = try { deferredLookup.await() } catch (_: Exception) { null }
                             val firstMatched = result?.results?.firstOrNull()?.matched
-                            val charCount = /* Custom --> */ firstMatched?.let { chimahon.dictionary.FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount } /* Custom <-- */
+                            val charCount = /* Custom --> */ firstMatched?.let { chimahon.dictionary.LookupPolicy.highlightFor(lookupString, it).codePointCount } /* Custom <-- */
 
                             val rect = withContext(Dispatchers.Main) {
                                 if (charCount != null) {
