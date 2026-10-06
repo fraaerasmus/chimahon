@@ -5,6 +5,7 @@ import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.data.database.models.Episode
 import eu.kanade.tachiyomi.network.NetworkHelper
 import eu.kanade.tachiyomi.network.await
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -65,17 +66,21 @@ object YouTubeWatchHistory {
         }
 
         private suspend fun ping(url: String) {
-            runCatching {
+            try {
                 client.newCall(signedRequest(url).get().build()).await().close()
                 logcat(LogPriority.DEBUG) { "YouTube history ping ok: ${url.substringBefore('?').substringAfterLast('/')}" }
-            }.onFailure { logcat(LogPriority.WARN, it) { "YouTube history ping failed" } }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN, e) { "YouTube history ping failed" }
+            }
         }
     }
 
     /** Null when not signed in, or when YouTube returns no tracking URLs for the video. */
     suspend fun open(videoId: String, client: OkHttpClient = Injekt.get<NetworkHelper>().client): Session? {
         if (sapisid() == null) return null
-        return runCatching {
+        return try {
             val body = """{"context":{"client":{"clientName":"WEB","clientVersion":"$WEB_CLIENT_VERSION"}},"videoId":"$videoId"}"""
             val request = signedRequest(PLAYER_ENDPOINT)
                 .header("X-Youtube-Client-Name", "1")
@@ -84,7 +89,12 @@ object YouTubeWatchHistory {
                 .build()
             val json = client.newCall(request).await().use { it.body.string() }
             trackingUrls(json)?.let { (playback, watchtime) -> Session(client, playback, watchtime, newCpn()) }
-        }.onFailure { logcat(LogPriority.WARN, it) { "YouTube history: player request failed" } }.getOrNull()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, e) { "YouTube history: player request failed" }
+            null
+        }
     }
 
     private fun signedRequest(url: String): Request.Builder {
@@ -158,10 +168,13 @@ class YouTubeWatchHistorySync(
     source: StateFlow<AnimeSource?>,
     private val position: StateFlow<Float>,
     private val paused: StateFlow<Boolean>,
+    private val open: suspend (videoId: String) -> YouTubeWatchHistory.Session? = { YouTubeWatchHistory.open(it) },
     private val enabled: () -> Boolean,
 ) {
-    // Own scope so the final ping outlives the view model that owns this object.
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Own scope so the final ping outlives the view model that owns this object. It runs one
+    // coroutine at a time, because the watcher, the reporting job and stop() all touch
+    // [session] and [reporting].
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO.limitedParallelism(1))
     private var session: YouTubeWatchHistory.Session? = null
     private var reporting: Job? = null
 
@@ -173,7 +186,7 @@ class YouTubeWatchHistorySync(
                 val videoId = episodeUrl?.removePrefix(YouTubeSource.WATCH_PREFIX) ?: return@collect
                 if (!enabled()) return@collect
                 reporting = scope.launch {
-                    val opened = YouTubeWatchHistory.open(videoId) ?: return@launch
+                    val opened = open(videoId) ?: return@launch
                     session = opened
                     paused.first { !it }
                     opened.reportStart()
@@ -187,16 +200,16 @@ class YouTubeWatchHistorySync(
 
     fun stop() {
         watcher.cancel()
-        finish()
+        val lastPosition = position.value
+        scope.launch { finish(lastPosition) }
     }
 
-    private fun finish() {
+    private fun finish(lastPosition: Float = position.value) {
         reporting?.cancel()
         reporting = null
-        val open = session ?: return
+        val opened = session ?: return
         session = null
-        val lastPosition = position.value
-        scope.launch { open.reportWatchTime(lastPosition, final = true) }
+        scope.launch { opened.reportWatchTime(lastPosition, final = true) }
     }
 
     private companion object {
