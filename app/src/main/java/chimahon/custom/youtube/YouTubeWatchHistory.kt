@@ -150,7 +150,7 @@ object YouTubeWatchHistory {
 
     internal fun sapisidHash(sapisid: String, origin: String, nowSeconds: Long = System.currentTimeMillis() / 1000): String {
         val digest = MessageDigest.getInstance("SHA-1").digest("$nowSeconds $sapisid $origin".toByteArray())
-        return "${nowSeconds}_${digest.joinToString("") { "%02x".format(it) }}"
+        return "${nowSeconds}_${digest.toHexString()}"
     }
 
     internal fun newCpn(): String = buildString { repeat(16) { append(CPN_ALPHABET[Random.nextInt(64)]) } }

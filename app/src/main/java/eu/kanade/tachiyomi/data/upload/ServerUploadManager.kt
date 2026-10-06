@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.data.upload
 
 import android.content.Context
+import chimahon.custom.core.describeForUser
 import chimahon.custom.upload.MokuroSidecarFiles
 import com.hippo.unifile.UniFile
 import eu.kanade.domain.sync.SyncPreferences
@@ -49,19 +50,11 @@ class ServerUploadManager(
         val probe = runCatching { client.ensureFolder() }
         probe.exceptionOrNull()?.let { error ->
             logcat(LogPriority.WARN, error) { "ServerUpload: connection check failed" }
-            return "Could not reach the server: ${describe(error)}"
+            return "Could not reach the server: ${error.describeForUser()}"
         }
         preference.set(true)
         ChapterUploadJob.start(context, manga.id)
         return "Server reached. Uploading the downloaded chapters of ${manga.title}"
-    }
-
-    /** A one-line reason for the UI: the WebDAV status for HTTP errors, the host for connection failures. */
-    fun describe(error: Throwable): String = when (error) {
-        is WebDavUploadClient.WebDavUploadException -> error.message.orEmpty()
-        is java.net.UnknownHostException -> "unknown host ${error.message.orEmpty()}"
-        is java.io.IOException -> error.message?.takeIf { it.isNotBlank() } ?: error::class.java.simpleName
-        else -> error.message?.takeIf { it.isNotBlank() } ?: error::class.java.simpleName
     }
 
     /** Called by the downloader once a chapter is on disk. */

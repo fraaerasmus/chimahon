@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import chimahon.custom.core.describeForUser
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.io.File
@@ -90,8 +91,6 @@ fun OpdsBrowser(
     var deleteCandidate by remember { mutableStateOf<OpdsCatalog?>(null) }
     var loadJob by remember { mutableStateOf<Job?>(null) }
 
-    fun describe(throwable: Throwable): String = throwable.message ?: throwable::class.java.simpleName
-
     fun loadFeed(catalog: OpdsCatalog, url: String) {
         loadJob?.cancel()
         loading = true
@@ -102,7 +101,7 @@ fun OpdsBrowser(
                     feedStack.add(feed)
                     if (feedStack.size == 1) searchTemplate = client.searchTemplate(catalog, feed)
                 }
-                .onFailure { error = "Could not load catalog: ${describe(it)}" }
+                .onFailure { error = "Could not load catalog: ${it.describeForUser()}" }
             loading = false
         }
     }
@@ -147,7 +146,7 @@ fun OpdsBrowser(
                         feedStack[index] = feed.copy(entries = feed.entries + page.entries, nextHref = page.nextHref)
                     }
                 }
-                .onFailure { error = "Could not load more: ${describe(it)}" }
+                .onFailure { error = "Could not load more: ${it.describeForUser()}" }
             loadingMore = false
         }
     }
@@ -165,7 +164,7 @@ fun OpdsBrowser(
                 onImportFile(result.file, result.fileName, entry)
                 message = "Downloaded ${entry.title}"
                 error = null
-            }.onFailure { error = "Download failed: ${describe(it)}" }
+            }.onFailure { error = "Download failed: ${it.describeForUser()}" }
             downloads.remove(entry.id)
         }
     }

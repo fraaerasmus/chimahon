@@ -1,5 +1,7 @@
 package chimahon.novel.opds
 
+import chimahon.custom.core.ServerException
+import chimahon.custom.core.TinyHttpServer
 import chimahon.novel.kosync.KosyncDocumentId
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
@@ -7,13 +9,10 @@ import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
-import java.net.ServerSocket
 import java.util.Base64
-import kotlin.concurrent.thread
 
 /**
  * The acceptance property for cross-device sync: a book fetched from a catalog has to reach disk
@@ -23,74 +22,29 @@ class OpdsDownloadTest {
     @TempDir
     lateinit var tempDir: File
 
-    private lateinit var socket: ServerSocket
-    private lateinit var listener: Thread
-
-    @Volatile
-    private var lastAuthHeader: String? = null
+    private val server = TinyHttpServer { request ->
+        val path = request.path
+        fun file(disposition: String? = null) = TinyHttpServer.Response(
+            200,
+            payload,
+            disposition?.let { mapOf("Content-Disposition" to it) }.orEmpty(),
+        )
+        when {
+            request.header("Authorization") == null -> TinyHttpServer.Response(401)
+            path.startsWith("/get/epub/18") -> file("attachment; filename=\"Same Dream.epub\"")
+            path.startsWith("/get/cbz/20") -> file("attachment; filename=\"Berserk, Vol. 3 - Kentaro Miura.cbz\"")
+            path.startsWith("/get/cbr/21") -> file()
+            else -> TinyHttpServer.Response(404)
+        }
+    }
 
     // Large enough that the transfer crosses many read buffers and three partial-MD5 sample windows.
     private val payload = ByteArray(300 * 1024) { ((it * 31 + 7) and 0xff).toByte() }
 
-    @BeforeEach
-    fun start() {
-        socket = ServerSocket(0)
-        listener = thread(isDaemon = true) {
-            while (!socket.isClosed) {
-                val connection = try {
-                    socket.accept()
-                } catch (e: Exception) {
-                    return@thread
-                }
-                connection.use { open ->
-                    val input = open.getInputStream().bufferedReader(Charsets.ISO_8859_1)
-                    val requestLine = input.readLine() ?: return@use
-                    val path = requestLine.split(" ").getOrElse(1) { "" }
-                    var auth: String? = null
-                    while (true) {
-                        val header = input.readLine()
-                        if (header.isNullOrEmpty()) break
-                        if (header.startsWith("Authorization:", ignoreCase = true)) {
-                            auth = header.substringAfter(':').trim()
-                        }
-                    }
-                    lastAuthHeader = auth
-                    val output = open.getOutputStream()
-                    when {
-                        auth == null -> output.write(head(401, 0))
-                        path.startsWith("/get/epub/18") -> {
-                            output.write(head(200, payload.size, "attachment; filename=\"Same Dream.epub\""))
-                            output.write(payload)
-                        }
-                        path.startsWith("/get/cbz/20") -> {
-                            output.write(head(200, payload.size, "attachment; filename=\"Berserk, Vol. 3 - Kentaro Miura.cbz\""))
-                            output.write(payload)
-                        }
-                        path.startsWith("/get/cbr/21") -> {
-                            output.write(head(200, payload.size))
-                            output.write(payload)
-                        }
-                        else -> output.write(head(404, 0))
-                    }
-                    output.flush()
-                }
-            }
-        }
-    }
-
     @AfterEach
-    fun stop() {
-        socket.close()
-    }
+    fun stop() = server.close()
 
-    private fun head(status: Int, length: Int, disposition: String? = null): ByteArray = buildString {
-        append("HTTP/1.1 $status ${if (status == 200) "OK" else "Error"}\r\n")
-        append("Content-Length: $length\r\n")
-        disposition?.let { append("Content-Disposition: $it\r\n") }
-        append("Connection: close\r\n\r\n")
-    }.toByteArray(Charsets.ISO_8859_1)
-
-    private val base get() = "http://127.0.0.1:${socket.localPort}"
+    private val base get() = server.url
 
     private val catalog = OpdsCatalog(id = "c", name = "calibre", url = "", username = "reader", password = "hunter2")
 
@@ -137,12 +91,12 @@ class OpdsDownloadTest {
     fun `download sends basic auth`() = runBlocking {
         OpdsClient().download(catalog, "$base/get/epub/18/calibre", tempDir, "fallback.epub")
         val expected = "Basic " + Base64.getEncoder().encodeToString("reader:hunter2".toByteArray())
-        assertEquals(expected, lastAuthHeader)
+        assertEquals(expected, server.requests.last().header("Authorization"))
     }
 
     @Test
     fun `download surfaces a server error instead of writing a file`() {
-        val error = assertThrows(OpdsException::class.java) {
+        val error = assertThrows(ServerException::class.java) {
             runBlocking { OpdsClient().download(catalog, "$base/get/epub/missing", tempDir, "fallback.epub") }
         }
         assertEquals(404, error.statusCode)

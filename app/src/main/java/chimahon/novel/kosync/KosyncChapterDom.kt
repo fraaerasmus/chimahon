@@ -1,10 +1,10 @@
 package chimahon.novel.kosync
 
+import chimahon.custom.core.hardenedDocumentBuilderFactory
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.xml.sax.InputSource
 import java.io.StringReader
-import javax.xml.parsers.DocumentBuilderFactory
 
 /**
  * Chapter XHTML parsed as XML, i.e. the same tree the reader WebView builds (chapters are served
@@ -13,16 +13,7 @@ import javax.xml.parsers.DocumentBuilderFactory
  */
 object KosyncChapterDom {
     fun parseBody(xhtml: String): Element? = runCatching {
-        val builder = DocumentBuilderFactory.newInstance()
-            .apply {
-                isNamespaceAware = false
-                isValidating = false
-                runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
-                runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
-                runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
-                runCatching { setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false) }
-            }
-            .newDocumentBuilder()
+        val builder = hardenedDocumentBuilderFactory(namespaceAware = false).newDocumentBuilder()
         val document = builder.parse(InputSource(StringReader(prepareXml(xhtml))))
         findElement(document.documentElement, "body")
     }.getOrNull()

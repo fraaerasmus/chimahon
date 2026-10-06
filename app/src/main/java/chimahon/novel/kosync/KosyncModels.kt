@@ -23,7 +23,6 @@ data class KosyncCredentials(
 )
 
 data class KosyncRemoteProgress(
-    val document: String,
     val progress: String?,
     val percentage: Double?,
     val device: String?,
@@ -48,5 +47,3 @@ data class KosyncBookState(
     val lastSyncedCharacterCount: Int? = null,
     val lastServerTimestamp: Long? = null,
 )
-
-class KosyncException(message: String, val statusCode: Int? = null) : Exception(message)

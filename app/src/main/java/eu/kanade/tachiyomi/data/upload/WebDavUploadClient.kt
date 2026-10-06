@@ -1,5 +1,8 @@
 package eu.kanade.tachiyomi.data.upload
 
+import chimahon.custom.core.CustomHttp
+import chimahon.custom.core.ServerException
+import chimahon.custom.core.withTimeouts
 import eu.kanade.domain.sync.SyncPreferences
 import eu.kanade.tachiyomi.network.await
 import okhttp3.Credentials
@@ -12,7 +15,7 @@ import okhttp3.RequestBody
 import okio.BufferedSink
 import okio.source
 import java.io.InputStream
-import java.util.concurrent.TimeUnit
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * The WebDAV calls the chapter upload needs, against the same server the WebDAV sync uses:
@@ -46,8 +49,6 @@ class WebDavUploadClient(
             get() = uploadFolder.split('/').map { it.trim() }.filter { it.isNotEmpty() }
     }
 
-    class WebDavUploadException(message: String) : Exception(message)
-
     fun isConfigured(): Boolean = settings().isConfigured
 
     /** URL of a file under the upload folder; each segment is encoded on its own. */
@@ -73,7 +74,7 @@ class WebDavUploadClient(
                 .build()
             client.newCall(request).await().use { response ->
                 if (!response.isSuccessful && response.code != 405 && response.code != 409 && response.code != 301) {
-                    throw WebDavUploadException("Could not create folder $url (HTTP ${response.code}).")
+                    throw ServerException("Could not create folder $url (HTTP ${response.code}).", response.code)
                 }
             }
         }
@@ -86,7 +87,7 @@ class WebDavUploadClient(
             return when {
                 response.code == 404 -> null
                 response.isSuccessful -> response.header("Content-Length")?.toLongOrNull() ?: -1L
-                else -> throw WebDavUploadException("HEAD $url failed (HTTP ${response.code}).")
+                else -> throw ServerException("HEAD $url failed (HTTP ${response.code}).", response.code)
             }
         }
     }
@@ -102,7 +103,7 @@ class WebDavUploadClient(
         }
         val request = Request.Builder().url(url).put(body).header("Authorization", credentials(settings())).build()
         client.newCall(request).await().use { response ->
-            if (!response.isSuccessful) throw WebDavUploadException("PUT $url failed (HTTP ${response.code}).")
+            if (!response.isSuccessful) throw ServerException("PUT $url failed (HTTP ${response.code}).", response.code)
         }
     }
 
@@ -113,7 +114,7 @@ class WebDavUploadClient(
             return when {
                 response.code == 404 -> null
                 response.isSuccessful -> response.body.string()
-                else -> throw WebDavUploadException("GET $url failed (HTTP ${response.code}).")
+                else -> throw ServerException("GET $url failed (HTTP ${response.code}).", response.code)
             }
         }
     }
@@ -123,10 +124,7 @@ class WebDavUploadClient(
     companion object {
         val CBZ_MEDIA_TYPE: MediaType = "application/x-cbz".toMediaType()
 
-        private fun defaultClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
-            .build()
+        private fun defaultClient(): OkHttpClient =
+            CustomHttp.client.withTimeouts(connect = 30.seconds, read = 60.seconds, write = 120.seconds)
     }
 }

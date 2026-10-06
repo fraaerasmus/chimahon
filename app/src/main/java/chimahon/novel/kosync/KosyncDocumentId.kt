@@ -28,7 +28,7 @@ object KosyncDocumentId {
                 digest.update(buffer, 0, read)
             }
         }
-        return digest.digest().toHex()
+        return digest.digest().toHexString()
     }
 
     /**
@@ -48,7 +48,7 @@ object KosyncDocumentId {
             position += read
             if (read < SAMPLE_SIZE) break
         }
-        return digest.digest().toHex()
+        return digest.digest().toHexString()
     }
 
     private fun skipFully(input: InputStream, count: Long): Boolean {
@@ -92,6 +92,4 @@ object KosyncDocumentId {
         268435456L,
         1073741824L,
     )
-
-    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 }

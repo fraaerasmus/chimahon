@@ -2,6 +2,7 @@ package chimahon.novel.kosync
 
 import android.content.Context
 import android.util.Log
+import chimahon.custom.core.ServerException
 import chimahon.custom.core.writeTextAtomic
 import chimahon.novel.data.BookMetadata
 import chimahon.novel.data.BookStorage
@@ -42,7 +43,7 @@ class KosyncManager(
 
     suspend fun testConnection(credentials: KosyncCredentials? = null) {
         val resolved = credentials ?: settingsRepository.credentials()
-            ?: throw KosyncException("Enter the server, username and password first.")
+            ?: throw ServerException("Enter the server, username and password first.")
         api.authorize(resolved)
     }
 

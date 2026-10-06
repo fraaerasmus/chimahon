@@ -1,11 +1,11 @@
 package chimahon.novel.opds
 
+import chimahon.custom.core.hardenedDocumentBuilderFactory
 import org.w3c.dom.Element
 import org.w3c.dom.Node
 import java.io.ByteArrayInputStream
 import java.net.URI
 import java.net.URLEncoder
-import javax.xml.parsers.DocumentBuilderFactory
 
 /**
  * Atom/OPDS parser. Every href is resolved against the feed URL (honouring `xml:base` when
@@ -85,13 +85,8 @@ object OpdsFeedParser {
     }
 
     private fun parse(xml: ByteArray): Element {
-        val factory = DocumentBuilderFactory.newInstance().apply {
-            isNamespaceAware = true
-            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
-            runCatching { setFeature("http://xml.org/sax/features/external-general-entities", false) }
-            runCatching { setFeature("http://xml.org/sax/features/external-parameter-entities", false) }
-        }
-        return factory.newDocumentBuilder().parse(ByteArrayInputStream(xml)).documentElement
+        return hardenedDocumentBuilderFactory(namespaceAware = true)
+            .newDocumentBuilder().parse(ByteArrayInputStream(xml)).documentElement
     }
 
     private fun baseOf(element: Element, inherited: String): String {

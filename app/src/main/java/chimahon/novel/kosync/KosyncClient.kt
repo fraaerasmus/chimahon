@@ -1,5 +1,10 @@
 package chimahon.novel.kosync
 
+import chimahon.custom.core.CustomHttp
+import chimahon.custom.core.ServerException
+import chimahon.custom.core.withHttpScheme
+import chimahon.custom.core.withTimeouts
+import eu.kanade.tachiyomi.network.await
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,9 +17,14 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
-import java.net.HttpURLConnection
-import java.net.URL
-import java.net.URLEncoder
+import okhttp3.Headers
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 interface KosyncApi {
     suspend fun register(credentials: KosyncCredentials)
@@ -46,36 +56,42 @@ interface KosyncApi {
  * password rather than the password itself. Timestamps the server returns are unix seconds.
  */
 class KosyncClient(
+    client: OkHttpClient = CustomHttp.client,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val pullConnectTimeoutMillis: Int = PULL_CONNECT_TIMEOUT_MILLIS,
-    private val pullReadTimeoutMillis: Int = PULL_READ_TIMEOUT_MILLIS,
+    pullConnectTimeout: Duration = 3.seconds,
+    pullReadTimeout: Duration = 4.seconds,
 ) : KosyncApi {
+    private val client = client.withTimeouts(connect = 10.seconds, read = 15.seconds)
+
+    // A pull holds a book or chapter back from opening, so it gives up sooner than a push, and
+    // the call timeout bounds it as a whole however many addresses the server name resolves to.
+    private val pullClient = client.withTimeouts(
+        connect = pullConnectTimeout,
+        read = pullReadTimeout,
+        call = pullConnectTimeout + pullReadTimeout,
+    )
 
     override suspend fun register(credentials: KosyncCredentials) {
         val payload = buildJsonObject {
             put("username", credentials.username)
             put("password", credentials.userKey)
         }
-        request(credentials, "POST", "/users/create", payload)
+        request(credentials, "POST", "users/create", payload)
     }
 
     override suspend fun authorize(credentials: KosyncCredentials) {
-        request(credentials, "GET", "/users/auth")
+        request(credentials, "GET", "users/auth")
     }
 
     override suspend fun getProgress(credentials: KosyncCredentials, document: String): KosyncRemoteProgress? {
-        val encoded = URLEncoder.encode(document, "UTF-8")
-        // A pull holds a book or chapter back from opening, so it gives up sooner than a push.
         val body = request(
             credentials,
             "GET",
-            "/syncs/progress/$encoded",
+            "syncs/progress/$document",
             notFoundIsNull = true,
-            connectTimeoutMillis = pullConnectTimeoutMillis,
-            readTimeoutMillis = pullReadTimeoutMillis,
+            client = pullClient,
         ) ?: return null
         return KosyncRemoteProgress(
-            document = body.string("document") ?: document,
             progress = body.string("progress"),
             percentage = body["percentage"]?.jsonPrimitive?.doubleOrNull,
             device = body.string("device"),
@@ -101,7 +117,7 @@ class KosyncClient(
             put("device", device)
             put("device_id", deviceId)
         }
-        return request(credentials, "PUT", "/syncs/progress", payload)
+        return request(credentials, "PUT", "syncs/progress", payload)
             ?.get("timestamp")?.jsonPrimitive?.longOrNull
     }
 
@@ -111,61 +127,49 @@ class KosyncClient(
         path: String,
         payload: JsonObject? = null,
         notFoundIsNull: Boolean = false,
-        connectTimeoutMillis: Int = CONNECT_TIMEOUT_MILLIS,
-        readTimeoutMillis: Int = READ_TIMEOUT_MILLIS,
+        client: OkHttpClient = this.client,
     ): JsonObject? = withContext(ioDispatcher) {
-        val connection = URL(normalizeServerUrl(credentials.serverUrl) + path).openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = method
-            connection.connectTimeout = connectTimeoutMillis
-            connection.readTimeout = readTimeoutMillis
-            connection.setRequestProperty("Accept", "application/vnd.koreader.v1+json")
-            connection.setRequestProperty("x-auth-user", credentials.username)
-            connection.setRequestProperty("x-auth-key", credentials.userKey)
-            if (payload != null) {
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", "application/json")
-                connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
-            }
-            val status = connection.responseCode
-            val text = (if (status in 200..299) connection.inputStream else connection.errorStream)
-                ?.use { it.readBytes().toString(Charsets.UTF_8) }
-                .orEmpty()
+        val url = credentials.serverUrl.withHttpScheme().toHttpUrlOrNull()
+            ?.newBuilder()?.addPathSegments(path)?.build()
+            ?: throw ServerException("The server address is not a valid URL.")
+        val request = Request.Builder()
+            .url(url)
+            // A byte body keeps the content type bare, as KOReader sends it; a string body
+            // would have a charset appended.
+            .method(method, payload?.toString()?.toByteArray(Charsets.UTF_8)?.toRequestBody(JSON))
+            .headers(
+                Headers.Builder()
+                    .add("Accept", "application/vnd.koreader.v1+json")
+                    .addUnsafeNonAscii("x-auth-user", credentials.username)
+                    .add("x-auth-key", credentials.userKey)
+                    .build(),
+            )
+            .build()
+        client.newCall(request).await().use { response ->
+            val status = response.code
+            val text = response.body.string()
             when {
-                status in 200..299 ->
+                response.isSuccessful ->
                     runCatching { json.parseToJsonElement(text).jsonObject }.getOrNull()
                         ?: if (text.isBlank()) {
                             JsonObject(emptyMap())
                         } else {
-                            throw KosyncException("Unexpected response from server.", status)
+                            throw ServerException("Unexpected response from server.", status)
                         }
                 status == 404 && notFoundIsNull -> null
-                status == 401 -> throw KosyncException("Incorrect username or password.", status)
-                status == 402 -> throw KosyncException("Username is already taken.", status)
-                status == 403 -> throw KosyncException("Unknown user.", status)
-                else -> throw KosyncException("Server returned HTTP $status.", status)
+                status == 401 -> throw ServerException("Incorrect username or password.", status)
+                status == 402 -> throw ServerException("Username is already taken.", status)
+                status == 403 -> throw ServerException("Unknown user.", status)
+                else -> throw ServerException("Server returned HTTP $status.", status)
             }
-        } finally {
-            connection.disconnect()
         }
     }
 
     private fun JsonObject.string(key: String): String? =
         this[key]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
 
-    companion object {
-        private const val CONNECT_TIMEOUT_MILLIS = 10_000
-        private const val READ_TIMEOUT_MILLIS = 15_000
-
-        // The socket timeouts are the only bound on a pull: the request blocks its thread, so a
-        // coroutine timeout around it does not return until the socket gives up.
-        private const val PULL_CONNECT_TIMEOUT_MILLIS = 3_000
-        private const val PULL_READ_TIMEOUT_MILLIS = 4_000
-        private val json = Json { ignoreUnknownKeys = true }
-
-        fun normalizeServerUrl(raw: String): String {
-            val trimmed = raw.trim().trimEnd('/')
-            return if (trimmed.contains("://")) trimmed else "http://$trimmed"
-        }
+    private companion object {
+        val JSON = "application/json".toMediaType()
+        val json = Json { ignoreUnknownKeys = true }
     }
 }

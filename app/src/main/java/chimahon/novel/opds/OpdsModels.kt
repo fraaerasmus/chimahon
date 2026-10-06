@@ -91,5 +91,3 @@ data class OpdsFeed(
     /** OpenSearch description document URL, when the feed only advertises that. */
     val searchDescriptionHref: String?,
 )
-
-class OpdsException(message: String, val statusCode: Int? = null) : Exception(message)

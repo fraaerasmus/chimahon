@@ -14,6 +14,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import chimahon.custom.core.describeForUser
 import eu.kanade.tachiyomi.data.notification.Notifications
 import eu.kanade.tachiyomi.util.system.notificationBuilder
 import eu.kanade.tachiyomi.util.system.notify
@@ -110,7 +111,7 @@ class ChapterUploadJob(context: Context, workerParams: WorkerParameters) : Corou
     }
 
     private fun notifyFailure(manga: Manga, failed: Int, chapters: List<Chapter>, error: Throwable?) {
-        val reason = error?.let(uploadManager::describe) ?: "unknown error"
+        val reason = error?.describeForUser() ?: "unknown error"
         val text = "${manga.title}: $failed of ${chapters.size} chapters not uploaded after $MAX_ATTEMPTS attempts. $reason"
         applicationContext.notify(Notifications.ID_SERVER_UPLOAD_ERROR, Notifications.CHANNEL_DOWNLOADER_ERROR) {
             setContentTitle("Upload to server failed")
