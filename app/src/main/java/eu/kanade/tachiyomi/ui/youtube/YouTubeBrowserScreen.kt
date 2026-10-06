@@ -23,9 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,19 +46,11 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import eu.kanade.tachiyomi.ui.player.PlayerActivity
 import tachiyomi.domain.source.anime.interactor.GetRemoteAnime
-import tachiyomi.i18n.MR
-import tachiyomi.i18n.ank.AMR
-import tachiyomi.presentation.core.i18n.stringResource
 
 class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: String? = null) : Screen {
 
     private companion object {
         private const val PLAYER_LAUNCH_DEBOUNCE_MS = 1_500L
-
-        // Custom -->
-        private const val YOUTUBE_HOME_URL = "https://m.youtube.com/"
-        private const val YOUTUBE_HISTORY_URL = "https://www.youtube.com/feed/history"
-        // Custom <--
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -69,75 +59,28 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        // Custom -->
-        val preferences = remember(context) { YouTubePreferences(context.applicationContext) }
-        // Custom <--
         var progress by remember { mutableIntStateOf(0) }
         var isLoading by remember { mutableStateOf(true) }
         var title by remember { mutableStateOf("YouTube") }
         var webView by remember { mutableStateOf<WebView?>(null) }
 
         // Custom -->
-        var canGoBack by remember { mutableStateOf(false) }
-        var canGoForward by remember { mutableStateOf(false) }
-        var retainSessionOnDispose by remember { mutableStateOf(true) }
-
-        fun updateNavigationState(view: WebView?) {
-            canGoBack = view?.canGoBack() == true
-            canGoForward = view?.canGoForward() == true
-        }
-
-        fun navigateWebBack() {
-            val view = webView
-            if (view?.canGoBack() == true) {
-                view.goBack()
-            }
-        }
-
-        fun navigateWebForward() {
-            val view = webView
-            if (view?.canGoForward() == true) {
-                view.goForward()
-            }
-        }
-
-        fun minimizeBrowser() {
-            navigator.pop()
-        }
-
-        fun exitBrowser() {
-            retainSessionOnDispose = false
-            YouTubeBrowserSession.clear()
-            navigator.pop()
-        }
-
-        fun navigateBackOrMinimize() {
-            val view = webView
-            if (view?.canGoBack() == true) {
-                view.goBack()
-            } else {
-                minimizeBrowser()
-            }
-        }
-
-        BackHandler(onBack = ::navigateBackOrMinimize)
+        // In place of upstream's goBack(): back walks the web history and then minimizes, keeping
+        // the session for next time. Leaving for good is its own button.
+        val browser = remember { chimahon.custom.youtube.YouTubeBrowserNavigation(navigator) { webView } }
+        BackHandler(onBack = browser::backOrMinimize)
         // Custom <--
 
         DisposableEffect(Unit) {
             onDispose {
-                webView?.let { view ->
-                    // Custom -->
-                    CookieManager.getInstance().flush()
-                    if (retainSessionOnDispose) {
-                        YouTubeBrowserSession.capture(view)
-                    }
-                    // Custom <--
-                    view.stopLoading()
-                    view.webChromeClient = null
-                    view.webViewClient = WebViewClient()
-                    view.removeJavascriptInterface("Android")
-                    view.destroy()
-                }
+                // Custom -->
+                webView?.let(browser::onDispose)
+                // Custom <--
+                webView?.stopLoading()
+                webView?.webChromeClient = null
+                webView?.webViewClient = WebViewClient()
+                webView?.removeJavascriptInterface("Android")
+                webView?.destroy()
                 webView = null
             }
         }
@@ -147,40 +90,9 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                 TopAppBar(
                     title = { Text(text = title) },
                     // Custom -->
-                    navigationIcon = {
-                        IconButton(onClick = ::minimizeBrowser) {
-                            Icon(
-                                Icons.Outlined.KeyboardArrowDown,
-                                contentDescription = stringResource(AMR.strings.youtube_browser_minimize),
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(
-                            onClick = ::navigateWebBack,
-                            enabled = canGoBack,
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Outlined.ArrowBack,
-                                contentDescription = stringResource(MR.strings.action_webview_back),
-                            )
-                        }
-                        IconButton(
-                            onClick = ::navigateWebForward,
-                            enabled = canGoForward,
-                        ) {
-                            Icon(
-                                Icons.AutoMirrored.Outlined.ArrowForward,
-                                contentDescription = stringResource(MR.strings.action_webview_forward),
-                            )
-                        }
-                        IconButton(onClick = ::exitBrowser) {
-                            Icon(
-                                Icons.Outlined.Close,
-                                contentDescription = stringResource(AMR.strings.youtube_browser_exit),
-                            )
-                        }
-                    },
+                    // In place of upstream's back and close buttons.
+                    navigationIcon = { chimahon.custom.youtube.YouTubeBrowserMinimizeButton(browser) },
+                    actions = { chimahon.custom.youtube.YouTubeBrowserActions(browser) },
                     // Custom <--
                 )
             },
@@ -200,8 +112,9 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                             var lastPlayerLaunchVideoId = ""
                             var lastPlayerLaunchAt = 0L
                             // Custom -->
-                            var pendingFreshHistoryLoginCheck = false
-                            var clearHistoryOnHomeFinish = false
+                            val start = chimahon.custom.youtube.YouTubeBrowserStart(
+                                chimahon.custom.youtube.YouTubeCustomPreferences(context.applicationContext),
+                            )
                             // Custom <--
 
                             fun openInPlayer(url: String) {
@@ -290,7 +203,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                         url: String?,
                                         isReload: Boolean,
                                     ) {
-                                        updateNavigationState(view)
+                                        /* Custom --> */ browser.update(view) /* Custom <-- */
                                         val requestUrl = url
                                         if (requestUrl != null && getDirectYouTubeVideoId(requestUrl) != null) {
                                             openInPlayer(requestUrl)
@@ -301,7 +214,7 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                     }
 
                                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                        updateNavigationState(view)
+                                        /* Custom --> */ browser.update(view) /* Custom <-- */
                                         val requestUrl = url
                                         if (requestUrl != null && getDirectYouTubeVideoId(requestUrl) != null) {
                                             openInPlayer(requestUrl)
@@ -313,33 +226,12 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
 
                                     override fun onPageFinished(view: WebView?, url: String?) {
                                         super.onPageFinished(view, url)
-                                        updateNavigationState(view)
+                                        /* Custom --> */ browser.update(view) /* Custom <-- */
                                         isLoading = false
                                         CookieManager.getInstance().flush()
                                         injectInterceptScript(view)
-
                                         // Custom -->
-                                        if (clearHistoryOnHomeFinish && isYouTubeHomeUrl(url)) {
-                                            clearHistoryOnHomeFinish = false
-                                            view?.clearHistory()
-                                            updateNavigationState(view)
-                                        }
-
-                                        if (pendingFreshHistoryLoginCheck && isYouTubeHistoryUrl(url)) {
-                                            pendingFreshHistoryLoginCheck = false
-                                            checkYouTubeLoggedIn(view) { isLoggedIn ->
-                                                val activeView = view
-                                                if (
-                                                    isLoggedIn == false &&
-                                                    activeView != null &&
-                                                    activeView === webView &&
-                                                    isYouTubeHistoryUrl(activeView.url)
-                                                ) {
-                                                    clearHistoryOnHomeFinish = true
-                                                    activeView.loadUrl(YOUTUBE_HOME_URL)
-                                                }
-                                            }
-                                        }
+                                        start.onPageFinished(view, url, currentWebView = { webView }) { browser.update(view) }
                                         // Custom <--
                                     }
                                 }
@@ -355,24 +247,9 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
                                 )
 
                                 // Custom -->
-                                // Explicit browse targets win; otherwise restore the retained
-                                // session, then fall back to the configured start page
-                                val retainedSession = YouTubeBrowserSession.consume()
-                                val restoredState = retainedSession?.state?.let { state ->
-                                    runCatching { restoreState(state) }.getOrNull()
-                                }
-                                when {
-                                    targetUrl != null -> loadUrl(YouTubeSource.baseUrl + targetUrl!!)
-                                    listingQuery == GetRemoteAnime.QUERY_LATEST ->
-                                        loadUrl(YouTubeSource.baseUrl + YouTubeSource.SUBSCRIPTIONS_SUFFIX)
-                                    restoredState != null -> updateNavigationState(this)
-                                    retainedSession?.currentUrl != null -> loadUrl(retainedSession.currentUrl)
-                                    preferences.preferredStartPage == YouTubePreferences.START_PAGE_HISTORY -> {
-                                        pendingFreshHistoryLoginCheck = true
-                                        loadUrl(YOUTUBE_HISTORY_URL)
-                                    }
-                                    else -> loadUrl(YouTubeSource.baseUrl)
-                                }
+                                // In place of upstream's target / latest / home chain: explicit browse
+                                // targets still win, then the retained session, then the start page.
+                                start.loadFirstPage(this, targetUrl, listingQuery) { browser.update(this) }
                                 // Custom <--
                             }
                         },
@@ -402,52 +279,6 @@ class YouTubeBrowserScreen(var listingQuery: String? = null, var targetUrl: Stri
 
         return videoId?.takeIf { it.isYouTubeVideoId() }
     }
-
-    // Custom -->
-    private fun isYouTubeHistoryUrl(url: String?): Boolean {
-        val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return false
-        return uri.isYouTubeHost() && uri.path.orEmpty().trimEnd('/') == "/feed/history"
-    }
-
-    private fun isYouTubeHomeUrl(url: String?): Boolean {
-        val uri = url?.let { runCatching { Uri.parse(it) }.getOrNull() } ?: return false
-        return uri.isYouTubeHost() && uri.path.orEmpty().trimEnd('/').isEmpty()
-    }
-
-    private fun Uri.isYouTubeHost(): Boolean {
-        val normalizedHost = host.orEmpty().lowercase()
-        return normalizedHost == "youtube.com" || normalizedHost.endsWith(".youtube.com")
-    }
-
-    private fun checkYouTubeLoggedIn(view: WebView?, onResult: (Boolean?) -> Unit) {
-        if (view == null) {
-            onResult(null)
-            return
-        }
-
-        val script = """
-(function() {
-    try {
-        if (!window.ytcfg || typeof window.ytcfg.get !== 'function') return null;
-        var loggedIn = window.ytcfg.get('LOGGED_IN');
-        if (loggedIn === undefined || loggedIn === null) return null;
-        return loggedIn === true || loggedIn === 'true';
-    } catch (e) {
-        return null;
-    }
-})();
-        """.trimIndent()
-        view.evaluateJavascript(script) { value ->
-            onResult(
-                when (value) {
-                    "true" -> true
-                    "false" -> false
-                    else -> null
-                },
-            )
-        }
-    }
-    // Custom <--
 
     private fun String.isYouTubeVideoId(): Boolean {
         return length == 11 && all { it.isLetterOrDigit() || it == '_' || it == '-' }

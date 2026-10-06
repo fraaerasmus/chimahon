@@ -18,22 +18,6 @@ class YouTubePreferences(context: Context) {
             ?: DEFAULT_QUALITY
         set(value) = prefs.edit().putString(KEY_QUALITY, value).apply()
 
-    // Custom -->
-    var preferredStartPage: String
-        get() = prefs.getString(KEY_START_PAGE, DEFAULT_START_PAGE)
-            ?.takeIf { it in START_PAGES }
-            ?: DEFAULT_START_PAGE
-        set(value) = prefs.edit().putString(KEY_START_PAGE, value).apply()
-
-    var preferReliableAudio: Boolean
-        get() = prefs.getBoolean(KEY_PREFER_RELIABLE_AUDIO, true)
-        set(value) = prefs.edit().putBoolean(KEY_PREFER_RELIABLE_AUDIO, value).apply()
-
-    var syncWatchHistory: Boolean
-        get() = prefs.getBoolean(KEY_SYNC_WATCH_HISTORY, false)
-        set(value) = prefs.edit().putBoolean(KEY_SYNC_WATCH_HISTORY, value).apply()
-    // Custom <--
-
     companion object {
         const val KEY_QUALITY = "preferred_quality"
         const val KEY_ADD_NEW_CHANNELS_TO_LIBRARY = "add_new_channels_to_library"
@@ -56,19 +40,5 @@ class YouTubePreferences(context: Context) {
             QUALITY_480P,
             QUALITY_360P,
         )
-
-        // Custom -->
-        const val KEY_START_PAGE = "preferred_start_page"
-        const val START_PAGE_HOME = "home"
-        const val START_PAGE_HISTORY = "history"
-        const val DEFAULT_START_PAGE = START_PAGE_HISTORY
-        const val KEY_PREFER_RELIABLE_AUDIO = "prefer_reliable_audio"
-        const val KEY_SYNC_WATCH_HISTORY = "sync_watch_history"
-
-        val START_PAGES = listOf(
-            START_PAGE_HOME,
-            START_PAGE_HISTORY,
-        )
-        // Custom <--
     }
 }

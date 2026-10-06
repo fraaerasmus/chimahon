@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.youtube
+package chimahon.custom.youtube
 
 import eu.kanade.tachiyomi.animesource.model.Track
 import org.schabi.newpipe.extractor.MediaFormat
@@ -9,7 +9,7 @@ import org.schabi.newpipe.extractor.stream.SubtitlesStream
 /**
  * Which of the streams NewPipe returns are handed to the player, and in what order.
  *
- * Kept apart from [YouTubeResolver] so that a change on YouTube's side (a new audio track
+ * Kept apart from `YouTubeResolver` so that a change on YouTube's side (a new audio track
  * type, a format that starts stalling, a different caption order) is a change to one rule
  * here and its test, not to the fetching code. Everything is a pure function of NewPipe's
  * stream model.

@@ -64,13 +64,8 @@ class YouTubeResolver {
         }
 
         // Returns streams + video metadata
-        suspend fun resolveVideo(
-            videoId: String,
-            preferredQuality: String = YouTubePreferences.DEFAULT_QUALITY,
-            // Custom -->
-            preferReliableAudio: Boolean = true,
-            // Custom <--
-        ): YouTubeVideoMetadata = resolveMutex.withLock {
+        suspend fun resolveVideo(videoId: String, preferredQuality: String = YouTubePreferences.DEFAULT_QUALITY):
+            YouTubeVideoMetadata = resolveMutex.withLock {
             withContext(Dispatchers.IO) {
                 ensureInitialized()
                 val linkHandler = ServiceList.YouTube.getStreamLHFactory().fromId(videoId)
@@ -78,16 +73,22 @@ class YouTubeResolver {
                 extractor.fetchPage()
 
                 // Custom -->
+                // In place of upstream's subtitle and audio lists; the rules are in YouTubeStreamSelection.
                 // One format per language: every subtitle is a blocking fetch in the player
                 // before audio can be selected, and mpv rejects the default (TTML) format anyway.
-                val subtitleTracks = YouTubeStreamSelection.subtitleTracks(
+                val subtitleTracks = chimahon.custom.youtube.YouTubeStreamSelection.subtitleTracks(
                     runCatching { extractor.getSubtitles(MediaFormat.VTT) }.getOrDefault(emptyList())
                         .ifEmpty { runCatching { extractor.getSubtitles(MediaFormat.SRT) }.getOrDefault(emptyList()) },
                 )
                 // Custom <--
 
                 // Custom -->
-                val audioTracks = runCatching { YouTubeStreamSelection.audioTracks(extractor.audioStreams, preferReliableAudio) }.getOrDefault(emptyList())
+                val audioTracks = runCatching {
+                    chimahon.custom.youtube.YouTubeStreamSelection.audioTracks(
+                        extractor.audioStreams,
+                        chimahon.custom.youtube.YouTubeCustomPreferences.get().preferReliableAudio,
+                    )
+                }.getOrDefault(emptyList())
                 // Custom <--
 
                 val streams = (extractor.videoStreams + extractor.videoOnlyStreams)

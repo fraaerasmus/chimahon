@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.youtube
+package chimahon.custom.youtube
 
 import android.os.Bundle
 import android.webkit.WebView

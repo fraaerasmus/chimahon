@@ -1,4 +1,4 @@
-package eu.kanade.tachiyomi.ui.youtube
+package chimahon.custom.youtube
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull

@@ -1,9 +1,10 @@
-package eu.kanade.tachiyomi.ui.youtube
+package chimahon.custom.youtube
 
 import android.webkit.CookieManager
 import eu.kanade.tachiyomi.animesource.AnimeSource
 import eu.kanade.tachiyomi.data.database.models.Episode
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.ui.youtube.YouTubeSource
 import eu.kanade.tachiyomi.network.await
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

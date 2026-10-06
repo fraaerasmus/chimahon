@@ -84,7 +84,6 @@ import eu.kanade.tachiyomi.ui.player.settings.PlayerPreferences
 import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.youtube.YouTubePreferences
 import eu.kanade.tachiyomi.ui.youtube.YouTubeResolver
-import eu.kanade.tachiyomi.ui.youtube.YouTubeWatchHistorySync
 import eu.kanade.tachiyomi.ui.youtube.allowsExternalSubtitleLookup
 import eu.kanade.tachiyomi.ui.player.utils.AniSkipApi
 import eu.kanade.tachiyomi.ui.player.utils.ChapterUtils.Companion.getStringRes
@@ -2023,8 +2022,8 @@ class PlayerViewModel @JvmOverloads constructor(
     }
 
     // Custom -->
-    private val youtubeWatchHistory = YouTubeWatchHistorySync(currentEpisode, currentSource, pos, paused) {
-        YouTubePreferences(Injekt.get<Application>()).syncWatchHistory
+    private val youtubeWatchHistory = chimahon.custom.youtube.YouTubeWatchHistorySync(currentEpisode, currentSource, pos, paused) {
+        chimahon.custom.youtube.YouTubeCustomPreferences.get().syncWatchHistory
     }
     // Custom <--
 
@@ -2507,7 +2506,7 @@ class PlayerViewModel @JvmOverloads constructor(
             try {
                 // Get all stream metadata, then get channel info
                 val prefs = YouTubePreferences(Injekt.get<Application>())
-                val videoMetadata = YouTubeResolver.resolveVideo(YouTubeResolver.getVideoId(videoUrl), prefs.preferredQuality, prefs.preferReliableAudio)
+                val videoMetadata = YouTubeResolver.resolveVideo(YouTubeResolver.getVideoId(videoUrl), prefs.preferredQuality)
 
                 val episode = createYoutubeEpisode(videoMetadata, prefs)
                     ?: throw IllegalStateException("Failed to create youtube episode")
