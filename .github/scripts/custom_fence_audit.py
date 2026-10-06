@@ -2,8 +2,9 @@
 """Chimahon Custom: check that every fork change inside an upstream file is fenced.
 
 A fork change in a file that also exists upstream must sit between `Custom -->` and
-`Custom <--` markers (`// Custom -->`, `/* Custom --> */`, `<!-- Custom -->`), so an upstream
-merge shows at a glance which lines are ours. Files the fork added are ours entirely and are
+`Custom <--` markers (`// Custom -->` ... `// Custom <--`, or `/* Custom --> */ ... /* Custom <-- */`
+on one line), so an upstream merge shows at a glance which lines are ours. XML comments cannot
+contain `--`, so XML closes with `<!-- /Custom -->` after opening with `<!-- Custom -->`. Files the fork added are ours entirely and are
 not checked.
 
 Usage: custom_fence_audit.py [--base REF]
@@ -22,7 +23,7 @@ import subprocess
 import sys
 
 CHECKED_EXTENSIONS = (".kt", ".kts", ".js", ".xml", ".pro")
-OPEN, CLOSE = "Custom -->", "Custom <--"
+OPEN, CLOSE, XML_CLOSE = "Custom -->", "Custom <--", "/Custom -->"
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
@@ -34,11 +35,12 @@ def fenced_lines(lines):
     """1-based numbers of the lines inside a fence, markers included."""
     inside, fenced = False, set()
     for number, line in enumerate(lines, start=1):
-        if OPEN in line:
+        closes = CLOSE in line or XML_CLOSE in line
+        if OPEN in line and XML_CLOSE not in line:
             inside = True
-        if inside:
+        if inside or closes:
             fenced.add(number)
-        if CLOSE in line:
+        if closes:
             inside = False
     return fenced
 

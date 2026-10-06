@@ -34,7 +34,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import chimahon.DictionaryRepository
-import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.ocr.OcrLanguage
 import chimahon.ocr.OcrResult
 import chimahon.novel.ui.reader.NovelReaderActivity
@@ -102,8 +101,10 @@ class ChimaReaderActivity : NovelReaderActivity() {
         return profile to paths
     }
 
+    // Custom -->
     override fun getLookupLanguageCode(): String =
         (cachedActiveProfile ?: getOrRefreshLookupPaths().first).languageCode
+    // Custom <--
 
     /** Source lang fallback so empty-lang books still hit language match. */
     private fun sourceLangOf(sourceId: Long): String {
@@ -426,16 +427,15 @@ class ChimaReaderActivity : NovelReaderActivity() {
             val firstMatched = result?.results?.firstOrNull()?.matched
             if (firstMatched != null && resolveAnchorFromWebView) {
                 // Custom -->
-                val highlight = FrenchLookupPolicy.highlightFor(word, firstMatched)
+                // In place of the count and offset of the matched text alone: the highlight runs
+                // from the start of the selection to the end of the match.
+                val highlight = chimahon.dictionary.FrenchLookupPolicy.highlightFor(word, firstMatched)
+                val matchOffset = highlight.startOffset
+                val charCount = highlight.codePointCount
                 // Custom <--
                 withContext(Dispatchers.Main) {
                     pendingShowByRects = true
-                    readerViewModel?.bridge?.send(
-                        chimahon.novel.ui.reader.WebViewCommand.GetSelectionRects(
-                            highlight.codePointCount,
-                            highlight.startOffset,
-                        ),
-                    )
+                    readerViewModel?.bridge?.send(chimahon.novel.ui.reader.WebViewCommand.GetSelectionRects(charCount, matchOffset))
                 }
             } else {
                 withContext(Dispatchers.Main) {

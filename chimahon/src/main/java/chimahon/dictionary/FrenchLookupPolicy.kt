@@ -69,6 +69,8 @@ object FrenchLookupPolicy {
         )
     }
 
+    fun isFrench(languageCode: String): Boolean = languageCode.primaryLanguage() == "fr"
+
     private fun String.primaryLanguage(): String =
         trim().lowercase().substringBefore('-').substringBefore('_')
 }

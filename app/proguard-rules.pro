@@ -22,10 +22,12 @@
 -keep class is.xyz.mpv.** { *; }
 -keepclassmembers class is.xyz.mpv.** { *; }
 
+# Custom -->
 # protobuf-javalite (NewPipe Extractor dependency): generated messages are parsed through
 # reflection on field names. Shrinking stripped Xtags$KeyValuePair, so every YouTube video
 # with more than one audio track (original + dub) lost its audio streams in release builds.
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
+# Custom <--
 
 # Rhino (NewPipe Extractor dependency)
 -keep class org.mozilla.javascript.** { *; }

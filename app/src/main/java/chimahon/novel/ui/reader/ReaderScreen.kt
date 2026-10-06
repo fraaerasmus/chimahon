@@ -65,7 +65,7 @@ fun ReaderScreen(
     onSentenceReady: (sentence: String) -> Unit = {},
     onDismissPopupRequested: () -> Unit = {},
     isPopupActive: Boolean = false,
-    lookupLanguageCode: String = "",
+    /* Custom --> */ lookupLanguageCode: String = "", /* Custom <-- */
     onViewModelReady: (ReaderViewModel?) -> Unit = {},
     additionalSettings: @Composable ColumnScope.() -> Unit = {},
     settingsNamespace: String? = null,
@@ -375,7 +375,7 @@ fun ReaderScreen(
                         swipeThreshold = chapterSwipeDistance,
                         tapZonePx = tapZonePx,
                         isPopupActive = isPopupActive,
-                        lookupLanguageCode = lookupLanguageCode,
+                        /* Custom --> */ lookupLanguageCode = lookupLanguageCode, /* Custom <-- */
                         onDismissPopupRequested = onDismissPopupRequested,
                         onTextSelected = { word, sentence, x, y, w, h -> onLookupRequested(word, sentence, x, y, w, h) },
                         onSentenceReady = onSentenceReady,

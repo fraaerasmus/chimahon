@@ -126,7 +126,6 @@ import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
-import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.ocr.CropPresets
 import chimahon.ocr.OcrBitmapDecoder
 import chimahon.util.ImageEncoder
@@ -840,8 +839,7 @@ class ReaderActivity : BaseActivity() {
                         lifecycleScope.launch(Dispatchers.Default) {
                             val result = try { deferredLookup.await() } catch (_: Exception) { null }
                             val firstMatched = result?.results?.firstOrNull()?.matched
-                            val charCount = firstMatched
-                                ?.let { FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount }
+                            val charCount = /* Custom --> */ firstMatched?.let { chimahon.dictionary.FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount } /* Custom <-- */
 
                             val rect = withContext(Dispatchers.Main) {
                                 if (charCount != null) {
@@ -903,8 +901,7 @@ class ReaderActivity : BaseActivity() {
                         lifecycleScope.launch(Dispatchers.Default) {
                             val result = try { deferredLookup.await() } catch (_: Exception) { null }
                             val firstMatched = result?.results?.firstOrNull()?.matched
-                            val charCount = firstMatched
-                                ?.let { FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount }
+                            val charCount = /* Custom --> */ firstMatched?.let { chimahon.dictionary.FrenchLookupPolicy.highlightFor(lookupString, it).codePointCount } /* Custom <-- */
 
                             val rect = withContext(Dispatchers.Main) {
                                 if (charCount != null) {

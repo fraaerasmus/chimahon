@@ -38,6 +38,8 @@ import eu.kanade.tachiyomi.ui.player.PlayerViewModel
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLineGeometry
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrLookupPopup
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrTextBlock
+import eu.kanade.tachiyomi.ui.reader.viewer.extractOcrLookupString
+import eu.kanade.tachiyomi.ui.reader.viewer.isLookupStartChar
 import chimahon.custom.lookup.extractOcrLookupSelection
 import eu.kanade.tachiyomi.ui.reader.viewer.orderedFullText
 import chimahon.custom.lookup.orderedLineStartOffsets
@@ -162,6 +164,9 @@ internal fun PlayerVideoOcrOverlay(
                 val charOffset = tapped.screenLookupCharOffset(tapX, tapY)
                 val orderedCharOffset = tapped.toOrderedOffset(charOffset)
                 val text = tapped.orderedFullText
+                // Custom -->
+                // In place of upstream's use of the tapped offset: the lookup starts where the
+                // scanner says the tapped word starts, inside the tapped OCR line.
                 val lookupSelection = extractOcrLookupSelection(
                     text,
                     orderedCharOffset,
@@ -169,12 +174,15 @@ internal fun PlayerVideoOcrOverlay(
                     tapped.orderedLineStartOffsets(),
                 )
                 if (selection?.block == tapped && selection?.sentenceOffset == lookupSelection?.startOffset) {
+                // Custom <--
                     selection = null
                     showTapHint = false
                     matchedCharCount = 0
                     matchOffset = 0
+                // Custom -->
                 } else if (lookupSelection != null) {
                     val lookupString = lookupSelection.text
+                // Custom <--
                     if (lookupString.isNotBlank()) {
                         lookupNonce++
                         showTapHint = false
@@ -184,7 +192,7 @@ internal fun PlayerVideoOcrOverlay(
                             block = tapped,
                             lookupString = lookupString,
                             sentence = text,
-                            sentenceOffset = lookupSelection.startOffset,
+                            sentenceOffset = /* Custom --> */ lookupSelection.startOffset /* Custom <-- */,
                             anchorX = tapped.xmin * widthPx,
                             anchorY = tapped.ymin * heightPx,
                             anchorWidth = (tapped.xmax - tapped.xmin) * widthPx,

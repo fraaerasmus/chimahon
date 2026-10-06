@@ -65,8 +65,8 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val swapVol = gesturePreferences.swapVolumeBrightness()
         val subtitleSwipeControls by gesturePreferences.subtitleSwipeControls().collectAsState()
         val disableLongPressScr = playerPreferences.disableLongPressScreenshot()
-        val longPressGesture = gesturePreferences.longPressGesture()
         // Custom -->
+        val longPressGesture = gesturePreferences.longPressGesture()
         val longPressAction by longPressGesture.collectAsState()
         val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
         val slidersAvailable = !subtitleSwipeControls ||
@@ -79,12 +79,12 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = enableVolumeBrightnessGestures,
                     title = stringResource(MR.strings.enable_volume_brightness_gestures),
-                    enabled = slidersAvailable,
+                    /* Custom --> */ enabled = slidersAvailable, /* Custom <-- */
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = swapVol,
                     title = stringResource(MR.strings.pref_controls_swap_vol_brightness),
-                    enabled = slidersAvailable,
+                    /* Custom --> */ enabled = slidersAvailable, /* Custom <-- */
                 ),
                 // Custom -->
                 Preference.PreferenceItem.ListPreference(

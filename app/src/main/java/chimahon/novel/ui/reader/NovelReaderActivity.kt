@@ -170,8 +170,10 @@ open class NovelReaderActivity : ComponentActivity() {
     /** Subclasses can override to pass a profile ID for per-profile settings. */
     protected open fun getSettingsNamespace(): String? = null
 
+    // Custom -->
     /** Subclasses can override to select the language-aware lookup scanner. */
     protected open fun getLookupLanguageCode(): String = ""
+    // Custom <--
 
     /** Override to receive selection rects from JS for native highlight overlay. */
     protected open fun getSelectionRectsCallback(): ((String) -> Unit)? = null
@@ -240,7 +242,7 @@ open class NovelReaderActivity : ComponentActivity() {
                     onSentenceReady = { sentence -> onSentenceReady(sentence) },
                     onDismissPopupRequested = { onDismissPopupRequested() },
                     isPopupActive = isPopupActive,
-                    lookupLanguageCode = getLookupLanguageCode(),
+                    /* Custom --> */ lookupLanguageCode = getLookupLanguageCode(), /* Custom <-- */
                     onViewModelReady = { readerViewModel = it },
                     additionalSettings = { AdditionalAppearanceSettings() },
                     settingsNamespace = getSettingsNamespace(),

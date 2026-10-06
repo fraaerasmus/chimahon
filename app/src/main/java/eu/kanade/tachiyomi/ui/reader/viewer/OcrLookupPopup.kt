@@ -61,7 +61,6 @@ import chimahon.anki.AnkiMediaRequest
 import chimahon.anki.AnkiMediaWarning
 import chimahon.anki.AnkiProfile
 import chimahon.anki.AnkiResult
-import chimahon.dictionary.FrenchLookupPolicy
 import chimahon.ocr.effectiveSearchResolution
 import chimahon.ocr.nextWordBoundarySubstring
 import chimahon.util.ImageEncoder
@@ -326,11 +325,22 @@ fun OcrLookupPopup(
             return
         }
 
-        val cleanQuery = if (isRecursive) {
-            FrenchLookupPolicy.recursiveQuery(query, activeProfile.languageCode) ?: return
+        val cleanQuery = if (isRecursive /* Custom --> */ && !chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode) /* Custom <-- */) {
+            query.replace(Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+"), "").trim()
         } else {
             query.trim()
         }
+
+        if (isRecursive /* Custom --> */ && !chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode) /* Custom <-- */) {
+            if (cleanQuery.isBlank()) return
+            // Ignore if entirely ascii/english letters and numbers
+            if (cleanQuery.all { it.code <= 127 }) return
+        }
+        // Custom -->
+        // French skips the cleanup above: its words are plain letters and its apostrophes matter.
+        // A recursive lookup there only has to be non-empty.
+        if (isRecursive && cleanQuery.isEmpty()) return
+        // Custom <--
 
         val finalQuery = if (isRecursive) cleanQuery else query
         val generation = ++lookupGeneration
@@ -366,9 +376,15 @@ fun OcrLookupPopup(
             if (!isRecursive && orderedResults.isNotEmpty()) {
                 val firstMatched = orderedResults.firstOrNull()?.matched
                 if (firstMatched != null) {
-                    val highlight = FrenchLookupPolicy.highlightFor(finalQuery, firstMatched)
+                    // Custom -->
+                    // In place of the count and offset of the matched text alone: the highlight runs
+                    // from the start of the selection to the end of the match (l'homme, not homme).
+                    val highlight = chimahon.dictionary.FrenchLookupPolicy.highlightFor(finalQuery, firstMatched)
+                    val charCount = highlight.codePointCount
+                    val matchOffset = highlight.startOffset
+                    // Custom <--
                     scope.launch(Dispatchers.Main) {
-                        onTermMatched?.invoke(highlight.codePointCount, highlight.startOffset)
+                        onTermMatched?.invoke(charCount, matchOffset)
                     }
                 }
             }
@@ -935,8 +951,8 @@ fun OcrLookupPopup(
         } else if (recursiveNavMode == "popup") {
             // Sync lookup (same warm path as pushLookup's recursive branch),
             // then create a child popup with the results — no parent WebView update.
-            val cleanQuery = FrenchLookupPolicy.recursiveQuery(word, activeProfile.languageCode)
-            if (cleanQuery != null) {
+            val cleanQuery = /* Custom --> */ if (chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode)) word.trim() else /* Custom <-- */ word.replace(Regex("[\\s\\p{Punct}「」『』【】（）〔〕［］｛｝〈〉《》…、。！？!?]+"), "").trim()
+            if (cleanQuery.isNotBlank() && /* Custom --> */ (chimahon.dictionary.FrenchLookupPolicy.isFrench(activeProfile.languageCode) || /* Custom <-- */ cleanQuery.any { it.code > 127 } /* Custom --> */) /* Custom <-- */) {
                 val termPaths = getDictionaryPaths(context, activeProfile)
                 val result = runCatching {
                     repository.lookup(cleanQuery, termPaths, activeProfile.languageCode)

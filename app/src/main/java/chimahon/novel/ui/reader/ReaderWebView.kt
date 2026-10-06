@@ -48,7 +48,7 @@ fun ReaderWebView(
     swipeThreshold: Int = 96,
     tapZonePx: Int = 100,
     isPopupActive: Boolean = false,
-    lookupLanguageCode: String = "",
+    /* Custom --> */ lookupLanguageCode: String = "", /* Custom <-- */
     onTextSelected: (word: String, sentence: String, x: Float, y: Float, w: Float, h: Float) -> Unit = { _, _, _, _, _, _ -> },
     onSentenceReady: (sentence: String) -> Unit = {},
     onDismissPopupRequested: () -> Unit = {},
@@ -97,9 +97,9 @@ fun ReaderWebView(
         factory = { context ->
             ReaderAndroidWebView(
                 context = context,
-                lookupScannerJs = loadAssetText(context, "shared/lookup-scanner.js"),
+                /* Custom --> */ lookupScannerJs = loadAssetText(context, "shared/lookup-scanner.js"), /* Custom <-- */
                 readerJs = loadAssetText(context, "novel/reader.js"),
-                lookupLanguageCode = lookupLanguageCode,
+                /* Custom --> */ lookupLanguageCode = lookupLanguageCode, /* Custom <-- */
                 continuousMode = continuousMode,
                 isImageOnly = isImageOnly,
                 readerSettings = readerSettings,
@@ -255,7 +255,7 @@ fun ReaderWebView(
             v.readerSettings = readerSettings
             v.focusMode = focusMode
             v.isPopupActive = isPopupActive
-            v.lookupLanguageCode = lookupLanguageCode
+            /* Custom --> */ v.lookupLanguageCode = lookupLanguageCode /* Custom <-- */
             v.setSelectionRectsCallback(onSelectionRectsReceived)
             v.setBackgroundColor(readerSettings.backgroundColor)
 
@@ -355,9 +355,9 @@ fun ReaderWebView(
 
 private class ReaderAndroidWebView(
     context: Context,
-    private val lookupScannerJs: String,
+    /* Custom --> */ private val lookupScannerJs: String, /* Custom <-- */
     private val readerJs: String,
-    var lookupLanguageCode: String = "",
+    /* Custom --> */ var lookupLanguageCode: String = "", /* Custom <-- */
     var continuousMode: Boolean = false,
     var isImageOnly: Boolean = false,
     var readerSettings: ReaderSettings = ReaderSettings(),
@@ -882,8 +882,10 @@ private class ReaderAndroidWebView(
                 ].join(' ');
                 document.head.appendChild(contImgStyle);
 
+                /* Custom --> */
                 window.__chimahonLookupLanguage = ${JSONObject.quote(lookupLanguageCode)};
                 $lookupScannerJs
+                /* Custom <-- */
                 $readerJs
 
                 var b = document.body;
@@ -1066,8 +1068,10 @@ private class ReaderAndroidWebView(
                 ].join(' ');
                 document.head.appendChild(blockImgStyle);
 
+                /* Custom --> */
                 window.__chimahonLookupLanguage = ${JSONObject.quote(lookupLanguageCode)};
                 $lookupScannerJs
+                /* Custom <-- */
                 $readerJs
 
                 var b = document.body;
