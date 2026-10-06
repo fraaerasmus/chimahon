@@ -67,6 +67,7 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
         val disableLongPressScr = playerPreferences.disableLongPressScreenshot()
         val longPressGesture = gesturePreferences.longPressGesture()
         // Chimahon -->
+        val longPressAction by longPressGesture.collectAsState()
         val subtitleSwipeVertical by gesturePreferences.subtitleSwipeVertical().collectAsState()
         val slidersAvailable = !subtitleSwipeControls ||
             subtitleSwipeVertical == VerticalSwipeGesture.VolumeBrightness
@@ -98,6 +99,10 @@ object PlayerSettingsGesturesScreen : SearchableSettings {
                 Preference.PreferenceItem.SwitchPreference(
                     preference = disableLongPressScr,
                     title = stringResource(MR.strings.pref_disable_long_press_screenshot),
+                    // Chimahon -->
+                    // Only the screenshot action reads this switch.
+                    enabled = longPressAction == LongPressGesture.Screenshot,
+                    // Chimahon <--
                 ),
                 Preference.PreferenceItem.SwitchPreference(
                     preference = playerPreferences.singleTapToPause(),
