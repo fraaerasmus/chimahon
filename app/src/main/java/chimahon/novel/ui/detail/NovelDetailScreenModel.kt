@@ -9,28 +9,34 @@ import androidx.core.content.FileProvider
 import cafe.adriel.voyager.core.model.StateScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import chimahon.novel.data.BookImporter
+import chimahon.novel.data.BookStorage
 import chimahon.novel.download.NovelDownloadManager
 import chimahon.novel.interactor.RegisterLocalNovelHome
 import chimahon.novel.manager.NovelSourceManager
-import chimahon.novel.plugin.SimpleLNReaderSource
 import chimahon.novel.source.LocalNovelFiles
 import eu.kanade.presentation.entries.DownloadAction
 import eu.kanade.tachiyomi.network.NetworkHelper
-import logcat.LogPriority
+import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.sourcenovel.NovelSource
 import eu.kanade.tachiyomi.sourcenovel.model.SNChapter
 import eu.kanade.tachiyomi.sourcenovel.model.SNNovel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import logcat.LogPriority
 import tachiyomi.core.common.preference.CheckboxState
+import tachiyomi.core.common.util.lang.compareToWithCollator
+import tachiyomi.core.common.util.system.logcat
 import tachiyomi.domain.category.model.Category
+import tachiyomi.domain.library.service.NovelLibraryPreferences
 import tachiyomi.domain.novel.model.Novel
 import tachiyomi.domain.novel.model.NovelChapter
 import tachiyomi.domain.novel.model.NovelChapterUpdate
-import tachiyomi.core.common.util.lang.compareToWithCollator
 import tachiyomi.domain.novel.model.NovelUpdate
 import tachiyomi.domain.novel.model.toSNNovel
 import tachiyomi.domain.novel.repository.NovelCategoryRepository
@@ -38,7 +44,6 @@ import tachiyomi.domain.novel.repository.NovelChapterRepository
 import tachiyomi.domain.novel.repository.NovelRepository
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
-import tachiyomi.core.common.util.system.logcat
 
 data class NovelChapterItem(
     val index: Int,
@@ -97,7 +102,10 @@ data class NovelDetailState(
     val sortDescending: Boolean = true,
     val unreadOnly: Boolean = false,
     val bookmarkedOnly: Boolean = false,
-)
+) {
+    val visibleChapters: List<NovelChapterItem>
+        get() = chapters.filter { (!unreadOnly || !it.isRead) && (!bookmarkedOnly || it.isBookmarked) }
+}
 
 class NovelDetailScreenModel(
     private val novel: SNNovel,
@@ -111,6 +119,7 @@ class NovelDetailScreenModel(
     private val setNovelCategoriesInteractor: chimahon.novel.interactor.SetNovelCategories = Injekt.get(),
     private val novelChapterRepository: NovelChapterRepository = Injekt.get(),
     private val novelCategoryRepository: NovelCategoryRepository = Injekt.get(),
+    private val novelLibraryPreferences: NovelLibraryPreferences = Injekt.get(),
     private val downloadManager: NovelDownloadManager = Injekt.get(),
     private val app: Application = Injekt.get(),
 ) : StateScreenModel<NovelDetailState>(
@@ -147,11 +156,37 @@ class NovelDetailScreenModel(
     init {
         loadDetails()
         screenModelScope.launch {
+            restoreDownloadedBook()
             val downloadCapable =
-                (source as? SimpleLNReaderSource)?.hasDownloadSupport() == true
-            mutableState.value = mutableState.value.copy(
-                isDownloadSource = downloadCapable,
-            )
+                (source as? eu.kanade.tachiyomi.sourcenovel.NovelFileSource)?.hasDownloadSupport() == true
+            mutableState.update {
+                it.copy(isDownloadSource = downloadCapable || it.fileDownload is FileDownloadState.Done)
+            }
+        }
+    }
+
+    private suspend fun restoreDownloadedBook() {
+        val fileSource = source as? eu.kanade.tachiyomi.sourcenovel.NovelFileSource ?: return
+        val novel = mutableState.value.novel
+        try {
+            val folder = withContext(Dispatchers.IO) {
+                val dbNovel = novelRepository.getNovelByUrlAndSourceId(novel.url, source.id)
+                val linkedFolder = dbNovel?.id?.let { novelLibraryPreferences.downloadedBookFolder(it).get() }
+                val folder = linkedFolder?.takeIf { it.isNotBlank() }
+                    ?: fileSource.downloadFolderId(novel.url)
+                    ?: return@withContext null
+                folder.takeIf { BookStorage.hasReadableBookContent(app, it) }
+            } ?: return
+            mutableState.update {
+                if (it.fileDownload != FileDownloadState.Idle) it else it.copy(
+                    isDownloadSource = true,
+                    fileDownload = FileDownloadState.Done(it.novel.title, folder, folder),
+                )
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            // An unavailable local file must not prevent the source details from opening.
         }
     }
 
@@ -367,6 +402,7 @@ class NovelDetailScreenModel(
 
         val dbNovel = syncNovelToDatabase(details, sourceChapters, favorite = true)
         val dbChapters = syncSourceChapters(dbNovel.id, sourceChapters)
+        applyDefaultCategory(dbNovel.id)
 
         cachedDbNovel = dbNovel
         mutableState.value = mutableState.value.copy(
@@ -378,9 +414,34 @@ class NovelDetailScreenModel(
         subscribeToDbChapters(dbNovel.id)
     }
 
+/**
+     * Assigns the configured default category when a novel enters the library, matching the
+     * manga and anime behaviour. Membership in the system category is the absence of a join row,
+     * so only a real category id needs writing.
+     */
+    private suspend fun applyDefaultCategory(novelId: Long) {
+        val defaultCategoryId = novelLibraryPreferences.defaultCategory().get()
+        if (defaultCategoryId <= 0L) return
+        runCatching {
+            if (novelCategoryRepository.getByNovelId(novelId).none { it.id == defaultCategoryId.toLong() }) {
+                setNovelCategoriesInteractor.await(novelId, listOf(defaultCategoryId.toLong()))
+            }
+        }
+    }
+
     private suspend fun removeFromLibrary() {
-        val existing = novelRepository.getNovelByUrlAndSourceId(novel.url, source.id) ?: return
-        updateNovel.awaitUpdateFavorite(existing.id, false)
+        // Identity has to come from the row in hand, not from the source.
+        // novel.url is whatever the browse listing reported on this visit,
+        // while the row was written from source.getNovelDetails(), and scraper
+        // plugins routinely return a different url each time (session tokens in
+        // the query, redirect resolution). That mismatch made the lookup miss
+        // and the delete a silent no-op, so the next add inserted a second row
+        // for the same book instead of reviving the first.
+        val rowId = cachedDbNovel?.id
+            ?: novelRepository.getNovelByUrlAndSourceId(novel.url, source.id)?.id
+            ?: return
+        updateNovel.awaitUpdateFavorite(rowId, false)
+        val existing = novelRepository.getNovelById(rowId)
         cachedDbNovel = existing.copy(favorite = false, dateAdded = 0L)
         mutableState.value = mutableState.value.copy(
             dbNovel = cachedDbNovel,
@@ -407,9 +468,17 @@ class NovelDetailScreenModel(
         }
     }
 
-    fun downloadChapter(chapter: NovelChapterItem) {
+    fun downloadChapter(chapter: NovelChapterItem, startNow: Boolean = false) {
         val dbNovel = cachedDbNovel ?: return
-        downloadManager.downloadChapters(dbNovel, listOf(chapter.snChapter), source, mutableState.value.novel)
+        if (startNow && downloadManager.getDownloadState(chapter.id) == chimahon.novel.download.NovelDownload.State.QUEUED) {
+            downloadManager.startNow(chapter.id)
+            return
+        }
+        downloadManager.downloadChapters(dbNovel, listOf(chapter.snChapter), source, mutableState.value.novel, startNow)
+    }
+
+    fun cancelChapterDownload(chapter: NovelChapterItem) {
+        downloadManager.cancelChapter(chapter.id)
     }
 
     fun deleteChapterDownload(chapter: NovelChapterItem) {
@@ -440,7 +509,7 @@ class NovelDetailScreenModel(
      * through the same [BookImporter] path as manual EPUB imports.
      */
     fun downloadBookFile() {
-        val jsSource = source as? SimpleLNReaderSource ?: return
+        val fileSource = source as? eu.kanade.tachiyomi.sourcenovel.NovelFileSource ?: return
         if (mutableState.value.fileDownload is FileDownloadState.Downloading) return
         // IO: blocking OkHttp execute() must never run on Main
         // (NetworkOnMainThreadException).
@@ -448,27 +517,37 @@ class NovelDetailScreenModel(
             mutableState.value = mutableState.value.copy(
                 fileDownload = FileDownloadState.Downloading,
             )
+            var temporary: java.io.File? = null
             try {
                 val novel = mutableState.value.novel
-                val fileUrl = jsSource.getDownloadUrl(novel.url)
+                val fileUrl = fileSource.getDownloadUrl(novel.url)
                 if (fileUrl.isNullOrBlank()) {
                     mutableState.value = mutableState.value.copy(
                         fileDownload = FileDownloadState.Error("No downloadable file for this book"),
                     )
                     return@launch
                 }
-                val client = Injekt.get<NetworkHelper>().client
-                val request = okhttp3.Request.Builder()
+                val client = fileSource.downloadClient() ?: Injekt.get<NetworkHelper>().client
+                val requestBuilder = okhttp3.Request.Builder()
                     .url(fileUrl)
-                    .header("User-Agent", "Mozilla/5.0")
-                    .build()
-                val tmpFile = java.io.File(app.cacheDir, "book_${System.currentTimeMillis()}.epub")
-                client.newCall(request).execute().use { resp ->
-                    if (!resp.isSuccessful || resp.body.contentLength() <= 0) {
+                    .header("User-Agent", Injekt.get<NetworkPreferences>().defaultUserAgent().get())
+                fileSource.downloadHeaders(novel.url).forEach { (name, value) -> requestBuilder.header(name, value) }
+                val tmpFile = java.io.File(app.cacheDir, "book_${java.util.UUID.randomUUID()}.epub")
+                temporary = tmpFile
+                chimahon.novel.opds.OpdsNetwork.read(client.newCall(requestBuilder.build())) { resp ->
+                    if (!resp.isSuccessful || resp.body.contentLength() == 0L) {
                         throw IllegalStateException("Download failed (HTTP ${resp.code})")
                     }
                     resp.body.byteStream().use { input ->
-                        tmpFile.outputStream().use { output -> input.copyTo(output) }
+                        tmpFile.outputStream().use { output ->
+                            val buffer = ByteArray(8192)
+                            while (true) {
+                                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                output.write(buffer, 0, count)
+                            }
+                        }
                     }
                 }
                 val uri = FileProvider.getUriForFile(app, "${app.packageName}.provider", tmpFile)
@@ -476,12 +555,20 @@ class NovelDetailScreenModel(
                     app,
                     uri,
                     targetRootUni = LocalNovelFiles.publicRootUni(app),
+                    stableFolderId = fileSource.downloadFolderId(novel.url),
                 )
                 runCatching { tmpFile.delete() }
                 val metadata = result.metadata
                 if (metadata != null) {
-                    runCatching {
-                        Injekt.get<RegisterLocalNovelHome>().register(metadata.id)
+                    val localNovelId = Injekt.get<RegisterLocalNovelHome>().register(metadata.id)
+                    if (source is chimahon.novel.opds.OpdsSource && localNovelId != null &&
+                        novelRepository.getNovelById(localNovelId)?.thumbnailUrl.isNullOrBlank()
+                    ) {
+                        source.saveDownloadedCover(novel.url)?.let { cover ->
+                            novelRepository.update(
+                                NovelUpdate(id = localNovelId, thumbnailUrl = cover, coverLastModified = System.currentTimeMillis()),
+                            )
+                        }
                     }
                     // Downloading is acquiring: the online novel joins the
                     // library too, so leaving and coming back still shows it
@@ -489,6 +576,13 @@ class NovelDetailScreenModel(
                     onlineFavoriteBeforeDownload = mutableState.value.isFavorite
                     if (!mutableState.value.isFavorite) {
                         runCatching { addToLibrary() }
+                    }
+                    cachedDbNovel?.id?.let { sourceNovelId ->
+                        novelLibraryPreferences.downloadedBookFolder(sourceNovelId).set(metadata.id)
+                        if (localNovelId != null) {
+                            val categories = novelCategoryRepository.getByNovelId(sourceNovelId).map { it.id }
+                            setNovelCategoriesInteractor.await(sourceNovelId, categories)
+                        }
                     }
                     mutableState.value = mutableState.value.copy(
                         fileDownload = FileDownloadState.Done(
@@ -504,10 +598,12 @@ class NovelDetailScreenModel(
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                logcat(LogPriority.WARN, e) { "Book file download failed" }
+                if (source !is chimahon.novel.opds.OpdsSource) logcat(LogPriority.WARN, e) { "Book file download failed" }
                 mutableState.value = mutableState.value.copy(
-                    fileDownload = FileDownloadState.Error(e.message ?: "Download failed"),
+                    fileDownload = FileDownloadState.Error(if (source is chimahon.novel.opds.OpdsSource) "OPDS download failed. Check your connection and catalog permissions." else e.message ?: "Download failed"),
                 )
+            } finally {
+                temporary?.delete()
             }
         }
     }
@@ -525,6 +621,7 @@ class NovelDetailScreenModel(
     fun deleteDownloadedBook() {
         val done = mutableState.value.fileDownload as? FileDownloadState.Done ?: return
         val bookId = done.bookId ?: return
+        cachedDbNovel?.id?.let { novelLibraryPreferences.downloadedBookFolder(it).delete() }
         // Only undo the auto-favorite when download created it; a prior
         // manual favorite survives the delete.
         val undoFavorite = onlineFavoriteBeforeDownload == false
@@ -721,9 +818,25 @@ class NovelDetailScreenModel(
         markPreviousAsRead(first)
     }
 
-    fun toggleChapterSelection(chapterId: Long) {
+    fun toggleChapterSelection(chapterId: Long, fromLongPress: Boolean = false) {
         val current = mutableState.value.selectedChapters.toMutableSet()
-        if (chapterId in current) current.remove(chapterId) else current.add(chapterId)
+        if (chapterId in current) {
+            current.remove(chapterId)
+        } else {
+            val visible = mutableState.value.visibleChapters
+            val index = visible.indexOfFirst { it.id == chapterId }
+            val selected = visible.indices.filter { visible[it].id in current }
+            if (fromLongPress && index >= 0 && selected.isNotEmpty()) {
+                val range = when {
+                    index < selected.first() -> index..selected.first()
+                    index > selected.last() -> selected.last()..index
+                    else -> index..index
+                }
+                current.addAll(range.map { visible[it].id })
+            } else {
+                current.add(chapterId)
+            }
+        }
         mutableState.value = mutableState.value.copy(
             selectedChapters = current,
             selectionMode = current.isNotEmpty(),
@@ -739,13 +852,13 @@ class NovelDetailScreenModel(
 
     fun selectAll() {
         mutableState.value = mutableState.value.copy(
-            selectedChapters = mutableState.value.chapters.map { it.id }.toSet(),
-            selectionMode = true,
+            selectedChapters = mutableState.value.visibleChapters.map { it.id }.toSet(),
+            selectionMode = mutableState.value.visibleChapters.isNotEmpty(),
         )
     }
 
     fun invertSelection() {
-        val all = mutableState.value.chapters.map { it.id }.toSet()
+        val all = mutableState.value.visibleChapters.map { it.id }.toSet()
         val current = mutableState.value.selectedChapters
         val inverted = all - current
         mutableState.value = mutableState.value.copy(
@@ -804,11 +917,11 @@ class NovelDetailScreenModel(
     fun showChangeCategoryDialog() {
         val dbNovel = cachedDbNovel ?: return
         screenModelScope.launch {
-            val all = novelCategoryRepository.getAll()
+            val all = novelCategoryRepository.getAll().filterNot { it.isSystemCategory }
             val assigned = novelCategoryRepository.getByNovelId(dbNovel.id).map { it.id }.toSet()
             val initialSelection = all.map { cat ->
                 val mapped = Category(
-                    id = cat.id.hashCode().toLong(),
+                    id = cat.id,
                     name = cat.name,
                     order = cat.order.toLong(),
                     flags = cat.flags,
@@ -830,7 +943,7 @@ class NovelDetailScreenModel(
         val dbNovel = cachedDbNovel ?: return
         screenModelScope.launch {
             val ids = novelCategoryRepository.getAll()
-                .filter { cat -> include.any { it == cat.id.hashCode().toLong() } }
+                .filter { cat -> !cat.isSystemCategory && cat.id in include }
                 .map { it.id }
             setNovelCategoriesInteractor.await(dbNovel.id, ids)
             dismissDialog()

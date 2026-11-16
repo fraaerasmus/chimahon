@@ -45,16 +45,22 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import eu.kanade.presentation.player.components.LeftSideOvalShape
@@ -169,11 +175,17 @@ fun GestureHandler(
     val volumeBoostingCap = audioPreferences.volumeBoostCap().get()
     val haptics = LocalHapticFeedback.current
     val subtitleSwipeDistance = with(LocalDensity.current) { 30.dp.toPx() }
+    var subtitleViewport by remember { mutableStateOf(IntSize.Zero) }
+    var subtitleOrigin by remember { mutableStateOf(Offset.Zero) }
+    val subtitleTap by rememberUpdatedState(onSubtitleTap)
+    val subtitleLongPress by rememberUpdatedState(onSubtitleLongPress)
 
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onSizeChanged { subtitleViewport = it }
             .windowInsetsPadding(WindowInsets.safeGestures)
+            .onGloballyPositioned { subtitleOrigin = it.positionInRoot() }
             .pointerInput(Unit) {
                 coroutineScope {
                     /* Custom --> */ var /* Custom <-- */ originalSpeed = viewModel.playbackSpeed.value
@@ -186,7 +198,13 @@ fun GestureHandler(
 
                     detectTapGestures(
                         onTap = { position ->
-                            if (onSubtitleTap(position.x, position.y, size.width, size.height)) {
+                            if (subtitleTap(
+                                    position.x + subtitleOrigin.x,
+                                    position.y + subtitleOrigin.y,
+                                    subtitleViewport.width,
+                                    subtitleViewport.height,
+                                )
+                            ) {
                                 pendingSingleTap?.cancel()
                                 lastTapAt = 0L
                                 return@detectTapGestures
@@ -275,18 +293,22 @@ fun GestureHandler(
                         onLongPress = {
                             pendingSingleTap?.cancel()
                             lastTapAt = 0L
-                            // Custom -->
-                            // In place of `if (areControlsLocked || disableLongPressScr) return`: the
-                            // screenshot switch only applies while long press takes screenshots.
                             if (areControlsLocked) return@detectTapGestures
-                            if (customGestures.longPressIsOff(disableLongPressScr)) return@detectTapGestures
-                            // Custom <--
                             if (!isLongPressing) {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (onSubtitleLongPress(it.x, it.y, size.width, size.height)) {
+                                if (subtitleLongPress(
+                                        it.x + subtitleOrigin.x,
+                                        it.y + subtitleOrigin.y,
+                                        subtitleViewport.width,
+                                        subtitleViewport.height,
+                                    )
+                                ) {
                                     return@detectTapGestures
                                 }
                                 // Custom -->
+                                // In place of upstream's screenshot body: long press is either double
+                                // speed or a screenshot, and the screenshot switch only applies to the latter.
+                                if (customGestures.longPressIsOff(disableLongPressScr)) return@detectTapGestures
                                 when (customGestures.longPress) {
                                     chimahon.custom.player.LongPressGesture.DoubleSpeed -> {
                                         originalSpeed = viewModel.playbackSpeed.value

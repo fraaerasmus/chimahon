@@ -7,8 +7,6 @@ import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.getDictionaryPaths
 import eu.kanade.tachiyomi.ui.dictionary.orderLookupResultsForDisplay
 import eu.kanade.tachiyomi.ui.player.PlayerViewModel
-import eu.kanade.tachiyomi.ui.player.controls.SubtitleLookupRequest
-import eu.kanade.tachiyomi.ui.reader.viewer.lookupWithSearchResolution
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,8 +18,9 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 
 /**
- * Looking a subtitle word up with keys alone. It holds the cursor and tells the player's subtitle
- * layer and dictionary popup, which own the screen, what to do.
+ * Looking a subtitle word up with keys alone. It holds the cursor and tells the player's controls
+ * and dictionary popup, which own the screen, what to do. The line comes from the subtitles mpv
+ * draws (`NativeSubtitleLookup`).
  */
 class PlayerWordCursor(
     private val viewModel: PlayerViewModel,
@@ -32,13 +31,16 @@ class PlayerWordCursor(
     private val _cursor = MutableStateFlow<WordCursor?>(null)
     val cursor = _cursor.asStateFlow()
 
-    /** The offset in the subtitle the popup is asked to open at. The subtitle layer clears it. */
+    /** The offset in [lineText] the popup is asked to open at. The player controls clear it. */
     val openAt = MutableStateFlow<Int?>(null)
 
     private val _popupScripts = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val popupScripts = _popupScripts.asSharedFlow()
 
     private var subtitleText = ""
+
+    /** The line the cursor, or the open popup, is on. */
+    val lineText get() = subtitleText
 
     /** Where in the subtitle the open popup looks up, or null with no popup open. */
     private var popupOffset: Int? = null
@@ -62,8 +64,10 @@ class PlayerWordCursor(
 
     /** Pauses and puts the cursor on the first word of the subtitle on screen. */
     fun start() {
-        val text = subtitleText
-        if (text.isBlank() || isActive) return
+        if (isActive) return
+        val text = chimahon.custom.player.NativeSubtitleLookup.primaryText()
+        subtitleText = text
+        if (text.isBlank()) return
         val wasPaused = viewModel.paused.value
         viewModel.pause()
         viewModel.viewModelScope.launch {
@@ -118,19 +122,21 @@ class PlayerWordCursor(
         if (popupOffset != null) _popupScripts.tryEmit(script)
     }
 
-    /** Called by the subtitle layer with the line it shows. A cursor on another line is dropped. */
+    /** Called with the line on screen once the cursor's line has gone. A cursor on another line is dropped. */
     fun onSubtitleText(text: String) {
         subtitleText = text
         if (_cursor.value?.text != text) _cursor.value = null
     }
 
     /**
-     * Called by the player controls with where the popup looks up, or null once it is closed, and
-     * whether the player was paused before it opened. However it was closed, the cursor goes too.
+     * Called by the player controls with where the popup looks up and in which line, or nulls once
+     * it is closed, and whether the player was paused before it opened. However it was closed, the
+     * cursor goes too.
      */
-    fun onPopup(offset: Int?, wasPaused: Boolean) {
+    fun onPopup(offset: Int?, text: String?, wasPaused: Boolean) {
         val closed = popupOffset != null && offset == null
         popupOffset = offset
+        if (offset != null && text != null) subtitleText = text
         // With a cursor the player is paused by the cursor, which says nothing about before.
         if (_cursor.value == null) popupWasPaused = wasPaused
         if (closed) end()
@@ -145,27 +151,7 @@ class PlayerWordCursor(
     /** What the popup would match and highlight for [query]. */
     private fun measure(query: String): String? {
         val profile = profile()
-        val result = lookupWithSearchResolution(repository, query, getDictionaryPaths(context, profile), profile)
+        val result = repository.lookupWithSearchResolution(query, getDictionaryPaths(context, profile), profile)
         return orderLookupResultsForDisplay(result.results, profile, context).firstOrNull()?.matched
     }
 }
-
-/** A request that only draws the highlight. The popup is given the real one, never this. */
-internal fun WordCursor.highlightRequest() = SubtitleLookupRequest(
-    lookupString = "",
-    fullText = text,
-    charOffset = word.start,
-    tapCharOffset = word.start,
-    lineText = "",
-    lineIndex = 0,
-    lineStartOffset = 0,
-    anchorX = 0f,
-    anchorY = 0f,
-    anchorWidth = 0f,
-    anchorHeight = 0f,
-    lineLeft = 0f,
-    lineTop = 0f,
-    lineWidth = 0f,
-    lineHeight = 0f,
-    matchedCharCount = word.length,
-)

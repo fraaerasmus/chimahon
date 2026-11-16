@@ -1,5 +1,6 @@
 package eu.kanade.tachiyomi.ui.dictionary
 
+import chimahon.anki.AnkiAppSelection
 import chimahon.anki.AnkiProfile
 import chimahon.anki.AnkiProfileStore
 import chimahon.audio.WordAudioPreferences
@@ -27,6 +28,8 @@ class DictionaryPreferences(
     fun ocrBoxScaleY() = preferenceStore.getFloat("pref_ocr_box_scale_y", ocrBoxScale().get())
 
     fun ocrBoxOpacity() = preferenceStore.getFloat("pref_ocr_box_opacity", 0.0f)
+
+    fun showScreenLookupOverlay() = preferenceStore.getBoolean("pref_show_screen_lookup_ocr_overlay", true)
 
     /** Opacity of text characters in the currently active/tapped OCR block (0..1). */
     fun activeOcrTextOpacity() = preferenceStore.getFloat("pref_active_ocr_text_opacity", 1.0f)
@@ -117,6 +120,17 @@ class DictionaryPreferences(
     fun volumeKeyNavigation() = preferenceStore.getBoolean("pref_dictionary_volume_key_navigation", true)
 
     fun customCss() = preferenceStore.getString("pref_dictionary_custom_css", "")
+
+    /** One of [RENDERER_WEBVIEW] (default) or [RENDERER_COMPOSE]. */
+    private val rendererPreference by lazy {
+        val stored = if (eu.kanade.tachiyomi.BuildConfig.NATIVE_RENDERER_DIAGNOSTICS) {
+            preferenceStore.getString("pref_dictionary_renderer_native_diagnostics", RENDERER_COMPOSE)
+        } else preferenceStore.getString("pref_dictionary_renderer", RENDERER_WEBVIEW)
+        if (stored.get() == "plain_text") stored.set(RENDERER_COMPOSE)
+        stored
+    }
+
+    fun renderer(): Preference<String> = rendererPreference
 
     // -------------------------------------------------------------------------
     // Profile storage (raw pref keys — consumed by AnkiProfileStore and settings UI)
@@ -229,6 +243,12 @@ class DictionaryPreferences(
     }
 
     // -------------------------------------------------------------------------
+    // Anki app (AnkiDroid or an AnkiDroid-API-compatible fork)
+    // -------------------------------------------------------------------------
+
+    fun ankiAppPackage() = preferenceStore.getString("pref_anki_app_package", AnkiAppSelection.DEFAULT_PACKAGE)
+
+    // -------------------------------------------------------------------------
     // Legacy flat-key READERS — only used for one-time migration.
     // -------------------------------------------------------------------------
 
@@ -312,6 +332,9 @@ class DictionaryPreferences(
 
         const val SCROLL_SMOOTH = "smooth"
         const val SCROLL_INSTANT = "instant"
+
+        const val RENDERER_WEBVIEW = "webview"
+        const val RENDERER_COMPOSE = "compose"
     }
 
     // -------------------------------------------------------------------------

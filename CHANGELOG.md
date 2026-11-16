@@ -4,6 +4,114 @@ All notable changes to Chimahon are documented here.
 
 The format follows a Keep a Changelog style and uses Semantic Versioning.
 
+## [Unreleased]
+
+### Fixed
+
+- Native dictionary renderer crash when shaping text with a font face it had not preloaded
+- Native dictionary renderer ignoring the selected custom dictionary font
+- Anki `{glossary-first}` exporting the selected dictionary instead of the first glossary
+
+## [v2.5.0]
+
+### Added
+
+- Optional native Compose dictionary glossary renderer, much faster than the WebView renderer
+- Anime subtitle font import
+- Subtitle audio padding controls
+- Anki app selection, including kuma3 and custom AnkiDroid-compatible packages
+
+### Changed
+
+- Novel browse library actions and badges
+- Anki glossary exports no longer repeat the inline style block
+
+### Fixed
+
+- Anime screenshots on image-wrapped streams
+- Webtoon lookup across page boundaries
+- Jimaku subtitles being lost after reopening the player
+- Anki browser showing only one matching note
+- Custom dictionary names and dictionary order in the popup
+- OCR outlines on rotated text lines
+- Mokuro OCR on downloaded chapters loading the wrong page
+- Novel character lookup through furigana
+- Furigana included in copied novel text
+- Novel browse scroll resets and missing-source loading
+- Novel search retries and source navigation
+- Novel global search across sources returning no results
+- Novel chapter selection and download feedback
+- Incognito mode in the novel reader
+- Anki `{glossary-plain}` markers exporting example sentences and ruby instead of definitions
+- Anime library filter dialog unreachable after filtering out every entry
+
+## [v2.4.9]
+
+### Changed
+
+- Single stored copy of each dictionary, including mixed term and kanji dictionaries
+
+### Fixed
+
+- Kanji lookup in dictionaries that contain both terms and kanji
+
+## [v2.4.8]
+
+### Added
+
+- Crop and re-OCR of a selected area in the manga reader (two-finger tap, bottom bar button, or page actions)
+- Toggle to hide the blue OCR boxes in screen lookup
+- Retry actions for failed novel pages and global novel search
+
+### Changed
+
+- Removed the blue OCR overlay from novel images
+- Novel browse now shares its display mode with manga and anime
+- Page layout toolbar controls are optional and disabled by default
+- Updated mpv/libass builds with native system-font discovery
+
+### Fixed
+
+- ScreenLookup multi-line lookup
+- ScreenLookup selection on rotated or scaled text
+- Novel browse pagination
+- Cover-only novel layouts showing titles
+- Novel global search duplicates, filtering, and source navigation
+- Downloaded novels not showing the Open action
+- OPDS covers in browse and downloaded books
+- Jellyfin authentication
+- Native subtitle font loading
+
+## [v2.4.7]
+
+### Added
+- Local PDF support for manga
+- Bulk OCR in chapter selection
+- OCR queue notifications
+- OPDS for novels
+- Novel browse layouts and default category setting
+- Local subtitle autoloading
+- Private extension installer
+
+### Changed
+- Switched to native MPV for subtitle rendering and dictionary lookup
+- Moved model management to OCR settings with storage usage
+- Chimahon icons and export filenames
+
+### Fixed
+- Anime playback and sentence audio failing on some streams
+- Anime extension updates getting stuck
+- Anime OCR screenshot timing
+- Forvo audio links
+- Novel WebView user agent and language filters
+- Novel categories, selection, statistics, and duplicate entries
+- Final novel chapter not being marked read
+- History double-tap ignoring novels
+- First-dictionary Anki glossaries missing additional senses
+- Jellyfin detection and tracking
+- Deleted anime categories in update filters
+- Subtitle position and sentence audio timing
+
 ## [v2.4.6]
 
 ### Added

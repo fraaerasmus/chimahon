@@ -1,10 +1,13 @@
 package eu.kanade.tachiyomi.ui.reader.viewer
 
 import android.graphics.RectF
+import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import okio.BufferedSource
 import tachiyomi.decoder.ImageDecoder
 import java.io.ByteArrayInputStream
 import kotlin.math.max
+
+data class OcrPageRegion(val page: ReaderPage, val bounds: RectF)
 
 /**
  * Coordinate remapping for OCR blocks under reader transformations.
@@ -17,6 +20,69 @@ import kotlin.math.max
  * algorithm — no Kotlin reimplementation needed.
  */
 object OcrCoordinateMapper {
+
+    /** Inverts an axis-aligned display transform, clipping out margins and other pages. */
+    fun regionToSource(
+        region: RectF,
+        displayedBounds: RectF = RectF(0f, 0f, 1f, 1f),
+        sourceBounds: RectF = RectF(0f, 0f, 1f, 1f),
+    ): RectF? {
+        val clipped = RectF(region)
+        if (displayedBounds.isEmpty || !clipped.intersect(displayedBounds)) return null
+        return RectF(
+            sourceBounds.left + (clipped.left - displayedBounds.left) / displayedBounds.width() * sourceBounds.width(),
+            sourceBounds.top + (clipped.top - displayedBounds.top) / displayedBounds.height() * sourceBounds.height(),
+            sourceBounds.left + (clipped.right - displayedBounds.left) / displayedBounds.width() * sourceBounds.width(),
+            sourceBounds.top + (clipped.bottom - displayedBounds.top) / displayedBounds.height() * sourceBounds.height(),
+        ).takeUnless { it.isEmpty }
+    }
+
+    fun regionBeforeRotation(region: RectF, clockwise: Boolean): RectF = if (clockwise) {
+        RectF(region.top, 1f - region.right, region.bottom, 1f - region.left)
+    } else {
+        RectF(1f - region.bottom, region.left, 1f - region.top, region.right)
+    }
+
+    /** Positions crop-relative recognition results back on their original page. */
+    fun blocksFromRegion(blocks: List<OcrTextBlock>, region: RectF): List<OcrTextBlock> = blocks.map { block ->
+        block.copy(
+            xmin = region.left + block.xmin * region.width(),
+            ymin = region.top + block.ymin * region.height(),
+            xmax = region.left + block.xmax * region.width(),
+            ymax = region.top + block.ymax * region.height(),
+            lineGeometries = block.lineGeometries?.map { line ->
+                line.copy(
+                    xmin = region.left + line.xmin * region.width(),
+                    ymin = region.top + line.ymin * region.height(),
+                    xmax = region.left + line.xmax * region.width(),
+                    ymax = region.top + line.ymax * region.height(),
+                )
+            },
+        )
+    }
+
+    /** Keeps unaffected lines when the selected area intersects only part of a merged block. */
+    fun replaceRegion(
+        blocks: List<OcrTextBlock>,
+        region: RectF,
+        replacement: List<OcrTextBlock>,
+    ): List<OcrTextBlock> = blocks.mapNotNull { block ->
+        if (!RectF.intersects(region, RectF(block.xmin, block.ymin, block.xmax, block.ymax))) return@mapNotNull block
+        val geometry = block.lineGeometries?.takeIf { it.size == block.lines.size } ?: return@mapNotNull null
+        val kept = geometry.indices.filter { index ->
+            val line = geometry[index]
+            !RectF.intersects(region, RectF(line.xmin, line.ymin, line.xmax, line.ymax))
+        }
+        if (kept.isEmpty()) return@mapNotNull null
+        block.copy(
+            xmin = kept.minOf { geometry[it].xmin },
+            ymin = kept.minOf { geometry[it].ymin },
+            xmax = kept.maxOf { geometry[it].xmax },
+            ymax = kept.maxOf { geometry[it].ymax },
+            lines = kept.map { block.lines[it] },
+            lineGeometries = kept.map { geometry[it] },
+        )
+    } + replacement
 
     // ──────────────────────────────────────────────────
     // Public API
@@ -155,11 +221,12 @@ object OcrCoordinateMapper {
      *
      * When page N's image is augmented with the top of page N+1 before OCR,
      * all coordinates are normalized to the taller augmented image. This function
-     * rescales y-coordinates back into page N's original [0,1] space and clips
-     * blocks that span the seam boundary.
+     * rescales y-coordinates back into page N's original coordinate space.
      *
-     * Blocks whose remapped ymax exceeds 1.0 are discarded (they belong to the
-     * seam strip, which page N+1 will find on its own).
+     * Keep the full geometry of blocks crossing the seam: the page view clips drawing,
+     * not the text layout. Clamping these boxes would squeeze the next page's text
+     * into this page and break character hit testing. Discard only blocks wholly
+     * in the next page's strip.
      *
      * @param blocks  OCR blocks normalized to the augmented image
      * @param originalHeight  pixel height of the unaugmented page
@@ -179,23 +246,30 @@ object OcrCoordinateMapper {
 
             if (newYmax <= 0f || newYmin >= 1f) return@mapNotNull null
 
-            val clippedYmin = newYmin.coerceIn(0f, 1f)
-            val clippedYmax = newYmax.coerceIn(0f, 1f)
-            if (clippedYmax <= clippedYmin) return@mapNotNull null
-
-            val newGeometries = block.lineGeometries?.mapNotNull { geo ->
-                val gnYmin = (geo.ymin / ratio).coerceIn(0f, 1f)
-                val gnYmax = (geo.ymax / ratio).coerceIn(0f, 1f)
-                if (gnYmax <= gnYmin) return@mapNotNull null
-                geo.copy(ymin = gnYmin, ymax = gnYmax)
-            }
-
             block.copy(
-                ymin = clippedYmin,
-                ymax = clippedYmax,
-                lineGeometries = newGeometries,
+                ymin = newYmin,
+                ymax = newYmax,
+                lineGeometries = block.lineGeometries?.map { geo ->
+                    geo.copy(ymin = geo.ymin / ratio, ymax = geo.ymax / ratio)
+                },
             )
         }
+    }
+
+    /** Show the same recognized block on the following page, with its full text and offsets. */
+    fun blocksAcrossSeam(
+        blocks: List<OcrTextBlock>,
+        firstWidth: Int,
+        firstHeight: Int,
+        secondWidth: Int,
+        secondHeight: Int,
+    ): List<OcrTextBlock> {
+        if (minOf(firstWidth, firstHeight, secondWidth, secondHeight) <= 0) return emptyList()
+        val heightAtSecondWidth = firstHeight.toFloat() * secondWidth / firstWidth
+        return blocksFromRegion(
+            blocks.filter { it.ymin < 1f && it.ymax > 1f },
+            RectF(0f, -heightAtSecondWidth / secondHeight, 1f, 0f),
+        ).filter { it.ymin < 1f && it.ymax > 0f }
     }
 
     /**
@@ -385,20 +459,26 @@ object OcrCoordinateMapper {
         }
     }
 
-    /** Remap blocks so they align with a cropped sub-region of the original image. */
+    /**
+     * Remap blocks into a cropped image. Webtoon preserves overflow so border cropping
+     * does not squeeze seam text again; the image view clips drawing and taps instead.
+     */
     fun remapToCrop(
         blocks: List<OcrTextBlock>,
         cropRect: RectF,
+        clipToBounds: Boolean = true,
     ): List<OcrTextBlock> {
         val cropW = cropRect.width()
         val cropH = cropRect.height()
         if (cropW <= 0f || cropH <= 0f) return blocks
 
+        fun coordinate(value: Float) = if (clipToBounds) value.coerceIn(0f, 1f) else value
+
         return blocks.mapNotNull { block ->
-            val newXmin = ((block.xmin - cropRect.left) / cropW).coerceIn(0f, 1f)
-            val newYmin = ((block.ymin - cropRect.top) / cropH).coerceIn(0f, 1f)
-            val newXmax = ((block.xmax - cropRect.left) / cropW).coerceIn(0f, 1f)
-            val newYmax = ((block.ymax - cropRect.top) / cropH).coerceIn(0f, 1f)
+            val newXmin = coordinate((block.xmin - cropRect.left) / cropW)
+            val newYmin = coordinate((block.ymin - cropRect.top) / cropH)
+            val newXmax = coordinate((block.xmax - cropRect.left) / cropW)
+            val newYmax = coordinate((block.ymax - cropRect.top) / cropH)
 
             if (newXmax <= 0f || newYmax <= 0f || newXmin >= 1f || newYmin >= 1f) {
                 return@mapNotNull null
@@ -406,10 +486,10 @@ object OcrCoordinateMapper {
             if (newXmax <= newXmin || newYmax <= newYmin) return@mapNotNull null
 
             val newGeometries = block.lineGeometries?.mapNotNull { geo ->
-                val gnXmin = ((geo.xmin - cropRect.left) / cropW).coerceIn(0f, 1f)
-                val gnYmin = ((geo.ymin - cropRect.top) / cropH).coerceIn(0f, 1f)
-                val gnXmax = ((geo.xmax - cropRect.left) / cropW).coerceIn(0f, 1f)
-                val gnYmax = ((geo.ymax - cropRect.top) / cropH).coerceIn(0f, 1f)
+                val gnXmin = coordinate((geo.xmin - cropRect.left) / cropW)
+                val gnYmin = coordinate((geo.ymin - cropRect.top) / cropH)
+                val gnXmax = coordinate((geo.xmax - cropRect.left) / cropW)
+                val gnYmax = coordinate((geo.ymax - cropRect.top) / cropH)
                 if (gnXmax <= gnXmin || gnYmax <= gnYmin) return@mapNotNull null
                 OcrLineGeometry(gnXmin, gnYmin, gnXmax, gnYmax, geo.rotation)
             }

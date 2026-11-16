@@ -13,6 +13,7 @@
   let _lastSelection = '';
   let _pendingPopupSelection = '';
   let _selectedDictionaries = {}; // entryIndex -> dictName
+  let _dictionaryDisplayNames = {};
   let _wordAudioEnabled = true;
   let _autoplayGuard = false;
   let _listenersInstalled = false;
@@ -1341,15 +1342,6 @@
     return getNodeText(node.content);
   }
 
-  function normalizeTableContent(content) {
-    const items = Array.isArray(content) ? content : [content];
-    const hasRows = items.some((item) => item && item.tag === 'tr');
-    if (!hasRows) return content;
-    const hasSections = items.some((item) => item && (item.tag === 'tbody' || item.tag === 'thead' || item.tag === 'tfoot'));
-    if (hasSections) return content;
-    return [{tag: 'tbody', content: items}];
-  }
-
   function renderStructured(content, dictName, mediaMap) {
     const fragment = document.createDocumentFragment();
     appendStructured(fragment, content, dictName, mediaMap, null);
@@ -1510,10 +1502,9 @@
       });
     }
 
-    const contentToRender = tagNameLower === 'table' ? normalizeTableContent(node.content) : node.content;
-
     if (tagNameLower !== 'br') {
-      appendStructured(element, contentToRender, dictName, mediaMap, language);
+      // Preserve the source hierarchy. An invented tbody traps cells outside a table's CSS grid.
+      appendStructured(element, node.content, dictName, mediaMap, language);
     }
 
     if (tagNameLower === 'table') {
@@ -2124,6 +2115,10 @@
     return open;
   }
 
+  function dictionaryLabel(name) {
+    return Object.prototype.hasOwnProperty.call(_dictionaryDisplayNames, name) ? _dictionaryDisplayNames[name] : name;
+  }
+
   function appendDefinitionsSection(body, glossaries, mediaMap, group, collapseConfig) {
     if (!glossaries || glossaries.length === 0) return;
 
@@ -2135,7 +2130,8 @@
     });
     const openDictionaries = computeDictionaryCollapseStates(groups, collapseConfig);
 
-    for (const [dictName, dictGlossaries] of groups) {
+    for (const dictName of buildOrderedDictionaryNames(groups, collapseConfig.dictionaryOrder)) {
+      const dictGlossaries = groups.get(dictName);
       const dictSection = document.createElement('div');
       dictSection.className = 'dictionary-group';
       dictSection.dataset.dictionary = dictName;
@@ -2151,7 +2147,7 @@
 
       const label = document.createElement('span');
       label.className = 'dict-name-label';
-      label.textContent = dictName;
+      label.textContent = dictionaryLabel(dictName);
       dictHeader.appendChild(label);
 
       let _collapseTogglePending = false;
@@ -2333,7 +2329,7 @@
         continue;
       }
 
-      const chip = createTagWithBody(dictName, displayText, 'frequency');
+      const chip = createTagWithBody(dictionaryLabel(dictName), displayText, 'frequency');
       chip.classList.add('frequency-group-item');
       section.appendChild(chip);
     }
@@ -2650,7 +2646,7 @@
 
       const tag = document.createElement('div');
       tag.className = 'pitch-group-tag pronunciation-group-tag-list';
-      tag.textContent = dictName;
+      tag.textContent = (group.dictNames || [dictName]).map(dictionaryLabel).join(', ');
       groupContainer.appendChild(tag);
 
       const morae = getMorae(reading || '');
@@ -2876,6 +2872,7 @@
       _wordAudioEnabled = payload.wordAudioEnabled !== false;
       _autoplayGuard = false;
       _selectedDictionaries = {};
+      _dictionaryDisplayNames = payload.dictionaryDisplayNames || {};
       resetDictionaryMediaObserver();
       if (payload.ankiDupAction !== undefined) {
         _lastAnkiDupAction = payload.ankiDupAction;
@@ -2981,7 +2978,7 @@
         const fragment = document.createDocumentFragment();
         for (const result of results) {
           if (result.kanji) {
-            fragment.appendChild(KanjiRenderer.renderEntry(result.kanji, result.matched));
+            fragment.appendChild(KanjiRenderer.renderEntry({ ...result.kanji, displayName: dictionaryLabel(result.kanji.dictName) }, result.matched));
             continue;
           }
           const diagram = payload.showPitchDiagram !== false;

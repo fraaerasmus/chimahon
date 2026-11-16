@@ -1,7 +1,10 @@
 package eu.kanade.presentation.browse.novel
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import chimahon.novel.ui.browse.globalsearch.NovelSearchItemResult
@@ -15,7 +18,10 @@ import eu.kanade.presentation.browse.novel.components.GlobalNovelSearchToolbar
 import eu.kanade.tachiyomi.sourcenovel.NovelsPageSource
 import eu.kanade.tachiyomi.sourcenovel.model.SNNovel
 import eu.kanade.tachiyomi.util.system.LocaleHelper
+import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.material.Scaffold
+import tachiyomi.presentation.core.i18n.stringResource
+import tachiyomi.presentation.core.screens.EmptyScreen
 
 @Composable
 fun GlobalNovelSearchScreen(
@@ -23,6 +29,7 @@ fun GlobalNovelSearchScreen(
     navigateUp: () -> Unit,
     onChangeSearchQuery: (String?) -> Unit,
     onSearch: (String) -> Unit,
+    onRetry: (NovelsPageSource) -> Unit,
     onChangeSearchFilter: (NovelSourceFilter) -> Unit,
     onToggleResults: () -> Unit,
     onClickSource: (NovelsPageSource) -> Unit,
@@ -46,13 +53,19 @@ fun GlobalNovelSearchScreen(
             )
         },
     ) { paddingValues ->
-        GlobalNovelSearchContent(
-            items = state.filteredItems,
-            contentPadding = paddingValues,
-            onClickSource = onClickSource,
-            onClickItem = onClickItem,
-            onLongClickItem = onLongClickItem,
-        )
+        if (state.filteredItems.isEmpty()) {
+            EmptyScreen(stringRes = MR.strings.no_results_found, modifier = Modifier.padding(paddingValues))
+        } else {
+            GlobalNovelSearchContent(
+                items = state.filteredItems,
+                contentPadding = paddingValues,
+                onClickSource = onClickSource,
+                onClickItem = onClickItem,
+                onLongClickItem = onLongClickItem,
+                onRetry = onRetry,
+                libraryUrls = state.libraryUrls,
+            )
+        }
     }
 }
 
@@ -60,9 +73,11 @@ fun GlobalNovelSearchScreen(
 private fun GlobalNovelSearchContent(
     items: Map<NovelsPageSource, NovelSearchItemResult>,
     contentPadding: PaddingValues,
+    onRetry: (NovelsPageSource) -> Unit,
     onClickSource: (NovelsPageSource) -> Unit,
     onClickItem: (SNNovel, Long) -> Unit,
     onLongClickItem: (SNNovel, Long) -> Unit,
+    libraryUrls: Map<Long, Set<String>>,
 ) {
     LazyColumn(
         contentPadding = contentPadding,
@@ -85,10 +100,14 @@ private fun GlobalNovelSearchContent(
                                 sourceId = source.id,
                                 onClick = { onClickItem(it, source.id) },
                                 onLongClick = { onLongClickItem(it, source.id) },
+                                libraryUrls = libraryUrls[source.id].orEmpty(),
                             )
                         }
                         is NovelSearchItemResult.Error -> {
                             GlobalSearchErrorResultItem(message = result.throwable.message)
+                            TextButton(onClick = { onRetry(source) }) {
+                                Text(stringResource(MR.strings.action_retry))
+                            }
                         }
                     }
                 }

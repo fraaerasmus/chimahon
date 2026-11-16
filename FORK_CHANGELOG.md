@@ -355,6 +355,19 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
   login form, and how to add a key action, a gesture option or a YouTube option. Unit tests
   went from 638 to 663, with the kosync pull and push rules covered for the first time.
 
+- Upstream v2.5.0 merge (2026-11-16): eight conflicts. Upstream now draws player subtitles
+  with mpv and looks words up from mpv's `sub-text-geometry`, which replaces the Compose
+  subtitle layer the fork's player lookup hooked into. Re-threaded onto it
+  (`NativeSubtitleLookup`): subtitle lookups still start at the beginning of the tapped word,
+  the subtitle side list still allows lookups, the key word cursor reads its line and draws
+  its highlight from mpv's geometry and opens the popup through upstream's tap handler, and
+  `{secondary-subtitle}` comes from mpv's `secondary-sub-text`. Upstream added its own OPDS
+  novel source in `chimahon.novel.opds` with classes named like the fork's, so the fork's
+  OPDS (comics, LAN catalogs, KOReader ids) moved to `chimahon.custom.opds`; both are
+  available. Upstream moved `lookupWithSearchResolution` into `DictionaryRepository`, so the
+  fork no longer widens it. Upstream's Korean analyzer runs through the fork's
+  `GenericLookup` branch like every other deinflector.
+
 ## Dropped (superseded by upstream)
 
 - Player sentence audio mining (2026-07-18, dropped 2026-08-13): upstream v2.3.1/v2.3.2
@@ -362,3 +375,9 @@ changelog is `CHANGELOG.md` (kept as a byte-clean mirror).
 - mpv config edit handling (2026-07-12, dropped 2026-08-13): upstream now persists
   mpv.conf and input.conf edits via preferences and resolves the config directory with
   a safe fallback, covering our earlier fix.
+- Vendored FlexibleAdapter (2026-09-14, dropped 2026-11-16): upstream v2.5.0 moved to
+  `eu.davidea:flexible-adapter:5.1.0` from Maven Central, so `local-maven/` is gone.
+- Subtitle position past 100 (2026-09-27, dropped 2026-11-16) and touches on the subtitle
+  line falling through to the gestures (dropped 2026-11-16): upstream v2.5.0 no longer draws
+  the subtitles in Compose. mpv applies the position itself, and upstream's gesture handler
+  only takes a touch for a lookup when it lands on a character.

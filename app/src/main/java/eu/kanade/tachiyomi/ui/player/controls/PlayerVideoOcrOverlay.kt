@@ -1,13 +1,11 @@
 package eu.kanade.tachiyomi.ui.player.controls
 
 import android.graphics.Bitmap
-import android.webkit.WebView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -25,7 +23,6 @@ import chimahon.DictionaryRepository
 import chimahon.MediaInfo
 import chimahon.ocr.OcrLanguage
 import eu.kanade.tachiyomi.data.ocr.recognizePage
-import eu.kanade.tachiyomi.ui.dictionary.DictionaryPopupWebViewWarmup
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
 import eu.kanade.tachiyomi.ui.dictionary.OcrBlockCanvas
 import eu.kanade.tachiyomi.ui.dictionary.OcrSelection
@@ -45,13 +42,13 @@ import eu.kanade.tachiyomi.ui.reader.viewer.toOrderedOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import tachiyomi.core.common.i18n.stringResource as contextStringResource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import kotlin.math.min
-import tachiyomi.core.common.i18n.stringResource as contextStringResource
 
 private const val TAP_HINT_DURATION_MS = 1_200L
 
@@ -77,21 +74,13 @@ internal fun PlayerVideoOcrOverlay(
             sourceLang = source?.lang.orEmpty(),
         )
     }
-    val webView: WebView = remember(activeProfile.languageCode) {
-        DictionaryPopupWebViewWarmup.acquire(context, activeProfile.languageCode)
-    }
+    val webView = eu.kanade.tachiyomi.ui.dictionary.rememberDictionaryPopupWebView(activeProfile.languageCode)
     val boxScaleX = dictionaryPreferences.ocrBoxScaleX().get()
     val boxScaleY = dictionaryPreferences.ocrBoxScaleY().get()
 
     LaunchedEffect(activeProfile) {
         withContext(Dispatchers.IO) {
             repository.warmUp(getDictionaryPaths(context, activeProfile), activeProfile.id)
-        }
-    }
-
-    DisposableEffect(webView) {
-        onDispose {
-            DictionaryPopupWebViewWarmup.recycle(context, webView)
         }
     }
 
@@ -159,7 +148,7 @@ internal fun PlayerVideoOcrOverlay(
             activeMatchOffset = matchOffset,
             selection = selection,
             onBlockTapped = { tapped, tapX, tapY ->
-                val charOffset = tapped.screenLookupCharOffset(tapX, tapY)
+                val charOffset = tapped.screenLookupCharOffset(tapX, tapY, widthPx, heightPx)
                 val orderedCharOffset = tapped.toOrderedOffset(charOffset)
                 val text = tapped.orderedFullText
                 // Custom -->

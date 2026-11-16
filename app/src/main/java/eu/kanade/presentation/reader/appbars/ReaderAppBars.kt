@@ -100,6 +100,7 @@ fun ReaderAppBars(
     onClickChapterList: () -> Unit,
     onClickPageLayout: () -> Unit,
     onClickShiftPage: () -> Unit,
+    onCropReOcr: (() -> Unit)?,
     // SY <--
 
     // Chimahon -->
@@ -294,6 +295,7 @@ fun ReaderAppBars(
                     onClickShare = onShare,
                     onClickPageLayout = onClickPageLayout,
                     onClickShiftPage = onClickShiftPage,
+                    onCropReOcr = onCropReOcr,
                     // SY <--
                 )
             }

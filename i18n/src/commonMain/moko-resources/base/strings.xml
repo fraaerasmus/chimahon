@@ -438,13 +438,48 @@
     <string name="pref_ocr_cache_size">OCR cache size</string>
     <string name="pref_ocr_clear_cache">Clear OCR cache</string>
     <string name="pref_ocr_two_finger_gesture">OCR two-finger gesture</string>
+    <string name="pref_ocr_two_finger_region">Crop and re-OCR</string>
+    <string name="pref_ocr_two_finger_region_summary">Two-finger tap to select and rescan an area</string>
+    <string name="ocr_region_select">Drag over the area to rescan</string>
+    <string name="ocr_region_scanning">Recognizing selected area…</string>
+    <string name="ocr_region_unavailable">Select an area inside a loaded page</string>
+    <string name="ocr_region_failed">Could not rescan the area. Previous OCR was kept.</string>
     <string name="pref_ocr_two_finger_gesture_summary">Allow two-finger tap to toggle OCR overlay</string>
     <string name="ocr_ready">OCR ready</string>
     <string name="ocr_not_ready">OCR not ready</string>
     <string name="ocr_running">OCR running…</string>
+    <string name="ocr_paused">OCR paused</string>
+    <string name="ocr_retry_failed">Retry failed</string>
+    <string name="ocr_notification_status_channel">OCR results</string>
+    <string name="ocr_notification_page">Page %1$d of %2$d</string>
+    <string name="ocr_notification_queue">%1$d processing · %2$d queued · %3$d waiting for download · %4$d failed</string>
+    <string name="ocr_notification_result">%1$d completed · %2$d failed · %3$d waiting for download</string>
+    <string name="ocr_notification_complete">OCR complete</string>
+    <string name="ocr_notification_failed">OCR needs attention</string>
     <string name="action_download_and_ocr">Download &amp; OCR</string>
     <string name="action_run_ocr">Run OCR</string>
     <string name="action_delete_ocr">Delete OCR data</string>
+    <string name="model_update_notification_channel">Model updates</string>
+    <string name="model_update_notification_title">Model updates available</string>
+    <string name="model_update_notification_text">Update %1$s over Wi-Fi.</string>
+    <string name="model_update_notification_action">Update</string>
+    <string name="pref_downloaded_models">Downloaded models</string>
+    <string name="model_selection">Models</string>
+    <string name="model_ocr_lens">On-device OCR (Lens)</string>
+    <string name="model_ocr_paddle">Paddle OCR</string>
+    <string name="model_panel_detection">Panel detection</string>
+    <string name="model_ocr_lens_version">On-device OCR (Lens) — v%1$s</string>
+    <string name="model_ocr_paddle_version">Paddle OCR — v%1$s</string>
+    <string name="model_panel_installed">Panel detection — installed</string>
+    <string name="model_delete_selected">Delete selected models</string>
+    <string name="model_delete_selected_summary">%1$d selected</string>
+    <string name="model_deleted">Selected models deleted</string>
+    <string name="model_check_updates">Check for model updates</string>
+    <string name="model_latest_known">Latest known release: v%1$s</string>
+    <string name="model_update_available">Model update available: v%1$s</string>
+    <string name="model_up_to_date">Models are up to date</string>
+    <string name="model_update_selected">Re-download selected models</string>
+    <string name="model_none_installed">Nothing selected is installed</string>
     <string name="action_ocr">OCR</string>
     <string name="action_pre_ocr">Pre-OCR chapters</string>
     <string name="ocr_processing">OCR processing</string>
@@ -555,6 +590,7 @@
 
     <string name="default_category">Default category</string>
     <string name="default_anime_category">Default anime category</string>
+    <string name="default_novel_category">Default novel category</string>
     <string name="default_category_summary">Always ask</string>
     <string name="categorized_display_settings">Per-category settings for sort</string>
     <string name="pref_library_update_categories_details">Entries in excluded categories will not be updated even if they are also in included categories.</string>
@@ -825,7 +861,11 @@
     <string name="pref_anki_duplicate_overwrite">Update existing</string>
     <string name="pref_anki_screenshot_animated_scene">Animated Scene</string>
     <string name="pref_anki_default_tags">Default tags</string>
-    <string name="pref_anki_no_ankidroid">AnkiDroid is not installed</string>
+    <string name="pref_anki_no_ankidroid">The selected Anki app is not installed or does not expose the AnkiDroid API</string>
+    <string name="pref_anki_app">Anki app</string>
+    <string name="pref_anki_app_custom">Custom package</string>
+    <string name="pref_anki_app_package">Package name</string>
+    <string name="pref_anki_app_unsupported">This Anki app uses its own database permission, which this Chimahon build can\'t request</string>
     <string name="pref_anki_permission_denied">AnkiDroid permission denied</string>
     <string name="pref_anki_select_deck">Select deck</string>
     <string name="pref_anki_select_model">Select note type</string>
@@ -1013,6 +1053,7 @@
     <!-- missing prompt after Compose rewrite #7901 -->
     <string name="no_more_results">No more results</string>
     <string name="no_results_found">No results found</string>
+    <string name="dictionary_search_placeholder">Search to view dictionary entries</string>
     <string name="local_source">Local source</string>
     <string name="local_anime_source">Local anime</string>
     <string name="local_anime_source_help_guide">Local anime source guide</string>
@@ -1467,6 +1508,10 @@
     <!-- Player -->
     <string name="pref_player_subtitle">Subtitles</string>
     <string name="pref_player_subtitle_summary">Preferred languages, whitelist, blacklist</string>
+    <string name="pref_subtitle_audio_padding">Subtitle audio padding</string>
+    <string name="pref_subtitle_audio_padding_summary">Extra audio before and after subtitle cues</string>
+    <string name="subtitle_audio_padding_before">Before %1$d ms</string>
+    <string name="subtitle_audio_padding_after">After %1$d ms</string>
     <string name="pref_player_subtitle_lang">Preferred languages</string>
     <string name="pref_player_subtitle_lang_info">Subtitle language(s) to be selected by default on a video with multiple subtitles. Two- or three-letter language codes work. Multiple values can be delimited by a comma.</string>
     <string name="pref_player_subtitle_whitelist">Whitelist</string>
@@ -1824,4 +1869,8 @@
     <string name="extensionRepo_settings">Extension repo</string>
     <string name="pref_disable_long_press_screenshot">Disable long-press screenshot</string>
     <string name="pref_single_tap_to_pause">Single tap to pause</string>
+    <string name="import_subtitle_font">Import font</string>
+    <string name="import_subtitle_font_summary">Add a TTF or OTF subtitle font</string>
+    <string name="subtitle_font_imported">Font imported. Select it in the player subtitle settings.</string>
+    <string name="subtitle_font_import_failed">Could not import font. Choose a valid TTF or OTF file.</string>
 </resources>

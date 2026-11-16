@@ -6,6 +6,7 @@ import androidx.preference.PreferenceScreen
 import androidx.preference.SwitchPreferenceCompat
 import chimahon.novel.plugin.runtime.NovelPluginRuntime
 import eu.kanade.tachiyomi.network.NetworkHelper
+import eu.kanade.tachiyomi.network.NetworkPreferences
 import eu.kanade.tachiyomi.source.model.Filter
 import eu.kanade.tachiyomi.source.model.FilterList
 import eu.kanade.tachiyomi.sourcenovel.HttpNovelSource
@@ -46,7 +47,7 @@ class SimpleLNReaderSource(
     val siteUrl: String,
     private val jsCode: String,
     val codeUrl: String = "",
-) : NovelsPageSource, NovelConfigurableSource, HttpNovelSource {
+) : NovelsPageSource, NovelConfigurableSource, HttpNovelSource, eu.kanade.tachiyomi.sourcenovel.NovelFileSource {
     override val id: Long = pluginId.hashCode().toLong() and Long.MAX_VALUE
     override val name: String = pluginName
     override val lang: String = pluginLang
@@ -69,8 +70,6 @@ class SimpleLNReaderSource(
     }
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-    // Serializes JS executions of this source (see withPlugin).
-    private val jsMutex = Mutex()
     // Novel: single shared executor per process to avoid thread leak (one per source → 50 threads)
     private var cachedJsCode: String? = if (jsCode.isNotBlank()) jsCode else null
     // Novel: bridgeCache for filters/settings so getFilterList never init QuickJS on main thread
@@ -86,6 +85,12 @@ class SimpleLNReaderSource(
         // are confined here, otherwise evaluate/close land on random pool threads and fail
         // ("Cannot get jni env because the vm is not cached") with thread-luck flakiness.
         private val jsDispatcher = Executors.newSingleThreadExecutor { r -> Thread(r, "LNReader-js").apply { isDaemon = true } }.asCoroutineDispatcher()
+
+        /**
+         * Serializes every plugin JS execution in the process. All sources share
+         * [jsDispatcher], so two runtimes must not open, evaluate or close at once.
+         */
+        private val jsMutex = Mutex()
     }
 
     private suspend fun ensureJsCode(): String {
@@ -129,9 +134,7 @@ class SimpleLNReaderSource(
     }
 
     private suspend fun <T> withPlugin(block: suspend (chimahon.novel.plugin.runtime.NovelPluginInstance) -> T): T {
-        // One JS execution per source at a time: concurrent loads (e.g. Popular
-        // + Latest firing together on first open) created two runtimes sharing
-        // the single JS thread and tripped JNI affinity failures.
+        // One JS execution per process: all runtimes share jsDispatcher.
         return jsMutex.withLock {
             val code = ensureJsCode()
             if (code.isBlank()) throw IllegalStateException("JS code not available for $pluginId (site=$siteUrl codeUrl=$codeUrl)")
@@ -562,7 +565,7 @@ class SimpleLNReaderSource(
 
     // ---- File/download sources (PluginBase.getDownloadUrl) ----
 
-    suspend fun hasDownloadSupport(): Boolean {
+    override suspend fun hasDownloadSupport(): Boolean {
         return try {
             withPlugin { instance ->
                 evaluateToString(instance, "typeof plugin.getDownloadUrl === 'function'") == "true"
@@ -575,7 +578,7 @@ class SimpleLNReaderSource(
      * `getDownloadUrl(path, format?)`. Returns null when unsupported,
      * failed, or empty (e.g. file-less metadata entries).
      */
-    suspend fun getDownloadUrl(path: String, format: String? = null): String? {
+    override suspend fun getDownloadUrl(path: String, format: String?): String? {
         return try {
             withPlugin { instance ->
                 val quotedPath = jsonQuote(path)
@@ -602,6 +605,17 @@ class SimpleLNReaderSource(
             logcat(LogPriority.WARN, e) { "[$pluginId] getDownloadUrl failed for $path" }
             null
         }
+    }
+
+    /**
+     * LNReader file sources are browser-facing sites: several CDNs block bare
+     * `Mozilla/5.0` (epub.moe returns 567) and hotlink-protect the file host
+     * unless the source origin is sent as the Referer.
+     */
+    override fun downloadHeaders(path: String): Map<String, String> = buildMap {
+        put("User-Agent", Injekt.get<NetworkPreferences>().defaultUserAgent().get())
+        val origin = siteUrl.trim().trimEnd('/')
+        if (origin.isNotBlank()) put("Referer", "$origin/")
     }
 
     override fun setupPreferenceScreen(screen: PreferenceScreen) {
@@ -660,5 +674,4 @@ class SimpleLNReaderSource(
         }
     }
 }
-
 

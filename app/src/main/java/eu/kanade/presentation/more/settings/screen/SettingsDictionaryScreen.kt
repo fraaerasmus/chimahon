@@ -53,6 +53,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -80,13 +81,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import chimahon.HoshiDicts
+import chimahon.anki.AnkiAppSelection
 import chimahon.anki.AnkiCardCreator
 import chimahon.anki.AnkiDroidBridge
 import chimahon.anki.AnkiProfile
 import chimahon.anki.AnkiScreenshotMode
+import chimahon.anki.KNOWN_ANKI_APPS
 import chimahon.anki.LapisPreset
 import chimahon.anki.Marker
+import chimahon.dictionary.DictionaryCommitter
+import chimahon.dictionary.detectedTypes
 import chimahon.dictionary.readDictionaryIndex
+import chimahon.dictionary.scanDictionaryFolders
+import chimahon.dictionary.scanDictionaryNames
 import chimahon.ocr.CropPresets
 import chimahon.novel.data.FontManager
 import com.hippo.unifile.UniFile
@@ -322,19 +329,17 @@ private fun loadDictionaryList(context: Context) {
     Log.d(TAG, "loadDictionaryList: called")
     val dictionariesDir = File(context.getExternalFilesDir(null), "dictionaries")
     val names = if (dictionariesDir.exists()) {
-        val typed = listOf("term", "frequency", "pitch", "kanji")
-            .flatMap { type ->
-                val typeDir = File(dictionariesDir, type)
-                if (!typeDir.isDirectory) emptyList()
-                else typeDir.listFiles()?.filter { it.isDirectory }?.map { it.name }.orEmpty()
-            }
-            .distinct()
+        val typed = scanDictionaryNames(dictionariesDir)
         if (typed.isNotEmpty()) {
             typed
         } else {
             // Fallback for flat layout (pre-migration or probe failure) - minimal clean fix
             val typeSet = setOf("term", "frequency", "pitch", "kanji")
-            dictionariesDir.listFiles()?.filter { it.isDirectory && it.name !in typeSet }?.map { it.name }.orEmpty().distinct()
+            dictionariesDir.listFiles()
+                ?.filter { it.isDirectory && it.name !in typeSet && !it.name.startsWith(".") }
+                ?.map { it.name }
+                .orEmpty()
+                .distinct()
         }
     } else {
         emptyList()
@@ -607,6 +612,7 @@ object SettingsDictionaryScreen : SearchableSettings {
         val popupSwipeThresholdPref = dictionaryPreferences.popupSwipeThreshold()
         val popupSwipeThreshold by popupSwipeThresholdPref.collectAsState()
         val popupSwipeToDismiss by dictionaryPreferences.popupSwipeToDismiss().collectAsState()
+        val renderer by dictionaryPreferences.renderer().collectAsState()
 
         val paginatedScrolling by dictionaryPreferences.paginatedScrolling().collectAsState()
         val paginatedScrollStepSizePref = dictionaryPreferences.paginatedScrollStepSize()
@@ -676,6 +682,17 @@ object SettingsDictionaryScreen : SearchableSettings {
                 ),
             )
             add(
+                Preference.PreferenceItem.ListPreference(
+                    preference = dictionaryPreferences.renderer(),
+                    entries = persistentListOf(
+                        DictionaryPreferences.RENDERER_WEBVIEW to "WebView",
+                        DictionaryPreferences.RENDERER_COMPOSE to "Native",
+                    ).associate { it.first to it.second }.toPersistentMap(),
+                    title = "Renderer",
+                    subtitle = "Native draws entries without a WebView",
+                ),
+            )
+            add(
                 Preference.PreferenceItem.SwitchPreference(
                     preference = dictionaryPreferences.popupSwipeToDismiss(),
                     title = stringResource(MR.strings.pref_dict_popup_swipe_to_dismiss),
@@ -693,7 +710,7 @@ object SettingsDictionaryScreen : SearchableSettings {
                     ),
                 )
             }
-            if (paginatedScrolling) {
+            if (renderer == DictionaryPreferences.RENDERER_WEBVIEW && paginatedScrolling) {
                 add(
                     Preference.PreferenceItem.SliderPreference(
                         value = paginatedScrollStepSize,
@@ -705,24 +722,26 @@ object SettingsDictionaryScreen : SearchableSettings {
                     ),
                 )
             }
-            add(
-                Preference.PreferenceItem.ListPreference(
-                    preference = dictionaryPreferences.scrollBehavior(),
-                    entries = persistentListOf(
-                        DictionaryPreferences.SCROLL_SMOOTH to "Smooth",
-                        DictionaryPreferences.SCROLL_INSTANT to "Instant",
-                    ).associate { it.first to it.second }.toPersistentMap(),
-                    title = "Scroll behavior",
-                    subtitle = "Controls how floating navigation buttons scroll between entries",
-                ),
-            )
-            add(
-                Preference.PreferenceItem.SwitchPreference(
-                    preference = dictionaryPreferences.volumeKeyNavigation(),
-                    title = "Volume key navigation",
-                    subtitle = "Use volume keys to scroll between dictionary entries",
-                ),
-            )
+            if (renderer == DictionaryPreferences.RENDERER_WEBVIEW) {
+                add(
+                    Preference.PreferenceItem.ListPreference(
+                        preference = dictionaryPreferences.scrollBehavior(),
+                        entries = persistentListOf(
+                            DictionaryPreferences.SCROLL_SMOOTH to "Smooth",
+                            DictionaryPreferences.SCROLL_INSTANT to "Instant",
+                        ).associate { it.first to it.second }.toPersistentMap(),
+                        title = "Scroll behavior",
+                        subtitle = "Controls how floating navigation buttons scroll between entries",
+                    ),
+                )
+                add(
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = dictionaryPreferences.volumeKeyNavigation(),
+                        title = "Volume key navigation",
+                        subtitle = "Use volume keys to scroll between dictionary entries",
+                    ),
+                )
+            }
         }.toPersistentList() as kotlinx.collections.immutable.ImmutableList<Preference.PreferenceItem<out Any, out Any>>
 
         return listOf(
@@ -903,11 +922,17 @@ object SettingsDictionaryScreen : SearchableSettings {
                         title = "E-Ink mode",
                         subtitle = "Removes animations, shadows, and rounded corners for better readability on e-ink displays",
                     ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = dictionaryPreferences.paginatedScrolling(),
-                        title = "Paginated scrolling",
-                        subtitle = "Scroll by page-sized steps instead of smooth scrolling",
-                    ),
+                    *if (renderer == DictionaryPreferences.RENDERER_WEBVIEW) {
+                        arrayOf<Preference.PreferenceItem<out Any, out Any>>(
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = dictionaryPreferences.paginatedScrolling(),
+                                title = "Paginated scrolling",
+                                subtitle = "Scroll by page-sized steps instead of smooth scrolling",
+                            ),
+                        )
+                    } else {
+                        emptyArray()
+                    },
                     Preference.PreferenceItem.CustomPreference(
                         title = stringResource(MR.strings.pref_dict_custom_css),
                         content = {
@@ -1011,16 +1036,22 @@ object SettingsDictionaryScreen : SearchableSettings {
                         title = stringResource(MR.strings.pref_dict_group_terms),
                         subtitle = stringResource(MR.strings.pref_dict_group_terms_summary),
                     ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = dictionaryPreferences.compactGlossary(),
-                        title = "Compact glossaries",
-                        subtitle = "Show all senses inline separated by · instead of a numbered list",
-                    ),
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = dictionaryPreferences.showNavigationButtons(),
-                        title = stringResource(KMR.strings.pref_dict_show_navigation_buttons),
-                        subtitle = stringResource(KMR.strings.pref_dict_show_navigation_buttons_summary),
-                    ),
+                    *if (renderer == DictionaryPreferences.RENDERER_WEBVIEW) {
+                        arrayOf<Preference.PreferenceItem<out Any, out Any>>(
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = dictionaryPreferences.compactGlossary(),
+                                title = "Compact glossaries",
+                                subtitle = "Show all senses inline separated by · instead of a numbered list",
+                            ),
+                            Preference.PreferenceItem.SwitchPreference(
+                                preference = dictionaryPreferences.showNavigationButtons(),
+                                title = stringResource(KMR.strings.pref_dict_show_navigation_buttons),
+                                subtitle = stringResource(KMR.strings.pref_dict_show_navigation_buttons_summary),
+                            ),
+                        )
+                    } else {
+                        emptyArray()
+                    },
                     Preference.PreferenceItem.ListPreference(
                         preference = dictionaryPreferences.recursiveLookupMode(),
                         entries = persistentListOf(
@@ -1277,11 +1308,7 @@ object SettingsDictionaryScreen : SearchableSettings {
 
         val dictTypes = remember(dictionaries) {
             val dir = File(context.getExternalFilesDir(null), "dictionaries")
-            dictionaries.map { name ->
-                name to listOf("term", "frequency", "pitch", "kanji").filter { type ->
-                    File(dir, "$type/$name").isDirectory
-                }
-            }.toMap()
+            scanDictionaryFolders(dir).associate { folder -> folder.name to folder.types.map { it.dirName } }
         }
 
         val orderedDicts = remember(dictionaries, currentOrder) {
@@ -1766,7 +1793,12 @@ object SettingsDictionaryScreen : SearchableSettings {
         val activity = context as? android.app.Activity
         val scope = rememberCoroutineScope()
         val dictionaryPreferences = remember { Injekt.get<DictionaryPreferences>() }
-        val bridge = remember { AnkiDroidBridge(context) }
+        val ankiAppPackage by dictionaryPreferences.ankiAppPackage().collectAsState()
+        val bridge = remember(ankiAppPackage) { AnkiDroidBridge(context, ankiAppPackage) }
+
+        LaunchedEffect(ankiAppPackage) {
+            AnkiAppSelection.packageName = ankiAppPackage
+        }
 
         val dictionaries by dictionaryNames.collectAsState()
 
@@ -1854,17 +1886,15 @@ object SettingsDictionaryScreen : SearchableSettings {
         }
 
         // Check AnkiDroid status whenever screen is visible and enabled
-        LaunchedEffect(enabled, selectedDeck, selectedModel) {
+        LaunchedEffect(enabled, selectedDeck, selectedModel, ankiAppPackage) {
             if (!enabled) {
                 Log.d("AnkiSettings", "Anki disabled, skipping")
                 return@LaunchedEffect
             }
 
-            // Check installation
-            if (ankiInstalled == null) {
-                ankiInstalled = bridge.isAnkiDroidInstalled()
-                Log.d("AnkiSettings", "AnkiDroid installed: $ankiInstalled")
-            }
+            // Check installation for the selected Anki app
+            ankiInstalled = bridge.isAnkiDroidInstalled()
+            Log.d("AnkiSettings", "Anki app $ankiAppPackage installed: $ankiInstalled")
 
             // Check permission
             val hasPerm = bridge.hasPermission()
@@ -1973,6 +2003,39 @@ object SettingsDictionaryScreen : SearchableSettings {
         val cropPresetMap = cropPresetEntries.associate { it.first to it.second }.toPersistentMap()
 
         val preferenceItems = buildList<Preference.PreferenceItem<*, *>> {
+            add(
+                Preference.PreferenceItem.CustomPreference(
+                    title = "Anki app",
+                    content = {
+                        var showAppDialog by remember { mutableStateOf(false) }
+                        val currentApp = AnkiAppSelection.app(ankiAppPackage)
+                        TextPreferenceWidget(
+                            title = stringResource(MR.strings.pref_anki_app),
+                            subtitle = "${currentApp.label} (${currentApp.packageName})",
+                            onPreferenceClick = { showAppDialog = true },
+                        )
+                        if (showAppDialog) {
+                            AnkiAppPickerDialog(
+                                currentPackage = ankiAppPackage,
+                                onDismiss = { showAppDialog = false },
+                                onConfirm = { picked ->
+                                    showAppDialog = false
+                                    when {
+                                        !AnkiAppSelection.isInstalled(context, picked) ->
+                                            context.toast(MR.strings.pref_anki_no_ankidroid)
+                                        !AnkiAppSelection.canRequestPermission(context, picked) ->
+                                            context.toast(MR.strings.pref_anki_app_unsupported)
+                                        else -> {
+                                            dictionaryPreferences.ankiAppPackage().set(picked)
+                                            AnkiAppSelection.packageName = picked
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    },
+                ),
+            )
             add(
                 Preference.PreferenceItem.CustomPreference(
                     title = stringResource(MR.strings.pref_anki_enable),
@@ -2809,26 +2872,27 @@ private suspend fun importDictionaryFromStream(
             val title = if (result.title.isNotBlank()) result.title else importedDir.name
             Log.d(TAG, "importDictionaryFromStream: imported dict title=$title")
 
-            data class CopyTarget(val type: String, val count: Long)
-            val targets = buildList {
-                if (result.termCount > 0) add(CopyTarget("term", result.termCount))
-                if (result.freqCount > 0) add(CopyTarget("frequency", result.freqCount))
-                if (result.pitchCount > 0) add(CopyTarget("pitch", result.pitchCount))
-                if (result.kanjiCount > 0) add(CopyTarget("kanji", result.kanjiCount))
-            }
-
-            if (targets.isEmpty()) {
+            val types = result.detectedTypes()
+            if (types.isEmpty()) {
                 Log.e(TAG, "importDictionaryFromStream: no entries found")
                 return@withContext Pair("Dictionary has no recognizable entries", false)
             }
 
-            for (target in targets) {
-                val typeDir = File(dictionariesDir, target.type)
-                if (!typeDir.exists()) typeDir.mkdirs()
-                val destDir = File(typeDir, title)
-                if (destDir.exists()) destDir.deleteRecursively()
-                importedDir.copyRecursively(destDir, overwrite = true)
-                Log.d(TAG, "importDictionaryFromStream: copied to ${target.type}/$title")
+            // One folder, written once, with the kinds it serves recorded inside it. A folder
+            // already there for this dictionary is replaced by renaming, never deleted first.
+            val report = try {
+                DictionaryCommitter.commit(importedDir, dictionariesDir, title, types)
+            } catch (e: Exception) {
+                Log.e(TAG, "importDictionaryFromStream: commit failed", e)
+                return@withContext Pair(e.message ?: context.stringResource(MR.strings.unknown_error), false)
+            }
+            Log.d(
+                TAG,
+                "importDictionaryFromStream: wrote $title as ${report.types.joinToString(", ") { it.dirName }} " +
+                    "to ${report.writtenDir.absolutePath}",
+            )
+            for (removed in report.removedDuplicates) {
+                Log.d(TAG, "importDictionaryFromStream: removed duplicate ${removed.absolutePath}")
             }
 
             // Auto-download kanji stroke font if any kanji dicts were imported
@@ -2867,7 +2931,6 @@ private suspend fun importDictionaryFromStream(
                 )
             }
 
-            val typeHints = targets.joinToString(", ") { it.type }
             Pair(
                 context.stringResource(
                     MR.strings.pref_import_dictionary_success,
@@ -3002,4 +3065,91 @@ private fun getFileNameFromUri(context: Context, uri: Uri): String {
         }
     }
     return uri.lastPathSegment ?: "Unknown File"
+}
+
+@Composable
+private fun AnkiAppPickerDialog(
+    currentPackage: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    val knownPackages = KNOWN_ANKI_APPS.map { it.packageName }
+    var customSelected by remember { mutableStateOf(currentPackage !in knownPackages) }
+    var selectedPackage by remember { mutableStateOf(currentPackage) }
+    var customPackage by remember { mutableStateOf(if (currentPackage in knownPackages) "" else currentPackage) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(MR.strings.pref_anki_app)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                KNOWN_ANKI_APPS.forEach { app ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                customSelected = false
+                                selectedPackage = app.packageName
+                            }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = !customSelected && selectedPackage == app.packageName,
+                            onClick = {
+                                customSelected = false
+                                selectedPackage = app.packageName
+                            },
+                        )
+                        Column {
+                            Text(app.label)
+                            Text(
+                                text = app.packageName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { customSelected = true }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(
+                        selected = customSelected,
+                        onClick = { customSelected = true },
+                    )
+                    Text(stringResource(MR.strings.pref_anki_app_custom))
+                }
+                if (customSelected) {
+                    OutlinedTextField(
+                        value = customPackage,
+                        onValueChange = { customPackage = it },
+                        label = { Text(stringResource(MR.strings.pref_anki_app_package)) },
+                        placeholder = { Text("io.github.example.anki") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val picked = if (customSelected) customPackage.trim() else selectedPackage
+                    if (picked.isNotBlank()) onConfirm(picked)
+                },
+            ) {
+                Text(stringResource(MR.strings.action_ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(MR.strings.action_cancel))
+            }
+        },
+    )
 }

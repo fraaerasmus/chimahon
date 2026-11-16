@@ -18,6 +18,7 @@ import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.viewer.OcrCoordinateMapper
+import eu.kanade.tachiyomi.ui.reader.viewer.OcrPageRegion
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -95,6 +96,7 @@ class WebtoonPageHolder(
      * Calculated during `setImage` if `imageCropBorders` is enabled.
      */
     private var pageCropRect: android.graphics.RectF? = null
+    private var ocrOriginalIsWide = false
 
     init {
         refreshLayoutParams()
@@ -105,13 +107,15 @@ class WebtoonPageHolder(
         // Custom -->
         frame.lookupLanguageCodeProvider = { viewer.lookupLanguageCodeProvider() }
         // Custom <--
-        frame.onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, mediaInfo, _ ->
+        frame.onShowOcrPopup = { lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, mediaInfo, block ->
+            viewer.syncOcrSelection(this, block?.sharedId, frame.activeOcrCharOffset)
             viewer.onShowOcrPopup?.invoke(lookupString, fullText, charOffset, anchorX, anchorY, anchorWidth, anchorHeight, isVertical, mediaInfo, page)
         }
         frame.onShowOcrSelectionPanel = { text, anchorX, anchorY, anchorWidth, anchorHeight ->
             viewer.onShowOcrSelectionPanel?.invoke(text, anchorX, anchorY, anchorWidth, anchorHeight)
         }
         frame.onDismissOcrPopup = {
+            viewer.syncOcrSelection(this, null, 0)
             viewer.onDismissOcrPopup?.invoke()
         }
     }
@@ -258,6 +262,7 @@ class WebtoonPageHolder(
     }
 
     private fun process(imageSource: BufferedSource): BufferedSource {
+        ocrOriginalIsWide = ImageUtil.isWideImage(imageSource)
         if (viewer.config.dualPageRotateToFit) {
             return rotateDualPage(imageSource)
         }
@@ -300,6 +305,31 @@ class WebtoonPageHolder(
         applyOcrEnabled(viewer.activity.viewModel.isOcrEnabled())
     }
 
+    fun ocrRegions(screenRegion: RectF): List<OcrPageRegion> {
+        val target = page ?: return emptyList()
+        val selected = frame.normalizedOcrRegion(screenRegion) ?: return emptyList()
+        val region = OcrCoordinateMapper.regionToSource(selected, sourceBounds = pageCropRect ?: RectF(0f, 0f, 1f, 1f))
+            ?: return emptyList()
+        val regions = when {
+            viewer.config.dualPageRotateToFit && ocrOriginalIsWide -> listOf(
+                OcrCoordinateMapper.regionBeforeRotation(region, !viewer.config.dualPageRotateToFitInvert),
+            )
+            viewer.config.dualPageSplit && !viewer.config.dualPageRotateToFit && ocrOriginalIsWide -> {
+                val upperIsRight = !viewer.config.dualPageInvert
+                listOf(0f, .5f).mapNotNull { top ->
+                    val rightHalf = (top == 0f) == upperIsRight
+                    OcrCoordinateMapper.regionToSource(
+                        region,
+                        RectF(0f, top, 1f, top + .5f),
+                        if (rightHalf) RectF(.5f, 0f, 1f, 1f) else RectF(0f, 0f, .5f, 1f),
+                    )
+                }
+            }
+            else -> listOf(region)
+        }
+        return regions.map { OcrPageRegion(target, it) }
+    }
+
     fun applyOcrEnabled(enabled: Boolean) {
         frame.ocrOutlineVisible = viewer.activity.viewModel.isOcrOutlineVisible()
         frame.ocrBoxScaleX = viewer.activity.viewModel.getOcrBoxScaleX()
@@ -331,6 +361,15 @@ class WebtoonPageHolder(
         frame.ocrOutlineVisible = visible
     }
 
+    fun refreshOcr(chapterId: Long, index: Int) {
+        val target = page ?: return
+        if (!frame.ocrEnabled || target.chapter.chapter.id != chapterId ||
+            (target.index != index && target.index != index + 1)
+        ) return
+        ocrLoadJob?.cancel()
+        ocrLoadJob = scope.launch { loadOcrWithTransform(target) }
+    }
+
     fun applyOcrBoxScale(scaleX: Float, scaleY: Float) {
         frame.ocrBoxScaleX = scaleX
         frame.ocrBoxScaleY = scaleY
@@ -356,7 +395,7 @@ class WebtoonPageHolder(
                 (viewer.config.continuousCropBorders && !viewer.isContinuous)
 
             logcat { "OCR request start (webtoon): chapter=${targetPage.chapter.chapter.id} page=${targetPage.index}" }
-            var blocks = viewModel.getOcrBlocks(targetPage)
+            var blocks = viewModel.getWebtoonOcrBlocks(targetPage)
 
             if (blocks.isEmpty()) {
                 frame.setOcrBlocks(blocks)
@@ -399,7 +438,7 @@ class WebtoonPageHolder(
             // ── Case 2: Crop borders ────────────────────────────────────────────────────
             val cropRect = pageCropRect
             if (cropBordersEnabled && blocks.isNotEmpty() && cropRect != null) {
-                blocks = OcrCoordinateMapper.remapToCrop(blocks, cropRect)
+                blocks = OcrCoordinateMapper.remapToCrop(blocks, cropRect, clipToBounds = false)
                 logcat { "OCR crop-remap done (webtoon): ${blocks.size} blocks" }
             }
 
@@ -484,6 +523,14 @@ class WebtoonPageHolder(
     /** True if this page currently has an active (highlighted) OCR block. */
     val hasActiveOcrBlock: Boolean
         get() = frame.activeOcrBlock != null
+
+    fun syncOcrSelection(sharedId: String?, charOffset: Int) {
+        frame.activeOcrBlock = sharedId?.let { id -> frame.ocrBlocks.firstOrNull { it.sharedId == id } }
+        frame.activeOcrCharOffset = charOffset
+        frame.activeOcrMatchedCount = 0
+        frame.ocrLayoutCache = null
+        frame.pageView?.invalidate()
+    }
 
     /**
      * Dismiss the active OCR block on this page, clearing the highlight and closing the popup.

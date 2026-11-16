@@ -1,4 +1,17 @@
 pluginManagement {
+    buildscript {
+        repositories {
+            google()
+            mavenCentral()
+            maven("https://storage.googleapis.com/r8-releases/raw") {
+                content { includeModule("com.android.tools", "r8") }
+            }
+        }
+        dependencies {
+            // Kotlin 2.4 requires D8/R8 9.1.29 or newer.
+            classpath("com.android.tools:r8:9.1.29")
+        }
+    }
     resolutionStrategy {
         eachPlugin {
             val regex = "com.android.(library|application)".toRegex()
@@ -32,10 +45,6 @@ dependencyResolutionManagement {
     }
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        // Chimahon Custom -->
-        // Artifacts JitPack no longer serves (see local-maven/README.md).
-        maven(url = uri("local-maven"))
-        // Chimahon Custom <--
         mavenCentral()
         google()
         maven(url = "https://www.jitpack.io")
@@ -47,6 +56,10 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 rootProject.name = "Komikku"
 include(":chimahon")
 project(":chimahon").projectDir = file("chimahon")
+if (providers.gradleProperty("includeLocalDictionaryHarness").orNull == "true") {
+    include(":dictionary-fidelity")
+    project(":dictionary-fidelity").projectDir = file("tools/dictionary-harness/fidelity")
+}
 include(":app")
 include(":core-metadata")
 include(":core:archive")

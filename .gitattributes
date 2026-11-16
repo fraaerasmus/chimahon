@@ -22,8 +22,3 @@
 *.woff binary
 *.pyc binary
 *.swp binary
-
-# Chimahon Custom -->
-local-maven/** -text
-local-maven/**/*.aar binary
-# Chimahon Custom <--

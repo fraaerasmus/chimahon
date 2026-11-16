@@ -3,6 +3,7 @@ package eu.kanade.presentation.reader.appbars
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CropFree
 import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.FormatListNumbered
 import androidx.compose.material.icons.outlined.Public
@@ -49,6 +50,7 @@ fun ReaderBottomBar(
     onClickShare: (() -> Unit)?,
     onClickPageLayout: () -> Unit,
     onClickShiftPage: () -> Unit,
+    onCropReOcr: (() -> Unit)?,
     // SY <--
     modifier: Modifier = Modifier,
 ) {
@@ -154,29 +156,35 @@ fun ReaderBottomBar(
         }
 
         if (
-            !dualPageSplitEnabled &&
             ReaderBottomButton.PageLayout.isIn(enabledButtons) &&
+            !dualPageSplitEnabled &&
             ReadingMode.isPagerType(currentReadingMode.flagValue)
         ) {
             IconButton(onClick = onClickPageLayout) {
                 Icon(
                     painter = painterResource(R.drawable.ic_book_open_variant_24dp),
                     contentDescription = stringResource(SYMR.strings.page_layout),
-                    // KMK -->
                     tint = iconColor,
-                    // KMK <--
                 )
             }
         }
 
-        if (doublePages) {
+        if (ReaderBottomButton.PageLayout.isIn(enabledButtons) && doublePages) {
             IconButton(onClick = onClickShiftPage) {
                 Icon(
                     painter = painterResource(R.drawable.ic_page_next_outline_24dp),
                     contentDescription = stringResource(SYMR.strings.shift_double_pages),
-                    // KMK -->
                     tint = iconColor,
-                    // KMK <--
+                )
+            }
+        }
+
+        if (ReaderBottomButton.CropReOcr.isIn(enabledButtons) && onCropReOcr != null) {
+            IconButton(onClick = onCropReOcr) {
+                Icon(
+                    imageVector = Icons.Outlined.CropFree,
+                    contentDescription = stringResource(MR.strings.pref_ocr_two_finger_region),
+                    tint = iconColor,
                 )
             }
         }

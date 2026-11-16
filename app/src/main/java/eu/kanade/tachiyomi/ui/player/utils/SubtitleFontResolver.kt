@@ -1,33 +1,51 @@
 package eu.kanade.tachiyomi.ui.player.utils
 
 import android.content.Context
-import android.graphics.Typeface
-import androidx.compose.ui.text.font.FontFamily
+import android.net.Uri
+import chimahon.novel.data.FontManager
 import com.yubyf.truetypeparser.TTFFile
+import eu.kanade.tachiyomi.ui.player.getFileName
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Resolves subtitle font families to files and Compose [FontFamily]s.
- *
- * Single source of truth for both the font picker and the subtitle overlay:
- * the shared app fonts directory plus Android system font directories.
+ * Resolves font files for the subtitle font picker from the app and system font directories.
  */
 object SubtitleFontResolver {
 
     private val systemFontDirs = listOf("/system/fonts/", "/product/fonts/")
 
     @Volatile
-    private var cachedFamilies: Pair<Boolean, Map<String, File>>? = null
+    private var cachedFamilies: Triple<Boolean, Long, Map<String, File>>? = null
+
+    suspend fun importFont(context: Context, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val name = uri.getFileName(context) ?: return@withContext false
+            if (!name.lowercase().matches(FONT_EXTENSION_REGEX)) return@withContext false
+            val valid = context.contentResolver.openInputStream(uri)?.use {
+                TTFFile.open(it).families.isNotEmpty()
+            } == true
+            if (!valid) return@withContext false
+            FontManager.importFont(context, uri).also { if (it) invalidate() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
 
     /**
      * Family name to font file, user fonts first so they win on duplicates.
      */
     suspend fun fontFamilies(context: Context, includeSystemFonts: Boolean): Map<String, File> =
         withContext(Dispatchers.IO) {
-            cachedFamilies?.takeIf { it.first == includeSystemFonts }?.let { return@withContext it.second }
-            val dirs = listOf(chimahon.novel.data.FontManager.getFontsDir(context)) +
+            val userFonts = FontManager.getFontsDir(context)
+            val modified = userFonts.lastModified()
+            cachedFamilies?.takeIf { it.first == includeSystemFonts && it.second == modified }
+                ?.let { return@withContext it.third }
+            val dirs = listOf(userFonts) +
                 systemFontDirs.map(::File).takeIf { includeSystemFonts }.orEmpty()
             val families = dirs
                 .filter { it.isDirectory }
@@ -43,23 +61,12 @@ object SubtitleFontResolver {
                 }
                 .distinctBy { it.first }
                 .toMap()
-            cachedFamilies = includeSystemFonts to families
+            cachedFamilies = Triple(includeSystemFonts, modified, families)
             families
         }
 
     fun invalidate() {
         cachedFamilies = null
-    }
-
-    suspend fun resolveFontFamily(
-        context: Context,
-        family: String,
-        includeSystemFonts: Boolean,
-    ): FontFamily? {
-        return runCatching {
-            val file = fontFamilies(context, includeSystemFonts)[family] ?: return null
-            FontFamily(Typeface.createFromFile(file))
-        }.getOrNull()
     }
 
     private val FONT_EXTENSION_REGEX = Regex(""".*\.[ot]tf$""")

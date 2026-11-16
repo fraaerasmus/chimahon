@@ -21,7 +21,6 @@ fork line:
 | Updater repo `fraaerasmus/chimahon` | `app/src/main/java/eu/kanade/tachiyomi/data/updater/AppUpdateChecker.kt` (`getGithubRepo()`) |
 | `Constants.GITHUB_PROJECT` → fork URL | `core/common/src/main/kotlin/tachiyomi/core/common/Constants.kt` |
 | About-screen GitHub link → fork URL | `app/src/main/java/eu/kanade/presentation/more/settings/screen/about/AboutScreen.kt` |
-| `local-maven/` repo listed first (vendored FlexibleAdapter, see its README) | `settings.gradle.kts` (`dependencyResolutionManagement.repositories`) |
 
 Signing: our own keystore (never upstream's), applied in CI via repo secrets
 `SIGNING_KEY` / `ALIAS` / `KEY_STORE_PASSWORD` / `KEY_PASSWORD`.
@@ -138,7 +137,7 @@ the merge conflicts here and the fork side has to be updated by hand.
 |---|---|---|
 | `ui/youtube/YouTubeBrowserScreen.kt` | `goBack()`, the back and close buttons, the target / latest / home chain | `YouTubeBrowserNavigation`, `YouTubeBrowserStart` |
 | `ui/youtube/YouTubeResolver.kt` | the subtitle and audio track lists in `resolveVideo` | `YouTubeStreamSelection` |
-| `ui/player/controls/PlayerControls.kt` | `detectTapGestures` on the subtitle line, `extractOcrLookupString` in the tap selection | `claimTapWhereHit`, `extractOcrLookupSelection` |
+| `ui/player/controls/PlayerControls.kt` | the lookup string `NativeSubtitleGeometry.lookupAt` takes from the tapped character | `NativeSubtitleLookup.startingAtWord` |
 | `ui/player/controls/components/panels/SubtitleListPanel.kt` | the scroll-to-active effect, the centred scroll delta, `clickable` on a row | `FollowActiveCue`, `centeredScrollDelta`, `tapLeavingLongPress` |
 | `ui/player/controls/GestureHandler.kt` | the `areControlsLocked` state, the long-press guard and its screenshot body | `rememberCustomGestureConfig`, the rest fenced in place |
 | `presentation/more/settings/screen/player/PlayerSettingsGesturesScreen.kt` | `enabled = !subtitleSwipeControls` on the two slider switches | `CustomGestureSettings.slidersAvailable` |
@@ -149,7 +148,7 @@ the merge conflicts here and the fork side has to be updated by hand.
 | `assets/dictionary/renderer.js` | the tapped word as a plain string | fenced in place |
 
 Upstream symbols whose visibility the fork widens (each is one fenced token; do not add more,
-copy a small constant instead): `lookupWithSearchResolution` in `OcrLookupPopup.kt`,
+copy a small constant instead):
 `conditionHierarchy` in `DeinflectorHelpers.kt`, `addMangaToLibrary` in `ImportHandler.kt`.
 
 ## Where fork features live
@@ -171,19 +170,26 @@ copy a small constant instead): `lookupWithSearchResolution` in `OcrLookupPopup.
   `importBooks`, which returns its `Job` so the download can be deleted afterwards.
   `BookImporter` and `FileNames` are identical to upstream. Saved catalogs are one private
   entry in the preference store (`OpdsCatalogRepository`).
+  Upstream v2.5.0 added its own OPDS, a novel source in `chimahon/novel/opds` (EPUB only, on
+  `NetworkHelper.client`, so no LAN or VPN names). Both are kept: the fork's moved to
+  `chimahon.custom.opds` because the two packages had classes of the same names.
 - **Server upload:** `eu/kanade/tachiyomi/data/upload`. These six files are ours but stay in
   an upstream package on purpose: two of them are WorkManager workers, and WorkManager stores
   the class name with every queued job. The UI is in `chimahon/custom/upload`.
 - **Player key bindings:** `chimahon/keybinding`. `KeyAction` is the registry: each entry
   declares its screen, heading, title and argument. Bindings are stored one preference per
   screen (`pref_key_bindings_<screen>`), so a reader can get its own set later without a
-  migration, and the player reads them live. `PlayerWordCursor` holds the key cursor; `WordCursorOpenEffect` and
-  `PopupKeyScriptsEffect` connect it to the subtitle line and the popup. `cycleSubtitle` stays
+  migration, and the player reads them live. `PlayerWordCursor` holds the key cursor; `NativeWordCursorEffects` and
+  `PopupKeyScriptsEffect` connect it to the subtitle line and the popup. Since upstream v2.5.0
+  mpv draws the subtitles itself, so the cursor reads the line, and the boxes of its characters,
+  from mpv's `sub-text-geometry` (`NativeSubtitleLookup`), and opens the popup by tapping the
+  middle of the word's first character through upstream's own tap handler. `cycleSubtitle` stays
   in `PlayerViewModel` because it needs the view model's private state.
 - **Player gestures, reporting and assets:** `chimahon/custom/player`. Gesture options
   (`CustomGesturePreferences`, `CustomGestureConfig`, `CustomGestureSettings`,
-  `CustomPlayerEnums`), the subtitle list (`SubtitleListSupport`), tapping
-  a subtitle word (`SubtitleWordLookup`), media session state and Jellyfin reporting
+  `CustomPlayerEnums`), the subtitle list (`SubtitleListSupport`), the lookup
+  profile (`rememberPlayerLookupProfile`), word starts, the key cursor and the secondary line on
+  mpv's subtitles (`NativeSubtitleLookup`), media session state and Jellyfin reporting
   (`PlayerSessionReporters`, `JellyfinPlaybackReporter`), the mpv asset self-heal
   (`PlayerAssets`) and the sentence-audio header list (`SentenceAudioInput`). The Jellyfin
   reporter follows mpv's file-loaded event in the activity. The YouTube one
@@ -202,7 +208,7 @@ copy a small constant instead): `lookupWithSearchResolution` in `OcrLookupPopup.
   same scanner for the WebViews and has to be kept in step with the Kotlin one by hand.
 - **Smaller pieces:** the ComicInfo `LanguageISO` field (`core-metadata` and
   `domain/manga/model/Manga.kt`), the `{secondary-subtitle}` Anki marker (`AnkiCardCreator`,
-  `MediaInfo`), the playback log switch (`AniyomiMPVView`, `AdvancedPlayerPreferences`).
+  `MediaInfo`, filled from mpv's `secondary-sub-text`), the playback log switch (`AniyomiMPVView`, `AdvancedPlayerPreferences`).
 
 ## Releases and versioning
 

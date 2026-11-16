@@ -17,6 +17,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -40,8 +42,10 @@ import androidx.core.content.ContextCompat
 import chimahon.ocr.OcrCacheManager
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.more.settings.Preference
+import eu.kanade.presentation.more.settings.widget.SwitchPreferenceWidget
 import eu.kanade.tachiyomi.data.ocr.ModelDownloader
 import eu.kanade.tachiyomi.ui.dictionary.DictionaryPreferences
+import eu.kanade.tachiyomi.ui.player.settings.SubtitlePreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.collections.immutable.persistentListOf
@@ -71,6 +75,7 @@ object SettingsOcrScreen : SearchableSettings {
     override fun getPreferences(): List<Preference> {
         val dictionaryPreferences = remember { Injekt.get<DictionaryPreferences>() }
         val readerPreferences = remember { Injekt.get<ReaderPreferences>() }
+        val subtitlePreferences = remember { Injekt.get<SubtitlePreferences>() }
         val cacheManager = remember { Injekt.get<OcrCacheManager>() }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
@@ -95,6 +100,10 @@ object SettingsOcrScreen : SearchableSettings {
         val activeOcrBgOpacityPref = dictionaryPreferences.activeOcrBgOpacity()
         val activeOcrBgOpacity by activeOcrBgOpacityPref.collectAsState()
 
+        val regionGesturePref = readerPreferences.ocrTwoFingerRegionEnabled()
+        val regionGesture by regionGesturePref.collectAsState()
+        val overlayGesturePref = readerPreferences.ocrTwoFingerGestureEnabled()
+        val overlayGesture by overlayGesturePref.collectAsState()
         val ocrOutlineVisiblePref = readerPreferences.ocrOutlineVisible()
 
         val ocrButtonSizePref = dictionaryPreferences.ocrButtonSize()
@@ -108,6 +117,10 @@ object SettingsOcrScreen : SearchableSettings {
 
         val videoOcrAudioPaddingPref = dictionaryPreferences.videoOcrSentenceAudioPaddingSeconds()
         val videoOcrAudioPadding by videoOcrAudioPaddingPref.collectAsState()
+        val subtitleAudioBeforePref = subtitlePreferences.subtitleAudioPaddingBeforeMillis()
+        val subtitleAudioBefore by subtitleAudioBeforePref.collectAsState()
+        val subtitleAudioAfterPref = subtitlePreferences.subtitleAudioPaddingAfterMillis()
+        val subtitleAudioAfter by subtitleAudioAfterPref.collectAsState()
 
         val parallelOcrSubtitle = when {
             parallelOcrLimit == 1 -> "1 chapter (Recommended - safe and stable)"
@@ -157,6 +170,8 @@ object SettingsOcrScreen : SearchableSettings {
                     ),
                 ),
             ),
+
+            getOcrModelsGroup(),
 
             // 2. OCR Boxes
             Preference.PreferenceGroup(
@@ -341,10 +356,35 @@ object SettingsOcrScreen : SearchableSettings {
             Preference.PreferenceGroup(
                 title = stringResource(MR.strings.pref_category_behavior),
                 preferenceItems = persistentListOf(
-                    Preference.PreferenceItem.SwitchPreference(
-                        preference = readerPreferences.ocrTwoFingerGestureEnabled(),
+                    Preference.PreferenceItem.CustomPreference(
+                        title = stringResource(MR.strings.pref_ocr_two_finger_region),
+                        content = {
+                            SwitchPreferenceWidget(
+                                modifier = Modifier.alpha(if (overlayGesture) .38f else 1f),
+                                title = stringResource(MR.strings.pref_ocr_two_finger_region),
+                                subtitle = stringResource(MR.strings.pref_ocr_two_finger_region_summary),
+                                checked = regionGesture,
+                                onCheckedChanged = { enabled ->
+                                    if (enabled) overlayGesturePref.set(false)
+                                    regionGesturePref.set(enabled)
+                                },
+                            )
+                        },
+                    ),
+                    Preference.PreferenceItem.CustomPreference(
                         title = stringResource(MR.strings.pref_ocr_two_finger_gesture),
-                        subtitle = stringResource(MR.strings.pref_ocr_two_finger_gesture_summary),
+                        content = {
+                            SwitchPreferenceWidget(
+                                modifier = Modifier.alpha(if (regionGesture) .38f else 1f),
+                                title = stringResource(MR.strings.pref_ocr_two_finger_gesture),
+                                subtitle = stringResource(MR.strings.pref_ocr_two_finger_gesture_summary),
+                                checked = overlayGesture,
+                                onCheckedChanged = { enabled ->
+                                    if (enabled) regionGesturePref.set(false)
+                                    overlayGesturePref.set(enabled)
+                                },
+                            )
+                        },
                     ),
                     Preference.PreferenceItem.SwitchPreference(
                         preference = readerPreferences.ocrAutoOnDownload(),
@@ -358,6 +398,49 @@ object SettingsOcrScreen : SearchableSettings {
                         valueRange = 1..15,
                         steps = 13,
                         onValueChanged = { videoOcrAudioPaddingPref.set(it) },
+                    ),
+                    Preference.PreferenceItem.CustomPreference(
+                        title = stringResource(MR.strings.pref_subtitle_audio_padding),
+                        content = {
+                            val limit = SubtitlePreferences.AUDIO_PADDING_MAX_MILLIS
+                            var padding by remember(subtitleAudioBefore, subtitleAudioAfter) {
+                                mutableStateOf(
+                                    -subtitleAudioBefore.coerceIn(0, limit).toFloat()..
+                                        subtitleAudioAfter.coerceIn(0, limit).toFloat(),
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(MR.strings.pref_subtitle_audio_padding),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    text = stringResource(MR.strings.pref_subtitle_audio_padding_summary),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text(stringResource(MR.strings.subtitle_audio_padding_before, (-padding.start).roundToInt()))
+                                    Text(stringResource(MR.strings.subtitle_audio_padding_after, padding.endInclusive.roundToInt()))
+                                }
+                                RangeSlider(
+                                    value = padding,
+                                    onValueChange = { padding = it.start.coerceAtMost(0f)..it.endInclusive.coerceAtLeast(0f) },
+                                    onValueChangeFinished = {
+                                        subtitleAudioBeforePref.set((-padding.start).roundToInt())
+                                        subtitleAudioAfterPref.set(padding.endInclusive.roundToInt())
+                                    },
+                                    valueRange = -limit.toFloat()..limit.toFloat(),
+                                    steps = limit * 2 / 50 - 1,
+                                )
+                            }
+                        },
                     ),
                 ),
             ),

@@ -14,7 +14,9 @@ enum class ReaderBottomButton(val value: String, val stringRes: StringResource) 
     CropBordersPager("cbp", SYMR.strings.pref_crop_borders_pager),
     CropBordersContinuesVertical("cbc", SYMR.strings.pref_crop_borders_continuous_vertical),
     CropBordersWebtoon("cbw", SYMR.strings.pref_crop_borders_webtoon),
-    PageLayout("pl", SYMR.strings.page_layout),
+    PageLayout("layout", SYMR.strings.page_layout),
+    // Keep the crop button's saved key; restored page-layout controls are opt-in.
+    CropReOcr("pl", MR.strings.pref_ocr_two_finger_region),
     MangaStats("ms", MR.strings.action_manga_stats),
     ;
 
@@ -26,7 +28,7 @@ enum class ReaderBottomButton(val value: String, val stringRes: StringResource) 
             WebView,
             CropBordersPager,
             CropBordersContinuesVertical,
-            PageLayout,
+            CropReOcr,
             MangaStats,
         ).map { it.value }.toSet()
     }
