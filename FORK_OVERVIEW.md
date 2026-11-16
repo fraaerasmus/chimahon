@@ -68,9 +68,9 @@ chimahon.custom.di.CustomModule.register(this, app)
   `// Custom <--` around a block, `/* Custom --> */ ... /* Custom <-- */` inside one line,
   `# Custom -->` in proguard rules, and `<!-- Custom -->` with `<!-- /Custom -->` in XML,
   where a comment cannot contain two dashes.
-- **Fork-owned roots:** `app/src/main/java/chimahon/custom/` (`di`, `core`, `ui`, `kosync`,
+- **Fork-owned roots:** `app/src/main/java/chimahon/custom/` (`di`, `core`, `ui`, `kosync`, `opds`,
   `upload`, `player`, `youtube`, `lookup`), `chimahon/keybinding`,
-  `chimahon/novel/{kosync,opds}`, `chimahon/custom/lookup` in the `chimahon` module, and the
+  `chimahon/novel/kosync`, `chimahon/custom/lookup` in the `chimahon` module, and the
   `strings_custom.xml` files in `i18n` and `i18n-ank`. Not everything under
   `app/src/main/java/chimahon/` is ours: `chimahon/novel/ui/reader` is upstream's.
 - **The audit:** `python3 .github/scripts/custom_fence_audit.py` lists every fork line in an
@@ -166,7 +166,7 @@ copy a small constant instead): `lookupWithSearchResolution` in `OcrLookupPopup.
   `NovelDbPositionStore` is the bridge to upstream's DB-first reader, and
   `jumpToSyncedPosition` in the novel `ReaderViewModel` is the one method that has to live in
   upstream's class.
-- **OPDS:** `chimahon/novel/opds` (browser, feed parser, client, `OpdsComicImporter`) and its
+- **OPDS:** `chimahon/custom/opds` (browser, feed parser, client, `OpdsComicImporter`) and its
   `ui/` (`OpdsMangaScreen`, `NovelImportFab`, `NovelOpdsBrowser`). Novels go through upstream's
   `importBooks`, which returns its `Job` so the download can be deleted afterwards.
   `BookImporter` and `FileNames` are identical to upstream. Saved catalogs are one private

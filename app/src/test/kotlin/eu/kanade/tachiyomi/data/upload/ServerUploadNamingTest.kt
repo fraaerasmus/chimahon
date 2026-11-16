@@ -1,6 +1,6 @@
 package eu.kanade.tachiyomi.data.upload
 
-import chimahon.novel.opds.OpdsComicImporter
+import chimahon.custom.opds.OpdsComicImporter
 import eu.kanade.tachiyomi.ui.browse.source.MangaImportUtil
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

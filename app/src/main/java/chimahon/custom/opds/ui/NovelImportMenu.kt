@@ -1,4 +1,4 @@
-package chimahon.novel.opds.ui
+package chimahon.custom.opds.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,8 +15,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import chimahon.novel.opds.OpdsBrowser
-import chimahon.novel.opds.OpdsCatalogRepository
+import chimahon.custom.opds.OpdsBrowser
+import chimahon.custom.opds.OpdsCatalogRepository
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import uy.kohesive.injekt.Injekt

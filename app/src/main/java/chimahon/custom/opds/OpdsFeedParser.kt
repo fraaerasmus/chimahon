@@ -1,4 +1,4 @@
-package chimahon.novel.opds
+package chimahon.custom.opds
 
 import chimahon.custom.core.hardenedDocumentBuilderFactory
 import org.w3c.dom.Element

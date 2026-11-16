@@ -46,7 +46,7 @@ fun Screen.sourcesTab(
     val state by screenModel.state.collectAsState()
 
     val importState = rememberLocalMangaImportState()
-    LocalMangaImportDialogs(state = importState, includeNovelOption = true /* Custom --> */, onOpds = { navigator.push(chimahon.novel.opds.ui.OpdsMangaScreen()) } /* Custom <-- */)
+    LocalMangaImportDialogs(state = importState, includeNovelOption = true /* Custom --> */, onOpds = { navigator.push(chimahon.custom.opds.ui.OpdsMangaScreen()) } /* Custom <-- */)
 
     return TabContent(
         // SY -->

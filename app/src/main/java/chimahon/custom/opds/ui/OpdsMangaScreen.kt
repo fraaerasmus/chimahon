@@ -1,4 +1,4 @@
-package chimahon.novel.opds.ui
+package chimahon.custom.opds.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -12,10 +12,10 @@ import androidx.compose.ui.platform.LocalContext
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import chimahon.novel.opds.OpdsBrowser
-import chimahon.novel.opds.OpdsCatalogRepository
-import chimahon.novel.opds.OpdsComicImporter
-import chimahon.novel.opds.OpdsFormat
+import chimahon.custom.opds.OpdsBrowser
+import chimahon.custom.opds.OpdsCatalogRepository
+import chimahon.custom.opds.OpdsComicImporter
+import chimahon.custom.opds.OpdsFormat
 import eu.kanade.tachiyomi.util.system.toast
 import kotlinx.coroutines.launch
 import uy.kohesive.injekt.Injekt

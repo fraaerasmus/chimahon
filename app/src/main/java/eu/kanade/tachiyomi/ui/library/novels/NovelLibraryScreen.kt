@@ -393,7 +393,7 @@ fun Screen.NovelLibraryScreen(
                 exit = androidx.compose.animation.fadeOut(),
             ) {
                 // Custom -->
-                chimahon.novel.opds.ui.NovelImportFab(
+                chimahon.custom.opds.ui.NovelImportFab(
                     onImportFiles = { epubPicker.launch("application/epub+zip") },
                     onOpds = { showOpdsBrowser = true },
                 )
@@ -464,7 +464,7 @@ fun Screen.NovelLibraryScreen(
 
     // Custom -->
     if (showOpdsBrowser) {
-        chimahon.novel.opds.ui.NovelOpdsBrowser(
+        chimahon.custom.opds.ui.NovelOpdsBrowser(
             importBusy = state.isImporting,
             onClose = { showOpdsBrowser = false },
             onImport = { file ->

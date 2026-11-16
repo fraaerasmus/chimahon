@@ -1,4 +1,4 @@
-package chimahon.novel.opds
+package chimahon.custom.opds
 
 import eu.kanade.tachiyomi.ui.browse.source.ImportHandler
 import eu.kanade.tachiyomi.ui.browse.source.MangaImportUtil

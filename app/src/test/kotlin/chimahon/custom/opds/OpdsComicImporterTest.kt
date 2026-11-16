@@ -1,4 +1,4 @@
-package chimahon.novel.opds
+package chimahon.custom.opds
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

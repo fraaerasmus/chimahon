@@ -1,4 +1,4 @@
-package chimahon.novel.opds
+package chimahon.custom.opds
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable

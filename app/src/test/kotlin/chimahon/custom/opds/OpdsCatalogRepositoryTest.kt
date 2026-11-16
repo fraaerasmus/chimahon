@@ -1,4 +1,4 @@
-package chimahon.novel.opds
+package chimahon.custom.opds
 
 import chimahon.custom.core.FakePreferenceStore
 import org.junit.jupiter.api.Assertions.assertEquals

@@ -1,14 +1,14 @@
 package chimahon.custom.di
 
 import android.app.Application
+import chimahon.custom.kosync.MangaKosyncManager
+import chimahon.custom.opds.OpdsCatalogRepository
+import chimahon.custom.player.CustomGesturePreferences
 import chimahon.keybinding.KeyBindingPreferences
 import chimahon.novel.kosync.KosyncManager
 import chimahon.novel.kosync.KosyncPreferences
 import chimahon.novel.kosync.KosyncSession
 import chimahon.novel.kosync.NovelDbPositionStore
-import chimahon.novel.opds.OpdsCatalogRepository
-import chimahon.custom.kosync.MangaKosyncManager
-import chimahon.custom.player.CustomGesturePreferences
 import eu.kanade.tachiyomi.data.upload.ServerUploadManager
 import uy.kohesive.injekt.api.InjektRegistrar
 import uy.kohesive.injekt.api.addSingletonFactory
